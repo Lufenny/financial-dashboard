@@ -24,14 +24,17 @@ baseline = np.cumprod([1.05]*len(years)) * 100
 optimistic = np.cumprod([1.08]*len(years)) * 100
 pessimistic = np.cumprod([1.03]*len(years)) * 100
 
+# Convert to integers (remove decimals)
 df_scen = pd.DataFrame({
     "Year": years.astype(int),
-    "Baseline (5%)": baseline,
-    "Optimistic (8%)": optimistic,
-    "Pessimistic (3%)": pessimistic
+    "Baseline (5%)": baseline.astype(int),
+    "Optimistic (8%)": optimistic.astype(int),
+    "Pessimistic (3%)": pessimistic.astype(int)
 })
 
 # --- Chart ---
+import matplotlib.ticker as mtick
+
 fig, ax = plt.subplots()
 ax.plot(df_scen["Year"], df_scen["Baseline (5%)"], label="Baseline (5%)", color="blue")
 ax.plot(df_scen["Year"], df_scen["Optimistic (8%)"], label="Optimistic (8%)", color="green")
@@ -40,9 +43,13 @@ ax.set_xlabel("Year")
 ax.set_ylabel("Index Value (Relative Growth)")
 ax.set_title("Scenario Comparison")
 ax.legend()
+
+# Force integer format on y-axis
+ax.yaxis.set_major_formatter('{:.0f}'.format)
+
 st.pyplot(fig)
 
-# --- Download ---
+# --- Download CSV (integers only) ---
 csv = df_scen.to_csv(index=False).encode("utf-8")
 st.download_button(
     "⬇️ Download Scenario Results (CSV)",
