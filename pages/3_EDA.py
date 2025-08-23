@@ -2,12 +2,13 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import requests
 from wordcloud import WordCloud
 from collections import Counter
 import nltk
 from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-
+from nltk import word_tokenize, ngrams
+from nltk.stem import WordNetLemmatize
 # ----------------------------
 # NLTK Setup
 # ----------------------------
