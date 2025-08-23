@@ -104,11 +104,11 @@ if page == "📊 EDA":
         st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
 # ----------------------------
-# Page 2: Multi-Forum Scraper (with caching)
+# Page 2: Lowyat.NET Forum Scraper (Streamlit Cloud)
 # ----------------------------
 elif page == "💬 Forum Scraper":
-    st.title("🏡 Rent vs Buy — Forum Discussions (Malaysia)")
-    st.write("Fetch discussions from Lowyat.NET or PropertyGuru without API keys.")
+    st.title("🏡 Rent vs Buy — Lowyat.NET Discussions (Malaysia)")
+    st.write("Fetching latest discussions from Lowyat.NET without API keys.")
 
     import requests
     from bs4 import BeautifulSoup
@@ -124,13 +124,12 @@ elif page == "💬 Forum Scraper":
     # ----------------------------
     # User Inputs
     # ----------------------------
-    forum = st.selectbox("Choose Forum:", ["Lowyat.NET", "PropertyGuru"])
     query = st.text_input("Search query:", "rent vs buy")
     limit = st.slider("Number of posts", 5, 20, 10)
     ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
 
     # ----------------------------
-    # Scraper Functions
+    # Scraper Function with caching
     # ----------------------------
     @st.cache_data(show_spinner=False)
     def scrape_lowyat(query, limit=10):
@@ -159,28 +158,7 @@ elif page == "💬 Forum Scraper":
                 snippet = t.find("div", class_="searchpost-content").text.strip() if t.find("div", class_="searchpost-content") else ""
                 posts.append({"title": title, "content": snippet, "url": url})
         except Exception as e:
-            st.error(f"Lowyat.NET scraping failed: {e}")
-        return pd.DataFrame(posts)
-
-    @st.cache_data(show_spinner=False)
-    def scrape_propertyguru(query, limit=10):
-        base_url = "https://www.propertyguru.com.my/property-news"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        posts = []
-        try:
-            res = requests.get(base_url, headers=headers, timeout=10)
-            soup = BeautifulSoup(res.text, "html.parser")
-            articles = soup.find_all("div", class_="article-item")[:limit]
-            for art in articles:
-                title_tag = art.find("h2")
-                title = title_tag.text.strip() if title_tag else ""
-                url = title_tag.find("a")["href"] if title_tag and title_tag.find("a") else ""
-                snippet_tag = art.find("p")
-                snippet = snippet_tag.text.strip() if snippet_tag else ""
-                if query.lower() in title.lower() or query.lower() in snippet.lower():
-                    posts.append({"title": title, "content": snippet, "url": url})
-        except Exception as e:
-            st.error(f"PropertyGuru scraping failed: {e}")
+            st.error(f"Scraping failed: {e}")
         return pd.DataFrame(posts)
 
     # ----------------------------
@@ -206,15 +184,11 @@ elif page == "💬 Forum Scraper":
     # Scraping & Display
     # ----------------------------
     if st.button("Scrape Discussions"):
-        with st.spinner(f"Scraping {forum}..."):
-            # Cached scraping
-            if forum == "Lowyat.NET":
-                df = scrape_lowyat(query, limit)
-            else:
-                df = scrape_propertyguru(query, limit)
+        with st.spinner("Scraping Lowyat.NET..."):
+            df = scrape_lowyat(query, limit)
 
             if not df.empty:
-                st.success(f"Fetched {len(df)} posts from {forum}")
+                st.success(f"Fetched {len(df)} posts")
                 st.dataframe(df)
 
                 # Word Cloud & Top Words
@@ -249,4 +223,4 @@ elif page == "💬 Forum Scraper":
                 else:
                     st.warning("No text available for analysis.")
             else:
-                st.warning(f"No posts found for '{query}' in {forum}.")
+                st.warning(f"No posts found for '{query}' in Lowyat.NET.")
