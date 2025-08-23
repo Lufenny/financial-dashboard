@@ -13,6 +13,7 @@ import praw
 # ----------------------------
 # NLTK Setup
 # ----------------------------
+nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('wordnet')
 
@@ -30,7 +31,8 @@ page = st.sidebar.radio("Go to:", ["📊 EDA", "💬 Forum Scraper"])
 def load_data():
     url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Data.csv"
     try:
-        return pd.read_csv(url)
+        df = pd.read_csv(url)
+        return df
     except Exception as e:
         st.error(f"Could not load Data.csv from GitHub. Error: {e}")
         return pd.DataFrame()
@@ -99,6 +101,8 @@ if page == "📊 EDA":
         st.subheader("⬇️ Download Data")
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download Dataset (CSV)", data=csv, file_name="EDA_data.csv", mime="text/csv")
+    else:
+        st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
 # ----------------------------
 # Forum Scraper Page (PRAW)
@@ -108,15 +112,18 @@ elif page == "💬 Forum Scraper":
     st.write("Fetching latest Reddit discussions via official API.")
 
     # Reddit API credentials from Streamlit secrets
-    client_id = st.secrets["REDDIT_CLIENT_ID"]
-    client_secret = st.secrets["REDDIT_CLIENT_SECRET"]
-    user_agent = "streamlit_app_by_lufenny"
-
-    reddit = praw.Reddit(
-        client_id=client_id,
-        client_secret=client_secret,
-        user_agent=user_agent
-    )
+    try:
+        client_id = st.secrets["REDDIT_CLIENT_ID"]
+        client_secret = st.secrets["REDDIT_CLIENT_SECRET"]
+        user_agent = "streamlit_app_by_lufenny"
+        reddit = praw.Reddit(
+            client_id=client_id,
+            client_secret=client_secret,
+            user_agent=user_agent
+        )
+    except Exception as e:
+        st.error(f"Reddit API not configured correctly. Error: {e}")
+        st.stop()
 
     query = st.text_input("Search query:", "rent vs buy")
     subreddit = st.selectbox("Choose subreddit:", ["MalaysianPF", "Malaysia", "personalfinance", "realestate"])
@@ -125,63 +132,67 @@ elif page == "💬 Forum Scraper":
 
     if st.button("Scrape Discussions"):
         with st.spinner("Fetching Reddit posts..."):
-            posts = []
-            for submission in reddit.subreddit(subreddit).search(query, limit=limit, sort="new"):
-                posts.append({
-                    "title": submission.title,
-                    "content": submission.selftext[:300],
-                    "url": submission.url
-                })
+            try:
+                posts = []
+                for submission in reddit.subreddit(subreddit).search(query, limit=limit, sort="new"):
+                    posts.append({
+                        "title": submission.title,
+                        "content": submission.selftext[:300],
+                        "url": submission.url
+                    })
 
-            df = pd.DataFrame(posts)
+                df = pd.DataFrame(posts)
 
-            if df.empty:
-                st.warning("No posts found. Try another query or subreddit.")
-                st.stop()
+                if df.empty:
+                    st.warning("No posts found. Try another query or subreddit.")
+                    st.stop()
 
-            st.success(f"Fetched {len(df)} posts from r/{subreddit}")
-            st.dataframe(df)
+                st.success(f"Fetched {len(df)} posts from r/{subreddit}")
+                st.dataframe(df)
 
-            # Combine title + content for analysis
-            text_series = df["title"].fillna("") + " " + df["content"].fillna("")
+                # Combine title + content for analysis
+                text_series = df["title"].fillna("") + " " + df["content"].fillna("")
 
-            # Text Preprocessing
-            lemmatizer = WordNetLemmatizer()
-            stop_words = set(stopwords.words("english"))
-            all_tokens = []
+                # Text Preprocessing
+                lemmatizer = WordNetLemmatizer()
+                stop_words = set(stopwords.words("english"))
+                all_tokens = []
 
-            for text in text_series.astype(str):
-                tokens = re.findall(r'\b[a-zA-Z]+\b', text.lower())
-                tokens = [lemmatizer.lemmatize(t) for t in tokens if t not in stop_words]
-                all_tokens.extend(tokens)
+                for text in text_series.astype(str):
+                    tokens = re.findall(r'\b[a-zA-Z]+\b', text.lower())
+                    tokens = [lemmatizer.lemmatize(t) for t in tokens if t not in stop_words]
+                    all_tokens.extend(tokens)
 
-            tokens = all_tokens
+                tokens = all_tokens
 
-            if tokens:
-                n = 1 if ngram_option == "Unigrams" else 2 if ngram_option == "Bigrams" else 3
-                if n == 1:
-                    top_ngrams = Counter(tokens).most_common(10)
-                else:
-                    top_ngrams = Counter(ngrams(tokens, n)).most_common(10)
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.write("### Word Cloud")
+                if tokens:
+                    n = 1 if ngram_option == "Unigrams" else 2 if ngram_option == "Bigrams" else 3
                     if n == 1:
-                        wc_text = " ".join(tokens)
-                        wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
-                        fig, ax = plt.subplots(figsize=(10,5))
-                        ax.imshow(wc, interpolation="bilinear")
-                        ax.axis("off")
-                        st.pyplot(fig)
+                        top_ngrams = Counter(tokens).most_common(10)
                     else:
-                        st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
+                        top_ngrams = Counter(ngrams(tokens, n)).most_common(10)
 
-                with col2:
-                    st.write(f"### Top 10 {ngram_option}")
-                    top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
-                    counts = [count for w, count in top_ngrams]
-                    st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
-            else:
-                st.warning("No text available for Word Cloud / n-gram analysis.")
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.write("### Word Cloud")
+                        if n == 1:
+                            wc_text = " ".join(tokens)
+                            wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
+                            fig, ax = plt.subplots(figsize=(10,5))
+                            ax.imshow(wc, interpolation="bilinear")
+                            ax.axis("off")
+                            st.pyplot(fig)
+                        else:
+                            st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
+
+                    with col2:
+                        st.write(f"### Top 10 {ngram_option}")
+                        top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
+                        counts = [count for w, count in top_ngrams]
+                        st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
+                else:
+                    st.warning("No text available for Word Cloud / n-gram analysis.")
+
+            except Exception as e:
+                st.error(f"Error fetching Reddit posts: {e}")
