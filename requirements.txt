@@ -1,7 +1,6 @@
 streamlit
 pandas
-numpy
 matplotlib
 nltk
 wordcloud
-requests
+praw
