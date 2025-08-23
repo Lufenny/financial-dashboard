@@ -3,7 +3,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title='Results & Interpretation', layout='wide')
-st.title('📑 Results & Interpretation')
 
 # ---------------------------------------------
 # Results & Interpretation Content
