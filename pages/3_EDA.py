@@ -17,16 +17,6 @@ nltk.download('stopwords')
 # ----------------------------
 # Sidebar Navigation
 # ----------------------------
-with st.sidebar:
-    st.markdown("## 📌 Navigation Guide")
-    st.markdown("""
-    **1. Expected Outcomes** – Overview & goals  
-    **2. 📑 Analysis** – Scenario comparison  
-    **3. 📊 EDA** – Explore dataset  
-    **4. ☁️ WordCloud** – Blog text analysis  
-    **5. ⚙️ Data Process** – Data cleaning & prep
-    """)
-
 page = st.sidebar.radio("Go to:", ["Expected Outcomes", "📑 Analysis", "📊 EDA", "☁️ WordCloud", "⚙️ Data Process"])
 
 # ----------------------------
@@ -91,11 +81,12 @@ elif page == "☁️ WordCloud":
     file_path = "Rent_vs_Buy_Blogs.csv"
     df_text = pd.read_csv(file_path)
 
-    if "content" not in df_text.columns:
-        st.error("CSV file must contain a 'content' column with blog text.")
+    # Use correct column
+    if "Content" not in df_text.columns:
+        st.error("CSV file must contain a 'Content' column with blog text.")
     else:
         # Combine all blog text
-        text_data = " ".join(df_text["content"].dropna().astype(str))
+        text_data = " ".join(df_text["Content"].dropna().astype(str))
 
         # Tokenize & clean
         tokens = word_tokenize(text_data.lower())
