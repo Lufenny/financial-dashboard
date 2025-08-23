@@ -9,8 +9,9 @@ st.title('⚙️ Data Processing')
 # Load Data
 # ---------------------------------------------
 @st.cache_data
-def load_data(filepath="data.csv"):
-    return pd.read_csv(filepath)
+def load_data():
+    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Data.csv"
+    return pd.read_csv(url)
 
 st.title("⚙️ Data Processing Dashboard")
 
