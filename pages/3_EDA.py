@@ -36,16 +36,16 @@ def load_eda_data():
         return pd.DataFrame()
 
 # ----------------------------
-# Load Blog Data
+# Load Blog Data (CSV)
 # ----------------------------
 @st.cache_data
 def load_blog_data():
-    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Rent_vs_Buy_Blogs.xlsx"
+    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Rent_vs_Buy_Blogs.csv"
     try:
-        df = pd.read_excel(url)
+        df = pd.read_csv(url)
         return df
     except Exception as e:
-        st.error(f"Could not load blog Excel file. Error: {e}")
+        st.error(f"Could not load blog CSV file. Error: {e}")
         return pd.DataFrame()
 
 # ----------------------------
@@ -171,4 +171,4 @@ elif page == "💬 Blog Insights":
         else:
             st.warning("No text available for Word Cloud / n-gram analysis.")
     else:
-        st.warning("Blog Excel file is empty or missing. Please check the GitHub link.")
+        st.warning("Blog CSV file is empty or missing. Please check the GitHub link.")
