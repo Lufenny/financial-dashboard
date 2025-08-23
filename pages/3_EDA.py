@@ -36,7 +36,7 @@ def load_eda_data():
         return pd.DataFrame()
 
 # ----------------------------
-# Load Blog Data (CSV)
+# Load Blog Data
 # ----------------------------
 @st.cache_data
 def load_blog_data():
