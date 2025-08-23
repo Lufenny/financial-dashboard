@@ -17,7 +17,7 @@ nltk.download('stopwords')
 # ----------------------------
 @st.cache_data
 def load_data():
-    return pd.read_csv("data.csv")  # replace with your CSV path
+    return pd.read_csv("Data.csv")  # replace with your CSV path
 
 # ----------------------------
 # Sidebar Navigation
@@ -90,7 +90,7 @@ if page == "📊 EDA":
     # Download
     st.subheader("⬇️ Download Data")
     csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download Dataset (CSV)", data=csv, file_name="EDA_data.csv", mime="text/csv")
+    st.download_button("Download Dataset (CSV)", Data=csv, file_name="EDA_Data.csv", mime="text/csv")
 
 # ----------------------------
 # Page 2: WordCloud + Top Words
