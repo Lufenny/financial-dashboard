@@ -17,63 +17,76 @@ nltk.download('stopwords')
 # ----------------------------
 # Sidebar Navigation
 # ----------------------------
-page = st.sidebar.radio("Go to:", ["Expected Outcomes", "📑 Analysis", "📊 EDA", "☁️ WordCloud", "⚙️ Data Process"])
+page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
 
 # ----------------------------
-# Page 1: Expected Outcomes
+# Page 1: EDA
 # ----------------------------
-if page == "Expected Outcomes":
-    st.title("🎯 Expected Outcomes")
-    st.markdown("""
-    - Compare **Rent vs Buy** scenarios  
-    - Identify long-term financial implications  
-    - Explore sensitivity to key assumptions  
-    - Summarize results with clear visualizations  
-    """)
+if page == "📊 EDA":
+    st.title("🔎 Exploratory Data Analysis (EDA)")
 
-# ----------------------------
-# Page 2: Analysis
-# ----------------------------
-elif page == "📑 Analysis":
-    st.title("📑 Scenario Comparison")
-    st.markdown("Compare different financial scenarios side by side.")
+    df = load_data()
 
-    # Example scenario table
-    scenarios = pd.DataFrame({
-        "Scenario": ["Renting", "Buying (Loan)", "Buying (Cash)"],
-        "Total Cost (RM)": [800000, 950000, 900000],
-        "Net Worth (RM)": [500000, 1200000, 1100000]
-    })
-    st.dataframe(scenarios)
+    # Ensure Year is integer
+    if "Year" in df.columns:
+        df["Year"] = df["Year"].astype(int)
+        df = df.reset_index(drop=True)
 
-    st.markdown("This helps visualize trade-offs between renting and buying.")
-
-# ----------------------------
-# Page 3: EDA
-# ----------------------------
-elif page == "📊 EDA":
-    st.title("📊 Exploratory Data Analysis")
-
-    # Example dataset
-    df = pd.DataFrame({
-        "Year": np.arange(2025, 2035),
-        "Rent Cost": np.linspace(20000, 35000, 10),
-        "Buy Cost": np.linspace(25000, 40000, 10)
-    })
-    st.write("### Sample Dataset")
+    # Data Preview
+    st.subheader("📋 Data Preview")
     st.dataframe(df)
 
-    # Plotting
-    fig, ax = plt.subplots()
-    ax.plot(df["Year"], df["Rent Cost"], label="Rent Cost")
-    ax.plot(df["Year"], df["Buy Cost"], label="Buy Cost")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Annual Cost (RM)")
-    ax.legend()
-    st.pyplot(fig)
+    # Summary Statistics
+    st.subheader("📊 Summary Statistics")
+    st.write(df.describe())
+
+    # Chart Selector
+    st.subheader("📈 Visual Analysis")
+    chart_type = st.selectbox(
+        "Select a chart to display:",
+        ["OPR vs Year", "EPF vs Year", "Price Growth vs Year", "Rent Yield vs Year", "Correlation Heatmap"]
+    )
+
+    if chart_type == "OPR vs Year" and "OPR_avg" in df.columns:
+        fig, ax = plt.subplots()
+        ax.plot(df["Year"], df["OPR_avg"], marker="o", label="OPR (%)", color="blue")
+        ax.set_xlabel("Year"); ax.set_ylabel("OPR (%)")
+        ax.set_title("Trend of OPR vs Year")
+        ax.legend(); st.pyplot(fig)
+
+    elif chart_type == "EPF vs Year" and "EPF" in df.columns:
+        fig, ax = plt.subplots()
+        ax.plot(df["Year"], df["EPF"], marker="s", label="EPF (%)", color="orange")
+        ax.set_xlabel("Year"); ax.set_ylabel("EPF (%)")
+        ax.set_title("Trend of EPF vs Year")
+        ax.legend(); st.pyplot(fig)
+
+    elif chart_type == "Price Growth vs Year" and "PriceGrowth" in df.columns:
+        fig, ax = plt.subplots()
+        ax.plot(df["Year"], df["PriceGrowth"], marker="^", label="Price Growth (%)", color="green")
+        ax.set_xlabel("Year"); ax.set_ylabel("Price Growth (%)")
+        ax.set_title("Trend of Price Growth vs Year")
+        ax.legend(); st.pyplot(fig)
+
+    elif chart_type == "Rent Yield vs Year" and "RentYield" in df.columns:
+        fig, ax = plt.subplots()
+        ax.plot(df["Year"], df["RentYield"], marker="d", label="Rental Yield (%)", color="purple")
+        ax.set_xlabel("Year"); ax.set_ylabel("Rental Yield (%)")
+        ax.set_title("Trend of Rental Yield vs Year")
+        ax.legend(); st.pyplot(fig)
+
+    elif chart_type == "Correlation Heatmap":
+        st.write("### Correlation Matrix")
+        corr = df.corr(numeric_only=True)
+        st.dataframe(corr.style.background_gradient(cmap="Blues"))
+
+    # Download
+    st.subheader("⬇️ Download Data")
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download Dataset (CSV)", data=csv, file_name="EDA_data.csv", mime="text/csv")
 
 # ----------------------------
-# Page 4: WordCloud + Top Words
+# Page 2: WordCloud + Top Words
 # ----------------------------
 elif page == "☁️ WordCloud":
     st.title("📝 Rent vs Buy — Blog Word Analysis")
@@ -120,14 +133,3 @@ elif page == "☁️ WordCloud":
             ax_bar.set_ylabel("Word")
             st.pyplot(fig_bar)
 
-# ----------------------------
-# Page 5: Data Process
-# ----------------------------
-elif page == "⚙️ Data Process":
-    st.title("⚙️ Data Processing Steps")
-    st.markdown("""
-    - Clean raw financial datasets  
-    - Handle missing values  
-    - Merge rent and buy cost data  
-    - Prepare for modeling & scenario analysis  
-    """)
