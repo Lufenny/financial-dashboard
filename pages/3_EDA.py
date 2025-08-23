@@ -3,65 +3,57 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import nltk
-from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
 
-# Make sure nltk punkt + stopwords are available
+# --- Ensure NLTK dependencies ---
 nltk.download("punkt", quiet=True)
 nltk.download("stopwords", quiet=True)
 
-st.title("📑 Rent vs Buy — Blog Insights (Malaysia)")
+# --- Page Title ---
+st.title("📑 Blog Insights: Rent vs Buy in Malaysia")
 
 # --- Load CSV from GitHub ---
 @st.cache_data
-def load_blog_data():
-    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/financial-dashboard/Rent_vs_Buy_Blogs.csv"
-    try:
-        df = pd.read_csv(url)
-        return df
-    except Exception as e:
-        st.error(f"Could not load blog CSV file. Error: {e}")
-        return pd.DataFrame()
+def load_data():
+    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Rent_vs_Buy_Blogs.csv"
+    return pd.read_csv(url)
 
-df = load_blog_data()
-
-if df.empty:
-    st.warning("⚠️ Blog CSV file is empty or missing. Please check the GitHub link.")
-else:
+try:
+    df = load_data()
     st.success("✅ Blog CSV loaded successfully!")
-    st.dataframe(df)
+except Exception as e:
+    st.error(f"⚠️ Could not load blog CSV file.\n\n{e}")
+    st.stop()
 
-    # --- Show category distribution ---
-    st.subheader("📊 Category Distribution")
+# --- Show raw dataset ---
+st.subheader("🔍 Blog Data Preview")
+st.dataframe(df)
+
+# --- Preprocess text ---
+def preprocess_text(series):
+    text = " ".join(series.dropna().astype(str))
+    tokens = word_tokenize(text.lower())
+    stop_words = set(stopwords.words("english"))
+    tokens = [w for w in tokens if w.isalpha() and w not in stop_words]
+    return " ".join(tokens)
+
+# --- Generate Word Cloud ---
+st.subheader("☁️ Word Cloud of Blog Content")
+all_text = preprocess_text(df["Content"])
+if all_text.strip():
+    wc = WordCloud(width=800, height=400, background_color="white").generate(all_text)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.imshow(wc, interpolation="bilinear")
+    ax.axis("off")
+    st.pyplot(fig)
+else:
+    st.warning("⚠️ No text found for Word Cloud.")
+
+# --- Category Distribution ---
+st.subheader("📊 Category Distribution")
+if "Category" in df.columns:
     category_counts = df["Category"].value_counts()
     st.bar_chart(category_counts)
-
-    # --- Word Cloud from blog contents ---
-    st.subheader("☁️ Word Cloud from Blog Content")
-
-    text_series = df["Content"].dropna().astype(str)
-    stop_words = set(stopwords.words("english"))
-
-    def preprocess_text(text_series):
-        tokens = []
-        for text in text_series:
-            words = word_tokenize(text.lower())
-            words = [w for w in words if w.isalpha() and w not in stop_words]
-            tokens.extend(words)
-        return tokens
-
-    tokens = preprocess_text(text_series)
-
-    if tokens:
-        wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(tokens))
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.imshow(wordcloud, interpolation="bilinear")
-        ax.axis("off")
-        st.pyplot(fig)
-    else:
-        st.warning("⚠️ No tokens available for word cloud.")
-
-    # --- Top keywords ---
-    st.subheader("🔑 Top Keywords in Blog Content")
-    freq = pd.Series(tokens).value_counts().head(15)
-    st.bar_chart(freq)
+else:
+    st.warning("⚠️ 'Category' column missing in dataset.")
