@@ -1,5 +1,4 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import requests
@@ -11,19 +10,33 @@ from nltk import word_tokenize, ngrams
 from nltk.stem import WordNetLemmatizer
 import os
 
-# Download required NLTK data
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('wordnet')
-
 st.set_page_config(page_title='EDA', layout='wide')
 st.title('🔎 Exploratory Data Analysis (EDA)')
 
 # ----------------------------
-# Load EDA Data
+# Download required NLTK data
 # ----------------------------
-df = pd.read_csv("utils/Data.csv")
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
 
+# ----------------------------
+# Load EDA Data (local or GitHub)
+# ----------------------------
+@st.cache_data
+def load_data():
+    local_path = "data/data.csv"  # folder in repo
+    github_url = "https://raw.githubusercontent.com/yourusername/yourrepo/main/data/data.csv"
+
+    if os.path.exists(local_path):
+        df = pd.read_csv(local_path)
+    else:
+        try:
+            df = pd.read_csv(github_url)
+        except Exception as e:
+            st.error(f"Could not load data. Make sure 'data.csv' exists.\nError: {e}")
+            return None
+    return df
 
 # ----------------------------
 # Reddit Scraper
@@ -84,6 +97,8 @@ if page == "📊 EDA":
     st.title("🔎 Exploratory Data Analysis (EDA)")
 
     df = load_data()
+    if df is None:
+        st.stop()
 
     # Ensure Year is integer
     if "Year" in df.columns:
@@ -144,7 +159,7 @@ if page == "📊 EDA":
     st.download_button("Download Dataset (CSV)", data=csv, file_name="EDA_data.csv", mime="text/csv")
 
 # ----------------------------
-# Page 2: Forum Scraper (Side-by-side Word Cloud & Top Words)
+# Page 2: Forum Scraper
 # ----------------------------
 elif page == "💬 Forum Scraper":
     st.title("🏡 Rent vs Buy — Forum Discussions (Malaysia)")
@@ -162,7 +177,6 @@ elif page == "💬 Forum Scraper":
                 st.success(f"Fetched {len(df)} posts from r/{subreddit}")
                 st.dataframe(df)
 
-                # Word Cloud & Top Words Side-by-Side
                 st.subheader("📊 Word Cloud & Top Words/Phrases")
                 text_series = df["title"] if "title" in df.columns else df["content"]
                 tokens = preprocess_text(text_series)
@@ -171,7 +185,6 @@ elif page == "💬 Forum Scraper":
                     n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
                     top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
 
-                    # Create two columns
                     col1, col2 = st.columns(2)
 
                     with col1:
@@ -196,3 +209,4 @@ elif page == "💬 Forum Scraper":
                     st.warning("No text available for analysis.")
             else:
                 st.warning("No posts found. Try another query or subreddit.")
+
