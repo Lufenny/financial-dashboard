@@ -178,16 +178,19 @@ elif page == "💬 Forum Scraper":
         with st.spinner("Scraping Reddit..."):
             df = scrape_reddit_no_api(query, subreddit, limit)
 
+            # Ensure 'title' and 'content' columns exist
             if df.empty:
-                st.warning(f"No posts found for '{query}' in r/{subreddit}. Try a different query or subreddit.")
+                st.warning("No posts found. Try another query or subreddit.")
                 st.stop()
+            for col in ["title", "content"]:
+                if col not in df.columns:
+                    df[col] = ""
 
             st.success(f"Fetched {len(df)} posts from r/{subreddit}")
             st.dataframe(df)
 
-            # Use 'title' if exists, else 'content'
-            text_series = df["title"] if "title" in df.columns else df["content"]
-
+            # Combine title and content for analysis
+            text_series = df["title"].fillna("") + " " + df["content"].fillna("")
             tokens = preprocess_text(text_series)
 
             if tokens:
