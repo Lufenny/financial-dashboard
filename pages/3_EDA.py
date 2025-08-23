@@ -17,10 +17,10 @@ nltk.download('stopwords')
 # ----------------------------
 # Sidebar Navigation
 # ----------------------------
-page = st.sidebar.radio("Go to:", ["Expected Outcomes", "📑 Analysis", "☁️ WordCloud", "⚙️ Data Process"])
+page = st.sidebar.radio("Go to:", ["EDA", "WordCloud"])
 
 # ----------------------------
-# Page 1: Expected Outcomes
+# Page 1: EDA
 # ----------------------------
 if page == "Expected Outcomes":
     st.title("🎯 Expected Outcomes")
@@ -31,25 +31,9 @@ if page == "Expected Outcomes":
     - Summarize results with clear visualizations  
     """)
 
-# ----------------------------
-# Page 2: Analysis
-# ----------------------------
-elif page == "📑 Analysis":
-    st.title("📑 Scenario Comparison")
-    st.markdown("Compare different financial scenarios side by side.")
-
-    # Example scenario table
-    scenarios = pd.DataFrame({
-        "Scenario": ["Renting", "Buying (Loan)", "Buying (Cash)"],
-        "Total Cost (RM)": [800000, 950000, 900000],
-        "Net Worth (RM)": [500000, 1200000, 1100000]
-    })
-    st.dataframe(scenarios)
-
-    st.markdown("This helps visualize trade-offs between renting and buying.")
 
 # ----------------------------
-# Page 3: WordCloud + Top Words
+# Page 2: WordCloud + Top Words
 # ----------------------------
 elif page == "☁️ WordCloud":
     st.title("📝 Rent vs Buy — Blog Word Analysis")
@@ -96,14 +80,3 @@ elif page == "☁️ WordCloud":
             ax_bar.set_ylabel("Word")
             st.pyplot(fig_bar)
 
-# ----------------------------
-# Page 4: Data Process
-# ----------------------------
-elif page == "⚙️ Data Process":
-    st.title("⚙️ Data Processing Steps")
-    st.markdown("""
-    - Clean raw financial datasets  
-    - Handle missing values  
-    - Merge rent and buy cost data  
-    - Prepare for modeling & scenario analysis  
-    """)
