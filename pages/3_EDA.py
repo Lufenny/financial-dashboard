@@ -40,6 +40,7 @@ def load_eda_data():
 # ----------------------------
 @st.cache_data
 def load_blog_data():
+    # Correct raw URL for the CSV in your repo
     url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Rent_vs_Buy_Blogs.csv"
     try:
         df = pd.read_csv(url)
