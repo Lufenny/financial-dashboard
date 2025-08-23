@@ -21,12 +21,16 @@ nltk.download('stopwords')
 nltk.download('wordnet')
 
 # ----------------------------
-# Load EDA Data (local or GitHub)
+# Load EDA Data from local utils folder
 # ----------------------------
 @st.cache_data
 def load_data():
-    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/utils/Data.csv"
-    return pd.read_csv(url)
+    path = "utils/Data.csv"  # local path inside repo
+    if os.path.exists(path):
+        return pd.read_csv(path)
+    else:
+        st.error("Data.csv not found in utils folder.")
+        return None
 
 # ----------------------------
 # Reddit Scraper
