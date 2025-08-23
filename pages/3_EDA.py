@@ -5,13 +5,12 @@ from wordcloud import WordCloud
 from collections import Counter
 import nltk
 from nltk.corpus import stopwords
-from nltk import word_tokenize, ngrams
 from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import RegexpTokenizer
 
 # ----------------------------
 # NLTK Setup
 # ----------------------------
-nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('wordnet')
 
@@ -40,7 +39,6 @@ def load_eda_data():
 # ----------------------------
 @st.cache_data
 def load_blog_data():
-    # Correct raw URL for the CSV in your repo
     url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Rent_vs_Buy_Blogs.csv"
     try:
         df = pd.read_csv(url)
@@ -55,10 +53,12 @@ def load_blog_data():
 def preprocess_text(text_series):
     lemmatizer = WordNetLemmatizer()
     stop_words = set(stopwords.words('english'))
+    tokenizer = RegexpTokenizer(r'\b[a-zA-Z]+\b')  # only alphabetic words
+
     all_tokens = []
     for text in text_series.dropna().astype(str):
-        tokens = word_tokenize(text.lower())
-        tokens = [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
+        tokens = tokenizer.tokenize(text.lower())
+        tokens = [lemmatizer.lemmatize(t) for t in tokens if t not in stop_words]
         all_tokens.extend(tokens)
     return all_tokens
 
@@ -66,7 +66,7 @@ def get_top_ngrams(tokens, n=1, top_k=10):
     if n == 1:
         c = Counter(tokens)
     else:
-        c = Counter(ngrams(tokens, n))
+        c = Counter(nltk.ngrams(tokens, n))
     return c.most_common(top_k)
 
 # ----------------------------
