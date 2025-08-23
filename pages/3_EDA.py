@@ -142,9 +142,11 @@ elif page == "💬 Blog Insights":
         # Optional: Filter by keyword
         keyword = st.text_input("Filter by keyword:", "rent buy")
         if keyword:
-            df_blog = df_blog[df_blog["Content"].str.contains(keyword, case=False, na=False)]
-            if df_blog.empty:
+            df_blog_filtered = df_blog[df_blog["Content"].str.contains(keyword, case=False, na=False)]
+            if df_blog_filtered.empty:
                 st.warning(f"No blog posts found containing '{keyword}'.")
+            else:
+                df_blog = df_blog_filtered
 
         st.subheader("📊 Word Cloud & Top Words")
         ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
