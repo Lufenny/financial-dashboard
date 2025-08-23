@@ -17,7 +17,7 @@ nltk.download('stopwords')
 # ----------------------------
 # Sidebar Navigation
 # ----------------------------
-page = st.sidebar.radio("Go to:", ["Expected Outcomes", "📑 Analysis", "📊 EDA", "☁️ WordCloud", "⚙️ Data Process"])
+page = st.sidebar.radio("Go to:", ["Expected Outcomes", "📑 Analysis", "☁️ WordCloud", "⚙️ Data Process"])
 
 # ----------------------------
 # Page 1: Expected Outcomes
@@ -49,31 +49,7 @@ elif page == "📑 Analysis":
     st.markdown("This helps visualize trade-offs between renting and buying.")
 
 # ----------------------------
-# Page 3: EDA
-# ----------------------------
-elif page == "📊 EDA":
-    st.title("📊 Exploratory Data Analysis")
-
-    # Example dataset
-    df = pd.DataFrame({
-        "Year": np.arange(2025, 2035),
-        "Rent Cost": np.linspace(20000, 35000, 10),
-        "Buy Cost": np.linspace(25000, 40000, 10)
-    })
-    st.write("### Sample Dataset")
-    st.dataframe(df)
-
-    # Plotting
-    fig, ax = plt.subplots()
-    ax.plot(df["Year"], df["Rent Cost"], label="Rent Cost")
-    ax.plot(df["Year"], df["Buy Cost"], label="Buy Cost")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Annual Cost (RM)")
-    ax.legend()
-    st.pyplot(fig)
-
-# ----------------------------
-# Page 4: WordCloud + Top Words
+# Page 3: WordCloud + Top Words
 # ----------------------------
 elif page == "☁️ WordCloud":
     st.title("📝 Rent vs Buy — Blog Word Analysis")
@@ -121,7 +97,7 @@ elif page == "☁️ WordCloud":
             st.pyplot(fig_bar)
 
 # ----------------------------
-# Page 5: Data Process
+# Page 4: Data Process
 # ----------------------------
 elif page == "⚙️ Data Process":
     st.title("⚙️ Data Processing Steps")
