@@ -46,7 +46,7 @@ def load_data():
         return None
 
 # ----------------------------
-# Reddit Scraper (skip posts with no text)
+# Reddit Scraper (include all posts, even if empty)
 # ----------------------------
 def scrape_reddit_no_api(query="rent vs buy", subreddit="MalaysianPF", limit=20):
     url = f"https://www.reddit.com/r/{subreddit}/search.json?q={query}&restrict_sr=1&limit={limit}&sort=new"
@@ -60,17 +60,15 @@ def scrape_reddit_no_api(query="rent vs buy", subreddit="MalaysianPF", limit=20)
     posts = []
     for post in data.get("data", {}).get("children", []):
         p = post["data"]
-        title = p.get("title")
-        content = p.get("selftext", "")
-        # Skip posts with no text
-        if title or content:
-            posts.append({
-                "platform": "Reddit",
-                "subreddit": subreddit,
-                "title": title,
-                "url": "https://reddit.com" + p.get("permalink"),
-                "content": content[:300]
-            })
+        title = p.get("title") or ""
+        content = p.get("selftext") or ""
+        posts.append({
+            "platform": "Reddit",
+            "subreddit": subreddit,
+            "title": title,
+            "url": "https://reddit.com" + p.get("permalink"),
+            "content": content[:300]
+        })
     return pd.DataFrame(posts)
 
 # ----------------------------
@@ -180,22 +178,15 @@ elif page == "💬 Forum Scraper":
         with st.spinner("Scraping Reddit..."):
             df = scrape_reddit_no_api(query, subreddit, limit)
 
-            # Handle empty DataFrame
             if df.empty:
                 st.warning(f"No posts found for '{query}' in r/{subreddit}. Try a different query or subreddit.")
                 st.stop()
 
-            # Check for text columns safely
-            if "title" in df.columns:
-                text_series = df["title"]
-            elif "content" in df.columns:
-                text_series = df["content"]
-            else:
-                st.warning("No text available in scraped posts.")
-                st.stop()
-
             st.success(f"Fetched {len(df)} posts from r/{subreddit}")
             st.dataframe(df)
+
+            # Use 'title' if exists, else 'content'
+            text_series = df["title"] if "title" in df.columns else df["content"]
 
             tokens = preprocess_text(text_series)
 
@@ -224,4 +215,4 @@ elif page == "💬 Forum Scraper":
                     st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
 
             else:
-                st.warning("No text available for analysis.")
+                st.warning("No text available for Word Cloud / n-gram analysis, but posts are displayed above.")
