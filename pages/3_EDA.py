@@ -5,19 +5,13 @@ from wordcloud import WordCloud
 from collections import Counter
 import nltk
 from nltk.corpus import stopwords
+import os
 
 # ----------------------------
 # NLTK Setup
 # ----------------------------
 nltk.download('punkt')
 nltk.download('stopwords')
-
-# ----------------------------
-# Load EDA Data
-# ----------------------------
-@st.cache_data
-def load_data():
-    return pd.read_csv("Data.csv")  # replace with your CSV path
 
 # ----------------------------
 # Sidebar Navigation
@@ -32,11 +26,18 @@ page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
 if page == "📊 EDA":
     st.title("🔎 Exploratory Data Analysis (EDA)")
 
-    df = load_data()
+    uploaded_file = st.file_uploader("Upload your dataset (CSV)", type=["csv"])
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+    elif os.path.exists("Data.csv"):  # fallback to default file
+        df = pd.read_csv("Data.csv")
+    else:
+        st.error("❌ No dataset found. Please upload a CSV file to continue.")
+        st.stop()
 
-    # Ensure Year is integer
+    # Ensure Year is integer if present
     if "Year" in df.columns:
-        df["Year"] = df["Year"].astype(int)
+        df["Year"] = df["Year"].astype(int, errors="ignore")
         df = df.reset_index(drop=True)
 
     # Data Preview
@@ -90,7 +91,7 @@ if page == "📊 EDA":
     # Download
     st.subheader("⬇️ Download Data")
     csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download Dataset (CSV)", Data=csv, file_name="EDA_Data.csv", mime="text/csv")
+    st.download_button("Download Dataset (CSV)", data=csv, file_name="EDA_data.csv", mime="text/csv")
 
 # ----------------------------
 # Page 2: WordCloud + Top Words
@@ -98,8 +99,14 @@ if page == "📊 EDA":
 elif page == "☁️ WordCloud":
     st.title("📝 Rent vs Buy — Blog Word Analysis")
 
-    file_path = "Rent_vs_Buy_Blogs.csv"
-    df_text = pd.read_csv(file_path)
+    uploaded_file = st.file_uploader("Upload your blog dataset (CSV with 'Content' column)", type=["csv"])
+    if uploaded_file is not None:
+        df_text = pd.read_csv(uploaded_file)
+    elif os.path.exists("Rent_vs_Buy_Blogs.csv"):  # fallback to default file
+        df_text = pd.read_csv("Rent_vs_Buy_Blogs.csv")
+    else:
+        st.error("❌ No blog dataset found. Please upload a CSV file with a 'Content' column.")
+        st.stop()
 
     if "Content" not in df_text.columns:
         st.error("CSV file must contain a 'Content' column with blog text.")
@@ -107,7 +114,7 @@ elif page == "☁️ WordCloud":
         # Combine all blog text
         text_data = " ".join(df_text["Content"].dropna().astype(str))
 
-        # Tokenize & clean using regex (safe for Streamlit Cloud)
+        # Tokenize & clean using regex
         import re
         tokens = re.findall(r"\b[a-zA-Z]+\b", text_data.lower())
 
