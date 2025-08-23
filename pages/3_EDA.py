@@ -25,8 +25,8 @@ nltk.download('wordnet')
 # ----------------------------
 @st.cache_data
 def load_data():
-    local_path = "utils/Data.csv"
-    github_url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/utils/Data.csv"
+    local_path = "Data.csv"
+    github_url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Data.csv"
 
     # Try local first
     if os.path.exists(local_path):
@@ -217,4 +217,3 @@ elif page == "💬 Forum Scraper":
                     st.warning("No text available for analysis.")
             else:
                 st.warning("No posts found. Try another query or subreddit.")
-
