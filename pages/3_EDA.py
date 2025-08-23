@@ -104,11 +104,11 @@ if page == "📊 EDA":
         st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
 # ----------------------------
-# Page 2: Lowyat.NET Forum Scraper (Streamlit Cloud)
+# Page 2: Lowyat.NET Property Forum Scraper
 # ----------------------------
 elif page == "💬 Forum Scraper":
-    st.title("🏡 Rent vs Buy — Lowyat.NET Discussions (Malaysia)")
-    st.write("Fetching latest discussions from Lowyat.NET without API keys.")
+    st.title("🏡 Rent vs Buy — Lowyat.NET Property Discussions")
+    st.write("Fetching latest discussions from the Property & Real Estate forum without API keys.")
 
     import requests
     from bs4 import BeautifulSoup
@@ -124,21 +124,20 @@ elif page == "💬 Forum Scraper":
     # ----------------------------
     # User Inputs
     # ----------------------------
-    query = st.text_input("Search query:", "rent vs buy")
-    limit = st.slider("Number of posts", 5, 20, 10)
+    query = st.text_input("Search query:", "rent buy property")
+    limit = st.slider("Number of posts", 5, 30, 15)
     ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
 
     # ----------------------------
     # Scraper Function with caching
     # ----------------------------
     @st.cache_data(show_spinner=False)
-    def scrape_lowyat(query, limit=10):
+    def scrape_lowyat_property(query, limit=15):
         base_url = "https://forum.lowyat.net/search.php"
         params = {
             "keywords": query,
             "terms": "all",
-            "author": "",
-            "fid[]": "",   
+            "fid[]": "33",   # Property & Real Estate forum
             "sc": "1",
             "sf": "titleonly",
             "sr": "topics",
@@ -184,11 +183,11 @@ elif page == "💬 Forum Scraper":
     # Scraping & Display
     # ----------------------------
     if st.button("Scrape Discussions"):
-        with st.spinner("Scraping Lowyat.NET..."):
-            df = scrape_lowyat(query, limit)
+        with st.spinner("Scraping Lowyat.NET Property forum..."):
+            df = scrape_lowyat_property(query, limit)
 
             if not df.empty:
-                st.success(f"Fetched {len(df)} posts")
+                st.success(f"Fetched {len(df)} posts from Property & Real Estate forum")
                 st.dataframe(df)
 
                 # Word Cloud & Top Words
@@ -223,4 +222,4 @@ elif page == "💬 Forum Scraper":
                 else:
                     st.warning("No text available for analysis.")
             else:
-                st.warning(f"No posts found for '{query}' in Lowyat.NET.")
+                st.warning(f"No posts found for '{query}' in Property & Real Estate forum.")
