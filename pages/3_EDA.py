@@ -9,6 +9,7 @@ from nltk.corpus import stopwords
 from nltk import word_tokenize, ngrams
 from nltk.stem import WordNetLemmatizer
 import os
+from io import StringIO
 
 st.set_page_config(page_title='EDA', layout='wide')
 st.title('🔎 Exploratory Data Analysis (EDA)')
@@ -40,7 +41,7 @@ def load_data():
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
         r = requests.get(github_url, headers=headers)
-        r.raise_for_status()  # raise HTTPError if not 200
+        r.raise_for_status()
         return pd.read_csv(StringIO(r.text))
     except requests.exceptions.RequestException as e:
         st.error(f"Could not load Data.csv from GitHub. Error: {e}")
@@ -108,20 +109,16 @@ if page == "📊 EDA":
     if df is None:
         st.stop()
 
-    # Ensure Year is integer
     if "Year" in df.columns:
         df["Year"] = df["Year"].astype(int)
         df = df.reset_index(drop=True)
 
-    # Data Preview
     st.subheader("📋 Data Preview")
     st.dataframe(df)
 
-    # Summary Statistics
     st.subheader("📊 Summary Statistics")
     st.write(df.describe())
 
-    # Chart Selector
     st.subheader("📈 Visual Analysis")
     chart_type = st.selectbox(
         "Select a chart to display:",
@@ -161,7 +158,6 @@ if page == "📊 EDA":
         corr = df.corr(numeric_only=True)
         st.dataframe(corr.style.background_gradient(cmap="Blues"))
 
-    # Download
     st.subheader("⬇️ Download Data")
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("Download Dataset (CSV)", data=csv, file_name="EDA_data.csv", mime="text/csv")
@@ -181,39 +177,49 @@ elif page == "💬 Forum Scraper":
     if st.button("Scrape Discussions"):
         with st.spinner("Scraping Reddit..."):
             df = scrape_reddit_no_api(query, subreddit, limit)
-            if not df.empty:
-                st.success(f"Fetched {len(df)} posts from r/{subreddit}")
-                st.dataframe(df)
 
-                st.subheader("📊 Word Cloud & Top Words/Phrases")
-                text_series = df["title"] if "title" in df.columns else df["content"]
-                tokens = preprocess_text(text_series)
+            # Handle empty DataFrame
+            if df.empty:
+                st.warning(f"No posts found for '{query}' in r/{subreddit}. Try a different query or subreddit.")
+                st.stop()
 
-                if tokens:
-                    n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
-                    top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
-
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        st.write("### Word Cloud")
-                        if n == 1:
-                            wc_text = " ".join(tokens)
-                            wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
-                            fig, ax = plt.subplots(figsize=(10,5))
-                            ax.imshow(wc, interpolation="bilinear")
-                            ax.axis("off")
-                            st.pyplot(fig)
-                        else:
-                            st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
-
-                    with col2:
-                        st.write(f"### Top 10 {ngram_option}")
-                        top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
-                        counts = [count for w, count in top_ngrams]
-                        st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
-
-                else:
-                    st.warning("No text available for analysis.")
+            # Check for text columns safely
+            if "title" in df.columns:
+                text_series = df["title"]
+            elif "content" in df.columns:
+                text_series = df["content"]
             else:
-                st.warning("No posts found. Try another query or subreddit.")
+                st.warning("No text available in scraped posts.")
+                st.stop()
+
+            st.success(f"Fetched {len(df)} posts from r/{subreddit}")
+            st.dataframe(df)
+
+            tokens = preprocess_text(text_series)
+
+            if tokens:
+                n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
+                top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.write("### Word Cloud")
+                    if n == 1:
+                        wc_text = " ".join(tokens)
+                        wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        ax.imshow(wc, interpolation="bilinear")
+                        ax.axis("off")
+                        st.pyplot(fig)
+                    else:
+                        st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
+
+                with col2:
+                    st.write(f"### Top 10 {ngram_option}")
+                    top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
+                    counts = [count for w, count in top_ngrams]
+                    st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
+
+            else:
+                st.warning("No text available for analysis.")
