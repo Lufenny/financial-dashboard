@@ -21,15 +21,29 @@ nltk.download('stopwords')
 nltk.download('wordnet')
 
 # ----------------------------
-# Load EDA Data from local utils folder
+# Load EDA Data with fallback to GitHub
 # ----------------------------
 @st.cache_data
 def load_data():
-    path = "utils/Data.csv"  # local path inside repo
-    if os.path.exists(path):
-        return pd.read_csv(path)
-    else:
-        st.error("Data.csv not found in utils folder.")
+    local_path = "utils/Data.csv"
+    github_url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/utils/Data.csv"
+
+    # Try local first
+    if os.path.exists(local_path):
+        try:
+            return pd.read_csv(local_path)
+        except Exception as e:
+            st.error(f"Error reading local CSV: {e}")
+            return None
+
+    # Fallback to GitHub
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(github_url, headers=headers)
+        r.raise_for_status()  # raise HTTPError if not 200
+        return pd.read_csv(StringIO(r.text))
+    except requests.exceptions.RequestException as e:
+        st.error(f"Could not load Data.csv from GitHub. Error: {e}")
         return None
 
 # ----------------------------
@@ -203,3 +217,4 @@ elif page == "💬 Forum Scraper":
                     st.warning("No text available for analysis.")
             else:
                 st.warning("No posts found. Try another query or subreddit.")
+
