@@ -104,7 +104,7 @@ if page == "📊 EDA":
         st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
 # ----------------------------
-# Page 2: Multi-Forum Scraper
+# Page 2: Multi-Forum Scraper (with caching)
 # ----------------------------
 elif page == "💬 Forum Scraper":
     st.title("🏡 Rent vs Buy — Forum Discussions (Malaysia)")
@@ -132,6 +132,7 @@ elif page == "💬 Forum Scraper":
     # ----------------------------
     # Scraper Functions
     # ----------------------------
+    @st.cache_data(show_spinner=False)
     def scrape_lowyat(query, limit=10):
         base_url = "https://forum.lowyat.net/search.php"
         params = {
@@ -161,6 +162,7 @@ elif page == "💬 Forum Scraper":
             st.error(f"Lowyat.NET scraping failed: {e}")
         return pd.DataFrame(posts)
 
+    @st.cache_data(show_spinner=False)
     def scrape_propertyguru(query, limit=10):
         base_url = "https://www.propertyguru.com.my/property-news"
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -205,6 +207,7 @@ elif page == "💬 Forum Scraper":
     # ----------------------------
     if st.button("Scrape Discussions"):
         with st.spinner(f"Scraping {forum}..."):
+            # Cached scraping
             if forum == "Lowyat.NET":
                 df = scrape_lowyat(query, limit)
             else:
