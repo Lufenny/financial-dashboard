@@ -166,6 +166,11 @@ if page == "📊 EDA":
 # Page 2: Forum Scraper
 # ----------------------------
 elif page == "💬 Forum Scraper":
+    import nltk
+    nltk.download('punkt', quiet=True)
+    nltk.download('stopwords', quiet=True)
+    nltk.download('wordnet', quiet=True)
+
     st.title("🏡 Rent vs Buy — Forum Discussions (Malaysia)")
     st.write("Fetching latest Reddit discussions without API keys.")
 
@@ -178,7 +183,7 @@ elif page == "💬 Forum Scraper":
         with st.spinner("Scraping Reddit..."):
             df = scrape_reddit_no_api(query, subreddit, limit)
 
-            # Ensure 'title' and 'content' columns exist
+            # Ensure 'title' and 'content' exist
             if df.empty:
                 st.warning("No posts found. Try another query or subreddit.")
                 st.stop()
@@ -191,17 +196,36 @@ elif page == "💬 Forum Scraper":
 
             # Combine title and content for analysis
             text_series = df["title"].fillna("") + " " + df["content"].fillna("")
-            tokens = preprocess_text(text_series)
+
+            # Preprocess text
+            lemmatizer = nltk.stem.WordNetLemmatizer()
+            stop_words = set(nltk.corpus.stopwords.words('english'))
+
+            all_tokens = []
+            for text in text_series.astype(str):
+                tokens = nltk.word_tokenize(text.lower())
+                tokens = [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
+                all_tokens.extend(tokens)
+
+            tokens = all_tokens
 
             if tokens:
                 n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
-                top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
+                if n == 1:
+                    from collections import Counter
+                    top_ngrams = Counter(tokens).most_common(10)
+                else:
+                    from nltk import ngrams
+                    from collections import Counter
+                    top_ngrams = Counter(ngrams(tokens, n)).most_common(10)
 
                 col1, col2 = st.columns(2)
 
                 with col1:
                     st.write("### Word Cloud")
                     if n == 1:
+                        from wordcloud import WordCloud
+                        import matplotlib.pyplot as plt
                         wc_text = " ".join(tokens)
                         wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
                         fig, ax = plt.subplots(figsize=(10,5))
