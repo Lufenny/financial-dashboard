@@ -6,7 +6,9 @@ from collections import Counter
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk import ngrams
-import re
+from nltk.tokenize import word_tokenize
+import requests
+from bs4 import BeautifulSoup
 import nltk
 
 # ----------------------------
@@ -104,56 +106,50 @@ if page == "📊 EDA":
         st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
 # ----------------------------
-# Page 2: Lowyat.NET Property Forum — Local Filtering
+# Forum Scraper Page (PropertyGuru Articles) – Auto Update
 # ----------------------------
 elif page == "💬 Forum Scraper":
-    st.title("🏡 Rent vs Buy — Lowyat.NET Property Discussions")
-    st.write("Fetching latest threads from Property & Real Estate forum and filtering locally for 'rent' or 'buy'.")
-
-    import requests
-    from bs4 import BeautifulSoup
-    from nltk.corpus import stopwords
-    from nltk.stem import WordNetLemmatizer
-    from nltk import ngrams
-    from collections import Counter
-    import re
-    import pandas as pd
-    import matplotlib.pyplot as plt
-    from wordcloud import WordCloud
+    st.title("🏡 Rent vs Buy — PropertyGuru Articles (Malaysia)")
+    st.write("Fetching latest property articles without API keys.")
 
     # ----------------------------
-    # User Inputs
+    # Scraper Function
     # ----------------------------
-    limit = st.slider("Number of latest threads to fetch", 5, 50, 20)
-    ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
-
-    # ----------------------------
-    # Scraper Function with caching
-    # ----------------------------
-    @st.cache_data(show_spinner=False)
-    def scrape_lowyat_property_threads(limit=20):
-        base_url = "https://forum.lowyat.net/forumdisplay.php"
-        params = {
-            "f": "33",   # Property & Real Estate forum
-            "order": "desc",
-            "sort": "lastpost"
-        }
+    @st.cache_data
+    def scrape_propertyguru(query="rent buy", limit=20):
+        base_url = "https://www.propertyguru.com.my/property-news"
         headers = {"User-Agent": "Mozilla/5.0"}
         posts = []
+
         try:
-            res = requests.get(base_url, params=params, headers=headers, timeout=10)
-            soup = BeautifulSoup(res.text, "html.parser")
-            threads = soup.find_all("tr", id=re.compile(r'tid_\d+'))[:limit]
-            for t in threads:
-                title_tag = t.find("a", id=re.compile(r'thread_title_\d+'))
-                if title_tag:
-                    title = title_tag.text.strip()
-                    url = "https://forum.lowyat.net/" + title_tag["href"]
-                    snippet_tag = t.find("td", class_="alt2")
-                    snippet = snippet_tag.text.strip() if snippet_tag else ""
-                    posts.append({"title": title, "content": snippet, "url": url})
+            r = requests.get(base_url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                return pd.DataFrame([{"error": f"Failed to fetch PropertyGuru data: {r.status_code}"}])
+
+            soup = BeautifulSoup(r.text, "html.parser")
+            articles = soup.find_all("article")[:limit]
+
+            for a in articles:
+                title_tag = a.find("h2")
+                snippet_tag = a.find("p")
+                url_tag = a.find("a", href=True)
+
+                title = title_tag.text.strip() if title_tag else ""
+                snippet = snippet_tag.text.strip() if snippet_tag else ""
+                url = url_tag["href"] if url_tag else ""
+
+                # Filter locally for query keywords
+                if any(k in (title + " " + snippet).lower() for k in query.lower().split()):
+                    posts.append({
+                        "platform": "PropertyGuru",
+                        "title": title,
+                        "content": snippet,
+                        "url": url
+                    })
+
         except Exception as e:
             st.error(f"Scraping failed: {e}")
+
         return pd.DataFrame(posts)
 
     # ----------------------------
@@ -161,63 +157,71 @@ elif page == "💬 Forum Scraper":
     # ----------------------------
     def preprocess_text(text_series):
         lemmatizer = WordNetLemmatizer()
-        stop_words = set(stopwords.words("english"))
-        tokens = []
-        for text in text_series.astype(str):
-            tks = re.findall(r'\b[a-zA-Z]+\b', text.lower())
-            tks = [lemmatizer.lemmatize(w) for w in tks if w not in stop_words]
-            tokens.extend(tks)
-        return tokens
+        stop_words = set(stopwords.words('english'))
+
+        all_tokens = []
+        for text in text_series.dropna().astype(str):
+            tokens = word_tokenize(text.lower())
+            tokens = [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
+            all_tokens.extend(tokens)
+        return all_tokens
 
     def get_top_ngrams(tokens, n=1, top_k=10):
         if n == 1:
-            return Counter(tokens).most_common(top_k)
+            c = Counter(tokens)
         else:
-            return Counter(ngrams(tokens, n)).most_common(top_k)
+            c = Counter(ngrams(tokens, n))
+        return c.most_common(top_k)
 
     # ----------------------------
-    # Scraping & Filtering
+    # Streamlit Inputs
     # ----------------------------
-    if st.button("Fetch Threads"):
-        with st.spinner("Fetching latest threads from Property & Real Estate forum..."):
-            df = scrape_lowyat_property_threads(limit)
+    query = st.text_input("Search query:", "rent buy")
+    limit = st.slider("Number of articles", 5, 20, 10)
+    ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
 
-            # Filter locally for 'rent' or 'buy'
-            keywords = ["rent", "buy"]
-            df_filtered = df[df.apply(lambda row: any(k in (row["title"] + " " + row["content"]).lower() for k in keywords), axis=1)]
+    # ----------------------------
+    # Auto-fetch and display
+    # ----------------------------
+    df = scrape_propertyguru(query, limit)
 
-            if not df_filtered.empty:
-                st.success(f"Found {len(df_filtered)} threads mentioning 'rent' or 'buy'")
-                st.dataframe(df_filtered)
+    if not df.empty:
+        st.success(f"Fetched {len(df)} articles matching '{query}'")
+        st.dataframe(df)
 
-                # Word Cloud & Top Words
-                st.subheader("📊 Word Cloud & Top Words/Phrases")
-                text_series = df_filtered["title"] + " " + df_filtered["content"]
-                tokens = preprocess_text(text_series)
+        # Download scraped articles
+        st.subheader("⬇️ Download Articles")
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("Download Articles (CSV)", data=csv, file_name="PropertyGuru_articles.csv", mime="text/csv")
 
-                if tokens:
-                    n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
-                    top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
+        # Word Cloud & Top Words (auto-update)
+        st.subheader("📊 Word Cloud & Top Words/Phrases")
+        text_series = df["title"] + " " + df["content"]
+        tokens = preprocess_text(text_series)
 
-                    col1, col2 = st.columns(2)
+        if tokens:
+            n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
+            top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
 
-                    with col1:
-                        st.write("### Word Cloud")
-                        if n == 1:
-                            wc_text = " ".join(tokens)
-                            wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
-                            fig, ax = plt.subplots(figsize=(10,5))
-                            ax.imshow(wc, interpolation="bilinear")
-                            ax.axis("off")
-                            st.pyplot(fig)
-                        else:
-                            st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
+            col1, col2 = st.columns(2)
 
-                    with col2:
-                        st.write(f"### Top 10 {ngram_option}")
-                        top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
-                        counts = [count for w, count in top_ngrams]
-                        st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
+            with col1:
+                st.write("### Word Cloud")
+                if n == 1:
+                    wc_text = " ".join(tokens)
+                    wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
+                    fig, ax = plt.subplots(figsize=(10,5))
+                    ax.imshow(wc, interpolation="bilinear")
+                    ax.axis("off")
+                    st.pyplot(fig)
+                else:
+                    st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
 
-            else:
-                st.warning("No threads found mentioning 'rent' or 'buy'. Try fetching more threads.")
+            with col2:
+                st.write(f"### Top 10 {ngram_option}")
+                top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
+                counts = [count for w, count in top_ngrams]
+                st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
+
+    else:
+        st.warning(f"No articles found matching '{query}'. Try another keyword.")
