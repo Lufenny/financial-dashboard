@@ -106,49 +106,59 @@ if page == "📊 EDA":
         st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
 # ----------------------------
-# Forum Scraper Page (PropertyGuru Articles) – Auto Update
+# Forum Scraper Page (PropertyGuru Articles) – Multi-page + Safe Columns
 # ----------------------------
 elif page == "💬 Forum Scraper":
     st.title("🏡 Rent vs Buy — PropertyGuru Articles (Malaysia)")
     st.write("Fetching latest property articles without API keys.")
 
     # ----------------------------
-    # Scraper Function
+    # Multi-page Scraper Function
     # ----------------------------
     @st.cache_data
-    def scrape_propertyguru(query="rent buy", limit=20):
-        base_url = "https://www.propertyguru.com.my/property-news"
+    def scrape_propertyguru(query="rent buy", limit=50):
         headers = {"User-Agent": "Mozilla/5.0"}
         posts = []
+        page = 1
+        collected = 0
 
-        try:
-            r = requests.get(base_url, headers=headers, timeout=10)
-            if r.status_code != 200:
-                return pd.DataFrame([{"error": f"Failed to fetch PropertyGuru data: {r.status_code}"}])
+        while collected < limit:
+            url = f"https://www.propertyguru.com.my/property-news?page={page}"
+            try:
+                r = requests.get(url, headers=headers, timeout=10)
+                if r.status_code != 200:
+                    break
+                soup = BeautifulSoup(r.text, "html.parser")
+                articles = soup.find_all("article")
+                if not articles:
+                    break
 
-            soup = BeautifulSoup(r.text, "html.parser")
-            articles = soup.find_all("article")[:limit]
+                for a in articles:
+                    title_tag = a.find("h2")
+                    snippet_tag = a.find("p")
+                    url_tag = a.find("a", href=True)
 
-            for a in articles:
-                title_tag = a.find("h2")
-                snippet_tag = a.find("p")
-                url_tag = a.find("a", href=True)
+                    title = title_tag.text.strip() if title_tag else ""
+                    snippet = snippet_tag.text.strip() if snippet_tag else ""
+                    url_article = url_tag["href"] if url_tag else ""
 
-                title = title_tag.text.strip() if title_tag else ""
-                snippet = snippet_tag.text.strip() if snippet_tag else ""
-                url = url_tag["href"] if url_tag else ""
+                    # Filter for query keywords
+                    if any(k in (title + " " + snippet).lower() for k in query.lower().split()):
+                        posts.append({
+                            "platform": "PropertyGuru",
+                            "title": title,
+                            "content": snippet,
+                            "url": url_article
+                        })
+                        collected += 1
+                        if collected >= limit:
+                            break
 
-                # Filter locally for query keywords
-                if any(k in (title + " " + snippet).lower() for k in query.lower().split()):
-                    posts.append({
-                        "platform": "PropertyGuru",
-                        "title": title,
-                        "content": snippet,
-                        "url": url
-                    })
+                page += 1  # next page
 
-        except Exception as e:
-            st.error(f"Scraping failed: {e}")
+            except Exception as e:
+                st.error(f"Scraping failed: {e}")
+                break
 
         return pd.DataFrame(posts)
 
@@ -177,7 +187,7 @@ elif page == "💬 Forum Scraper":
     # Streamlit Inputs
     # ----------------------------
     query = st.text_input("Search query:", "rent buy")
-    limit = st.slider("Number of articles", 5, 20, 10)
+    limit = st.slider("Number of articles", 5, 50, 20)
     ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
 
     # ----------------------------
@@ -194,34 +204,39 @@ elif page == "💬 Forum Scraper":
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download Articles (CSV)", data=csv, file_name="PropertyGuru_articles.csv", mime="text/csv")
 
-        # Word Cloud & Top Words (auto-update)
+        # Word Cloud & Top Words (safe column check)
         st.subheader("📊 Word Cloud & Top Words/Phrases")
-        text_series = df["title"] + " " + df["content"]
-        tokens = preprocess_text(text_series)
+        if all(col in df.columns for col in ["title", "content"]):
+            text_series = df["title"].fillna("") + " " + df["content"].fillna("")
+            tokens = preprocess_text(text_series)
 
-        if tokens:
-            n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
-            top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
+            if tokens:
+                n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
+                top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
 
-            col1, col2 = st.columns(2)
+                col1, col2 = st.columns(2)
 
-            with col1:
-                st.write("### Word Cloud")
-                if n == 1:
-                    wc_text = " ".join(tokens)
-                    wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
-                    fig, ax = plt.subplots(figsize=(10,5))
-                    ax.imshow(wc, interpolation="bilinear")
-                    ax.axis("off")
-                    st.pyplot(fig)
-                else:
-                    st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
+                with col1:
+                    st.write("### Word Cloud")
+                    if n == 1:
+                        wc_text = " ".join(tokens)
+                        wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        ax.imshow(wc, interpolation="bilinear")
+                        ax.axis("off")
+                        st.pyplot(fig)
+                    else:
+                        st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
 
-            with col2:
-                st.write(f"### Top 10 {ngram_option}")
-                top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
-                counts = [count for w, count in top_ngrams]
-                st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
+                with col2:
+                    st.write(f"### Top 10 {ngram_option}")
+                    top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
+                    counts = [count for w, count in top_ngrams]
+                    st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
 
+            else:
+                st.warning("No text available for analysis.")
+        else:
+            st.warning("Articles do not contain 'title' and 'content'.")
     else:
         st.warning(f"No articles found matching '{query}'. Try another keyword.")
