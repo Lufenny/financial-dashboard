@@ -22,7 +22,7 @@ page = st.sidebar.radio("Go to:", ["EDA", "WordCloud"])
 # ----------------------------
 # Page 1: EDA
 # ----------------------------
-if page == "Expected Outcomes":
+if page == "EDA":
     st.title("🎯 Expected Outcomes")
     st.markdown("""
     - Compare **Rent vs Buy** scenarios  
