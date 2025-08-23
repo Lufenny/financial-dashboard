@@ -29,7 +29,6 @@ def load_data():
     local_path = "Data.csv"
     github_url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Data.csv"
 
-    # Try local first
     if os.path.exists(local_path):
         try:
             return pd.read_csv(local_path)
@@ -37,7 +36,6 @@ def load_data():
             st.error(f"Error reading local CSV: {e}")
             return None
 
-    # Fallback to GitHub
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
         r = requests.get(github_url, headers=headers)
@@ -48,7 +46,7 @@ def load_data():
         return None
 
 # ----------------------------
-# Reddit Scraper
+# Reddit Scraper (skip posts with no text)
 # ----------------------------
 def scrape_reddit_no_api(query="rent vs buy", subreddit="MalaysianPF", limit=20):
     url = f"https://www.reddit.com/r/{subreddit}/search.json?q={query}&restrict_sr=1&limit={limit}&sort=new"
@@ -62,13 +60,17 @@ def scrape_reddit_no_api(query="rent vs buy", subreddit="MalaysianPF", limit=20)
     posts = []
     for post in data.get("data", {}).get("children", []):
         p = post["data"]
-        posts.append({
-            "platform": "Reddit",
-            "subreddit": subreddit,
-            "title": p.get("title"),
-            "url": "https://reddit.com" + p.get("permalink"),
-            "content": p.get("selftext", "")[:300]
-        })
+        title = p.get("title")
+        content = p.get("selftext", "")
+        # Skip posts with no text
+        if title or content:
+            posts.append({
+                "platform": "Reddit",
+                "subreddit": subreddit,
+                "title": title,
+                "url": "https://reddit.com" + p.get("permalink"),
+                "content": content[:300]
+            })
     return pd.DataFrame(posts)
 
 # ----------------------------
