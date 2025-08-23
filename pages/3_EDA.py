@@ -7,8 +7,6 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk import ngrams
 from nltk.tokenize import word_tokenize
-import requests
-from bs4 import BeautifulSoup
 import nltk
 
 # ----------------------------
@@ -21,9 +19,9 @@ nltk.download('wordnet')
 # ----------------------------
 # Streamlit Page Config
 # ----------------------------
-st.set_page_config(page_title="EDA & Forum Scraper", layout="wide")
+st.set_page_config(page_title="EDA & Forum Analyzer", layout="wide")
 st.sidebar.title("🔍 Navigation")
-page = st.sidebar.radio("Go to:", ["📊 EDA", "💬 Forum Scraper"])
+page = st.sidebar.radio("Go to:", ["📊 EDA", "💬 Forum Analyzer"])
 
 # ----------------------------
 # Load EDA Data
@@ -37,6 +35,39 @@ def load_data():
     except Exception as e:
         st.error(f"Could not load Data.csv from GitHub. Error: {e}")
         return pd.DataFrame()
+
+# ----------------------------
+# Load Forum Excel Data
+# ----------------------------
+@st.cache_data
+def load_forum_data():
+    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/forum_data.xlsx"
+    try:
+        df = pd.read_excel(url)
+        return df
+    except Exception as e:
+        st.error(f"Could not load forum_data.xlsx. Error: {e}")
+        return pd.DataFrame()
+
+# ----------------------------
+# Text Preprocessing
+# ----------------------------
+def preprocess_text(text_series):
+    lemmatizer = WordNetLemmatizer()
+    stop_words = set(stopwords.words('english'))
+    all_tokens = []
+    for text in text_series.dropna().astype(str):
+        tokens = word_tokenize(text.lower())
+        tokens = [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
+        all_tokens.extend(tokens)
+    return all_tokens
+
+def get_top_ngrams(tokens, n=1, top_k=10):
+    if n == 1:
+        c = Counter(tokens)
+    else:
+        c = Counter(ngrams(tokens, n))
+    return c.most_common(top_k)
 
 # ----------------------------
 # EDA Page
@@ -106,111 +137,29 @@ if page == "📊 EDA":
         st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
 # ----------------------------
-# Forum Scraper Page (PropertyGuru Articles) – Multi-page + Safe Columns
+# Forum Analyzer Page (Excel-based)
 # ----------------------------
-elif page == "💬 Forum Scraper":
-    st.title("🏡 Rent vs Buy — PropertyGuru Articles (Malaysia)")
-    st.write("Fetching latest property articles without API keys.")
-
-    # ----------------------------
-    # Multi-page Scraper Function
-    # ----------------------------
-    @st.cache_data
-    def scrape_propertyguru(query="rent buy", limit=50):
-        headers = {"User-Agent": "Mozilla/5.0"}
-        posts = []
-        page = 1
-        collected = 0
-
-        while collected < limit:
-            url = f"https://www.propertyguru.com.my/property-news?page={page}"
-            try:
-                r = requests.get(url, headers=headers, timeout=10)
-                if r.status_code != 200:
-                    break
-                soup = BeautifulSoup(r.text, "html.parser")
-                articles = soup.find_all("article")
-                if not articles:
-                    break
-
-                for a in articles:
-                    title_tag = a.find("h2")
-                    snippet_tag = a.find("p")
-                    url_tag = a.find("a", href=True)
-
-                    title = title_tag.text.strip() if title_tag else ""
-                    snippet = snippet_tag.text.strip() if snippet_tag else ""
-                    url_article = url_tag["href"] if url_tag else ""
-
-                    # Filter for query keywords
-                    if any(k in (title + " " + snippet).lower() for k in query.lower().split()):
-                        posts.append({
-                            "platform": "PropertyGuru",
-                            "title": title,
-                            "content": snippet,
-                            "url": url_article
-                        })
-                        collected += 1
-                        if collected >= limit:
-                            break
-
-                page += 1  # next page
-
-            except Exception as e:
-                st.error(f"Scraping failed: {e}")
-                break
-
-        return pd.DataFrame(posts)
-
-    # ----------------------------
-    # Text Processing Functions
-    # ----------------------------
-    def preprocess_text(text_series):
-        lemmatizer = WordNetLemmatizer()
-        stop_words = set(stopwords.words('english'))
-
-        all_tokens = []
-        for text in text_series.dropna().astype(str):
-            tokens = word_tokenize(text.lower())
-            tokens = [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
-            all_tokens.extend(tokens)
-        return all_tokens
-
-    def get_top_ngrams(tokens, n=1, top_k=10):
-        if n == 1:
-            c = Counter(tokens)
-        else:
-            c = Counter(ngrams(tokens, n))
-        return c.most_common(top_k)
-
-    # ----------------------------
-    # Streamlit Inputs
-    # ----------------------------
-    query = st.text_input("Search query:", "rent buy")
-    limit = st.slider("Number of articles", 5, 50, 20)
-    ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
-
-    # ----------------------------
-    # Auto-fetch and display
-    # ----------------------------
-    df = scrape_propertyguru(query, limit)
-
+elif page == "💬 Forum Analyzer":
+    st.title("🏡 Rent vs Buy — Forum Analysis (Excel Data)")
+    
+    df = load_forum_data()
+    
     if not df.empty:
-        st.success(f"Fetched {len(df)} articles matching '{query}'")
+        st.subheader("📋 Data Preview")
         st.dataframe(df)
-
-        # Download scraped articles
-        st.subheader("⬇️ Download Articles")
+        
+        # Download option
+        st.subheader("⬇️ Download Forum Data")
         csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download Articles (CSV)", data=csv, file_name="PropertyGuru_articles.csv", mime="text/csv")
-
-        # Word Cloud & Top Words (safe column check)
-        st.subheader("📊 Word Cloud & Top Words/Phrases")
+        st.download_button("Download Dataset (CSV)", data=csv, file_name="forum_data.csv", mime="text/csv")
+        
+        # Word Cloud & n-grams
         if all(col in df.columns for col in ["title", "content"]):
             text_series = df["title"].fillna("") + " " + df["content"].fillna("")
             tokens = preprocess_text(text_series)
 
             if tokens:
+                ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
                 n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
                 top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
 
@@ -237,6 +186,6 @@ elif page == "💬 Forum Scraper":
             else:
                 st.warning("No text available for analysis.")
         else:
-            st.warning("Articles do not contain 'title' and 'content'.")
+            st.warning("No 'title' or 'content' columns found in the Excel file.")
     else:
-        st.warning(f"No articles found matching '{query}'. Try another keyword.")
+        st.warning("Forum Excel file is empty.")
