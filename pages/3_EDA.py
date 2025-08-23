@@ -1,58 +1,50 @@
 import streamlit as st
+
+# ----------------------------
+# Global Page Config
+# ----------------------------
+st.set_page_config(page_title='EDA & Forum Scraper', layout='wide')
+st.title('🔎 Exploratory Data Analysis (EDA) & Forum Scraper')
+
+# ----------------------------
+# Imports
+# ----------------------------
 import pandas as pd
 import matplotlib.pyplot as plt
 import requests
+import re
 from wordcloud import WordCloud
 from collections import Counter
 import nltk
 from nltk.corpus import stopwords
-from nltk import word_tokenize, ngrams
 from nltk.stem import WordNetLemmatizer
-import os
-from io import StringIO
-
-st.set_page_config(page_title='EDA', layout='wide')
-st.title('🔎 Exploratory Data Analysis (EDA)')
+from nltk import ngrams
 
 # ----------------------------
-# Download required NLTK data
+# NLTK Downloads (Cloud-safe)
 # ----------------------------
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('wordnet')
+nltk.download('stopwords', quiet=True)
+nltk.download('wordnet', quiet=True)
 
 # ----------------------------
-# Load EDA Data with fallback to GitHub
+# Load EDA Data
 # ----------------------------
 @st.cache_data
 def load_data():
-    local_path = "Data.csv"
-    github_url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Data.csv"
-
-    if os.path.exists(local_path):
-        try:
-            return pd.read_csv(local_path)
-        except Exception as e:
-            st.error(f"Error reading local CSV: {e}")
-            return None
-
+    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Data.csv"
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(github_url, headers=headers)
-        r.raise_for_status()
-        return pd.read_csv(StringIO(r.text))
-    except requests.exceptions.RequestException as e:
+        return pd.read_csv(url)
+    except Exception as e:
         st.error(f"Could not load Data.csv from GitHub. Error: {e}")
-        return None
+        return pd.DataFrame()
 
 # ----------------------------
-# Reddit Scraper (include all posts, even if empty)
+# Reddit Scraper
 # ----------------------------
 def scrape_reddit_no_api(query="rent vs buy", subreddit="MalaysianPF", limit=20):
     url = f"https://www.reddit.com/r/{subreddit}/search.json?q={query}&restrict_sr=1&limit={limit}&sort=new"
-    headers = {"User-Agent": "Mozilla/5.0"}  
+    headers = {"User-Agent": "Mozilla/5.0"}
     r = requests.get(url, headers=headers)
-
     if r.status_code != 200:
         return pd.DataFrame([{"error": f"Failed to fetch Reddit data: {r.status_code}"}])
 
@@ -60,42 +52,18 @@ def scrape_reddit_no_api(query="rent vs buy", subreddit="MalaysianPF", limit=20)
     posts = []
     for post in data.get("data", {}).get("children", []):
         p = post["data"]
-        title = p.get("title") or ""
-        content = p.get("selftext") or ""
         posts.append({
             "platform": "Reddit",
             "subreddit": subreddit,
-            "title": title,
-            "url": "https://reddit.com" + p.get("permalink"),
-            "content": content[:300]
+            "title": p.get("title", ""),
+            "url": "https://reddit.com" + p.get("permalink", ""),
+            "content": p.get("selftext", "")[:300]
         })
     return pd.DataFrame(posts)
 
 # ----------------------------
-# Text Preprocessing
+# Sidebar Navigation
 # ----------------------------
-def preprocess_text(text_series):
-    lemmatizer = WordNetLemmatizer()
-    stop_words = set(stopwords.words('english'))
-
-    all_tokens = []
-    for text in text_series.dropna().astype(str):
-        tokens = word_tokenize(text.lower())
-        tokens = [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
-        all_tokens.extend(tokens)
-    return all_tokens
-
-def get_top_ngrams(tokens, n=1, top_k=10):
-    if n == 1:
-        c = Counter(tokens)
-    else:
-        c = Counter(ngrams(tokens, n))
-    return c.most_common(top_k)
-
-# ----------------------------
-# Streamlit Layout
-# ----------------------------
-st.set_page_config(page_title="EDA & Forum Scraper", layout="wide")
 st.sidebar.title("🔍 Navigation")
 page = st.sidebar.radio("Go to:", ["📊 EDA", "💬 Forum Scraper"])
 
@@ -103,10 +71,11 @@ page = st.sidebar.radio("Go to:", ["📊 EDA", "💬 Forum Scraper"])
 # Page 1: EDA
 # ----------------------------
 if page == "📊 EDA":
-    st.title("🔎 Exploratory Data Analysis (EDA)")
-
+    st.header("🔎 Exploratory Data Analysis (EDA)")
     df = load_data()
-    if df is None:
+
+    if df.empty:
+        st.warning("No data available for EDA.")
         st.stop()
 
     if "Year" in df.columns:
@@ -127,32 +96,24 @@ if page == "📊 EDA":
 
     if chart_type == "OPR vs Year" and "OPR_avg" in df.columns:
         fig, ax = plt.subplots()
-        ax.plot(df["Year"], df["OPR_avg"], marker="o", label="OPR (%)", color="blue")
-        ax.set_xlabel("Year"); ax.set_ylabel("OPR (%)")
-        ax.set_title("Trend of OPR vs Year")
-        ax.legend(); st.pyplot(fig)
-
+        ax.plot(df["Year"], df["OPR_avg"], marker="o", color="blue", label="OPR (%)")
+        ax.set_xlabel("Year"); ax.set_ylabel("OPR (%)"); ax.set_title("Trend of OPR vs Year"); ax.legend()
+        st.pyplot(fig)
     elif chart_type == "EPF vs Year" and "EPF" in df.columns:
         fig, ax = plt.subplots()
-        ax.plot(df["Year"], df["EPF"], marker="s", label="EPF (%)", color="orange")
-        ax.set_xlabel("Year"); ax.set_ylabel("EPF (%)")
-        ax.set_title("Trend of EPF vs Year")
-        ax.legend(); st.pyplot(fig)
-
+        ax.plot(df["Year"], df["EPF"], marker="s", color="orange", label="EPF (%)")
+        ax.set_xlabel("Year"); ax.set_ylabel("EPF (%)"); ax.set_title("Trend of EPF vs Year"); ax.legend()
+        st.pyplot(fig)
     elif chart_type == "Price Growth vs Year" and "PriceGrowth" in df.columns:
         fig, ax = plt.subplots()
-        ax.plot(df["Year"], df["PriceGrowth"], marker="^", label="Price Growth (%)", color="green")
-        ax.set_xlabel("Year"); ax.set_ylabel("Price Growth (%)")
-        ax.set_title("Trend of Price Growth vs Year")
-        ax.legend(); st.pyplot(fig)
-
+        ax.plot(df["Year"], df["PriceGrowth"], marker="^", color="green", label="Price Growth (%)")
+        ax.set_xlabel("Year"); ax.set_ylabel("Price Growth (%)"); ax.set_title("Trend of Price Growth vs Year"); ax.legend()
+        st.pyplot(fig)
     elif chart_type == "Rent Yield vs Year" and "RentYield" in df.columns:
         fig, ax = plt.subplots()
-        ax.plot(df["Year"], df["RentYield"], marker="d", label="Rental Yield (%)", color="purple")
-        ax.set_xlabel("Year"); ax.set_ylabel("Rental Yield (%)")
-        ax.set_title("Trend of Rental Yield vs Year")
-        ax.legend(); st.pyplot(fig)
-
+        ax.plot(df["Year"], df["RentYield"], marker="d", color="purple", label="Rental Yield (%)")
+        ax.set_xlabel("Year"); ax.set_ylabel("Rental Yield (%)"); ax.set_title("Trend of Rental Yield vs Year"); ax.legend()
+        st.pyplot(fig)
     elif chart_type == "Correlation Heatmap":
         st.write("### Correlation Matrix")
         corr = df.corr(numeric_only=True)
@@ -166,12 +127,7 @@ if page == "📊 EDA":
 # Page 2: Forum Scraper
 # ----------------------------
 elif page == "💬 Forum Scraper":
-    import nltk
-    nltk.download('punkt', quiet=True)
-    nltk.download('stopwords', quiet=True)
-    nltk.download('wordnet', quiet=True)
-
-    st.title("🏡 Rent vs Buy — Forum Discussions (Malaysia)")
+    st.header("🏡 Rent vs Buy — Forum Discussions (Malaysia)")
     st.write("Fetching latest Reddit discussions without API keys.")
 
     query = st.text_input("Search query:", "rent vs buy")
@@ -183,10 +139,10 @@ elif page == "💬 Forum Scraper":
         with st.spinner("Scraping Reddit..."):
             df = scrape_reddit_no_api(query, subreddit, limit)
 
-            # Ensure 'title' and 'content' exist
             if df.empty:
                 st.warning("No posts found. Try another query or subreddit.")
                 st.stop()
+
             for col in ["title", "content"]:
                 if col not in df.columns:
                     df[col] = ""
@@ -194,29 +150,24 @@ elif page == "💬 Forum Scraper":
             st.success(f"Fetched {len(df)} posts from r/{subreddit}")
             st.dataframe(df)
 
-            # Combine title and content for analysis
             text_series = df["title"].fillna("") + " " + df["content"].fillna("")
 
-            # Preprocess text
-            lemmatizer = nltk.stem.WordNetLemmatizer()
-            stop_words = set(nltk.corpus.stopwords.words('english'))
-
+            lemmatizer = WordNetLemmatizer()
+            stop_words = set(stopwords.words('english'))
             all_tokens = []
+
             for text in text_series.astype(str):
-                tokens = nltk.word_tokenize(text.lower())
-                tokens = [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
+                tokens = re.findall(r'\b[a-zA-Z]+\b', text.lower())
+                tokens = [lemmatizer.lemmatize(t) for t in tokens if t not in stop_words]
                 all_tokens.extend(tokens)
 
             tokens = all_tokens
 
             if tokens:
-                n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
+                n = 1 if ngram_option == "Unigrams" else 2 if ngram_option == "Bigrams" else 3
                 if n == 1:
-                    from collections import Counter
                     top_ngrams = Counter(tokens).most_common(10)
                 else:
-                    from nltk import ngrams
-                    from collections import Counter
                     top_ngrams = Counter(ngrams(tokens, n)).most_common(10)
 
                 col1, col2 = st.columns(2)
@@ -224,8 +175,6 @@ elif page == "💬 Forum Scraper":
                 with col1:
                     st.write("### Word Cloud")
                     if n == 1:
-                        from wordcloud import WordCloud
-                        import matplotlib.pyplot as plt
                         wc_text = " ".join(tokens)
                         wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
                         fig, ax = plt.subplots(figsize=(10,5))
