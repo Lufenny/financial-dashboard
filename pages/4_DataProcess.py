@@ -5,28 +5,6 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title='Data Process', layout='wide')
 st.title('⚙️ Data Processing')
 
-# ---- Sidebar Navigation ----
-def navigation_guide(current_page: str):
-    pages = [
-        "Expected Outcomes",
-        "📑 Analysis",
-        "📊 EDA",
-        "⚙️ Data Process",
-        "📈 Modelling",
-        "📖 Interpretation",
-        "🚀 Deployment"
-    ]
-    with st.sidebar:
-        st.markdown("## 📌 Navigation Guide")
-        for page in pages:
-            if page == current_page:
-                st.markdown(f"🔵 **{page}**")  # highlight active
-            else:
-                st.markdown(page)
-
-# Call navigation for this page
-navigation_guide("⚙️ Data Process")
-
 # ---------------------------------------------
 # Load Data
 # ---------------------------------------------
@@ -122,3 +100,4 @@ for col in selected_columns:
         ax.set_ylabel(chart_options[col])
         ax.set_title(f"{chart_options[col]} vs Year")
         st.pyplot(fig)
+
