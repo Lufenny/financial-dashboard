@@ -138,10 +138,16 @@ elif page == "💬 Blog Insights":
         st.subheader("📋 Blog Data")
         st.dataframe(df_blog)
 
+        # Optional: Filter by keyword
+        keyword = st.text_input("Filter by keyword:", "rent buy")
+        if keyword:
+            df_blog = df_blog[df_blog["Content"].str.contains(keyword, case=False, na=False)]
+            if df_blog.empty:
+                st.warning(f"No blog posts found containing '{keyword}'.")
+
         st.subheader("📊 Word Cloud & Top Words")
         ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
 
-        # Combine content
         text_series = df_blog["Content"]
         tokens = preprocess_text(text_series)
 
