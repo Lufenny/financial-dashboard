@@ -104,11 +104,11 @@ if page == "📊 EDA":
         st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
 # ----------------------------
-# Page 2: Lowyat.NET Property Forum Scraper
+# Page 2: Lowyat.NET Property Forum — Local Filtering
 # ----------------------------
 elif page == "💬 Forum Scraper":
     st.title("🏡 Rent vs Buy — Lowyat.NET Property Discussions")
-    st.write("Fetching latest discussions from the Property & Real Estate forum without API keys.")
+    st.write("Fetching latest threads from Property & Real Estate forum and filtering locally for 'rent' or 'buy'.")
 
     import requests
     from bs4 import BeautifulSoup
@@ -124,38 +124,34 @@ elif page == "💬 Forum Scraper":
     # ----------------------------
     # User Inputs
     # ----------------------------
-    query = st.text_input("Search query:", "rent buy property")
-    limit = st.slider("Number of posts", 5, 30, 15)
+    limit = st.slider("Number of latest threads to fetch", 5, 50, 20)
     ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
 
     # ----------------------------
     # Scraper Function with caching
     # ----------------------------
     @st.cache_data(show_spinner=False)
-    def scrape_lowyat_property(query, limit=15):
-        base_url = "https://forum.lowyat.net/search.php"
+    def scrape_lowyat_property_threads(limit=20):
+        base_url = "https://forum.lowyat.net/forumdisplay.php"
         params = {
-            "keywords": query,
-            "terms": "all",
-            "fid[]": "33",   # Property & Real Estate forum
-            "sc": "1",
-            "sf": "titleonly",
-            "sr": "topics",
-            "st": "0",
-            "ch": "300",
-            "submit": "Search"
+            "f": "33",   # Property & Real Estate forum
+            "order": "desc",
+            "sort": "lastpost"
         }
         headers = {"User-Agent": "Mozilla/5.0"}
         posts = []
         try:
             res = requests.get(base_url, params=params, headers=headers, timeout=10)
             soup = BeautifulSoup(res.text, "html.parser")
-            threads = soup.find_all("li", class_="searchpost")[:limit]
+            threads = soup.find_all("tr", id=re.compile(r'tid_\d+'))[:limit]
             for t in threads:
-                title = t.find("h3").text.strip() if t.find("h3") else ""
-                url = t.find("a")["href"] if t.find("a") else ""
-                snippet = t.find("div", class_="searchpost-content").text.strip() if t.find("div", class_="searchpost-content") else ""
-                posts.append({"title": title, "content": snippet, "url": url})
+                title_tag = t.find("a", id=re.compile(r'thread_title_\d+'))
+                if title_tag:
+                    title = title_tag.text.strip()
+                    url = "https://forum.lowyat.net/" + title_tag["href"]
+                    snippet_tag = t.find("td", class_="alt2")
+                    snippet = snippet_tag.text.strip() if snippet_tag else ""
+                    posts.append({"title": title, "content": snippet, "url": url})
         except Exception as e:
             st.error(f"Scraping failed: {e}")
         return pd.DataFrame(posts)
@@ -180,19 +176,23 @@ elif page == "💬 Forum Scraper":
             return Counter(ngrams(tokens, n)).most_common(top_k)
 
     # ----------------------------
-    # Scraping & Display
+    # Scraping & Filtering
     # ----------------------------
-    if st.button("Scrape Discussions"):
-        with st.spinner("Scraping Lowyat.NET Property forum..."):
-            df = scrape_lowyat_property(query, limit)
+    if st.button("Fetch Threads"):
+        with st.spinner("Fetching latest threads from Property & Real Estate forum..."):
+            df = scrape_lowyat_property_threads(limit)
 
-            if not df.empty:
-                st.success(f"Fetched {len(df)} posts from Property & Real Estate forum")
-                st.dataframe(df)
+            # Filter locally for 'rent' or 'buy'
+            keywords = ["rent", "buy"]
+            df_filtered = df[df.apply(lambda row: any(k in (row["title"] + " " + row["content"]).lower() for k in keywords), axis=1)]
+
+            if not df_filtered.empty:
+                st.success(f"Found {len(df_filtered)} threads mentioning 'rent' or 'buy'")
+                st.dataframe(df_filtered)
 
                 # Word Cloud & Top Words
                 st.subheader("📊 Word Cloud & Top Words/Phrases")
-                text_series = df["title"] + " " + df["content"]
+                text_series = df_filtered["title"] + " " + df_filtered["content"]
                 tokens = preprocess_text(text_series)
 
                 if tokens:
@@ -219,7 +219,5 @@ elif page == "💬 Forum Scraper":
                         counts = [count for w, count in top_ngrams]
                         st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
 
-                else:
-                    st.warning("No text available for analysis.")
             else:
-                st.warning(f"No posts found for '{query}' in Property & Real Estate forum.")
+                st.warning("No threads found mentioning 'rent' or 'buy'. Try fetching more threads.")
