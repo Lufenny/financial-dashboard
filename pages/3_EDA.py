@@ -22,8 +22,8 @@ st.title('🔎 Exploratory Data Analysis (EDA)')
 # ----------------------------
 # Load EDA Data
 # ----------------------------
-url = "https://raw.githubusercontent.com/username/repo/main/data/data.csv"
-df = pd.read_csv(url)
+df = pd.read_csv("utils/Data.csv")
+
 
 # ----------------------------
 # Reddit Scraper
