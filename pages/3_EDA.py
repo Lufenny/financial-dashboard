@@ -2,92 +2,225 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
-import nltk
-from nltk.tokenize import word_tokenize
+from collections import Counter
 from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from nltk import ngrams
+from nltk.tokenize import word_tokenize
+import requests
+from bs4 import BeautifulSoup
+import re
 
-# Download nltk resources
-nltk.download("punkt", quiet=True)
-nltk.download("stopwords", quiet=True)
+# ----------------------------
+# NLTK Setup
+# ----------------------------
+import nltk
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
 
-st.title("📊 Exploratory Data Analysis (EDA)")
+# ----------------------------
+# Streamlit Page Config
+# ----------------------------
+st.set_page_config(page_title="EDA & Forum Scraper", layout="wide")
+st.sidebar.title("🔍 Navigation")
+page = st.sidebar.radio("Go to:", ["📊 EDA", "💬 Forum Scraper"])
 
-# ========================
-# SECTION A: Rent vs Buy EDA
-# ========================
-st.header("🏡 Rent vs Buy Dataset")
-
+# ----------------------------
+# Load EDA Data
+# ----------------------------
 @st.cache_data
-def load_main_data():
-    file_path = "Buy_vs_Rent_KL_FullModel.xlsx"   # adjust if needed
-    return pd.read_excel(file_path, sheet_name="Annual_Summary")
+def load_data():
+    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Data.csv"
+    try:
+        df = pd.read_csv(url)
+        return df
+    except Exception as e:
+        st.error(f"Could not load Data.csv from GitHub. Error: {e}")
+        return pd.DataFrame()
 
-try:
-    df_main = load_main_data()
-    st.success("✅ Main Rent vs Buy dataset loaded!")
-    st.dataframe(df_main.head())
-except Exception as e:
-    st.error(f"⚠️ Could not load main dataset.\n\n{e}")
-    st.stop()
+# ----------------------------
+# EDA Page
+# ----------------------------
+if page == "📊 EDA":
+    st.title("🔎 Exploratory Data Analysis (EDA)")
+    df = load_data()
+    
+    if not df.empty:
+        if "Year" in df.columns:
+            df["Year"] = df["Year"].astype(int)
+            df = df.reset_index(drop=True)
+        
+        # Data Preview
+        st.subheader("📋 Data Preview")
+        st.dataframe(df)
 
-# ---- Summary Statistics ----
-st.subheader("📈 Summary Statistics")
-st.write(df_main.describe())
+        # Summary Statistics
+        st.subheader("📊 Summary Statistics")
+        st.write(df.describe())
 
-# ---- Rent vs Buy Cumulative Chart ----
-st.subheader("📊 Cumulative Rent vs Buy Costs")
-if "Cumulative Rent" in df_main.columns and "Cumulative Buy" in df_main.columns:
-    st.line_chart(df_main[["Cumulative Rent", "Cumulative Buy"]])
+        # Chart Selector
+        st.subheader("📈 Visual Analysis")
+        chart_type = st.selectbox(
+            "Select a chart to display:",
+            ["OPR vs Year", "EPF vs Year", "Price Growth vs Year", "Rent Yield vs Year", "Correlation Heatmap"]
+        )
 
-# ---- Scenario Comparison ----
-st.subheader("⚖️ Scenario Comparison")
-if "Scenario" in df_main.columns:
-    scenario_summary = df_main.groupby("Scenario")[["Cumulative Rent", "Cumulative Buy"]].last()
-    st.bar_chart(scenario_summary)
+        if chart_type == "OPR vs Year" and "OPR_avg" in df.columns:
+            fig, ax = plt.subplots()
+            ax.plot(df["Year"], df["OPR_avg"], marker="o", label="OPR (%)", color="blue")
+            ax.set_xlabel("Year"); ax.set_ylabel("OPR (%)")
+            ax.set_title("Trend of OPR vs Year")
+            ax.legend(); st.pyplot(fig)
 
-# ---- Sensitivity Analysis ----
-st.subheader("🧪 Sensitivity Analysis")
-if "Monthly Contribution" in df_main.columns and "Final Wealth" in df_main.columns:
-    sensitivity = df_main.groupby("Monthly Contribution")["Final Wealth"].mean()
-    st.line_chart(sensitivity)
+        elif chart_type == "EPF vs Year" and "EPF" in df.columns:
+            fig, ax = plt.subplots()
+            ax.plot(df["Year"], df["EPF"], marker="s", label="EPF (%)", color="orange")
+            ax.set_xlabel("Year"); ax.set_ylabel("EPF (%)")
+            ax.set_title("Trend of EPF vs Year")
+            ax.legend(); st.pyplot(fig)
 
-# ========================
-# SECTION B: Blog Insights
-# ========================
-st.header("📰 Blog Insights: Rent vs Buy in Malaysia")
+        elif chart_type == "Price Growth vs Year" and "PriceGrowth" in df.columns:
+            fig, ax = plt.subplots()
+            ax.plot(df["Year"], df["PriceGrowth"], marker="^", label="Price Growth (%)", color="green")
+            ax.set_xlabel("Year"); ax.set_ylabel("Price Growth (%)")
+            ax.set_title("Trend of Price Growth vs Year")
+            ax.legend(); st.pyplot(fig)
 
-@st.cache_data
-def load_blog_data():
-    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Rent_vs_Buy_Blogs.csv"
-    return pd.read_csv(url)
+        elif chart_type == "Rent Yield vs Year" and "RentYield" in df.columns:
+            fig, ax = plt.subplots()
+            ax.plot(df["Year"], df["RentYield"], marker="d", label="Rental Yield (%)", color="purple")
+            ax.set_xlabel("Year"); ax.set_ylabel("Rental Yield (%)")
+            ax.set_title("Trend of Rental Yield vs Year")
+            ax.legend(); st.pyplot(fig)
 
-try:
-    df_blog = load_blog_data()
-    st.success("✅ Blog CSV loaded!")
-    st.dataframe(df_blog)
-except Exception as e:
-    st.error(f"⚠️ Could not load blog CSV.\n\n{e}")
-    st.stop()
+        elif chart_type == "Correlation Heatmap":
+            st.write("### Correlation Matrix")
+            corr = df.corr(numeric_only=True)
+            st.dataframe(corr.style.background_gradient(cmap="Blues"))
 
-# ---- Preprocess Blog Text ----
-def preprocess_text(series):
-    text = " ".join(series.dropna().astype(str))
-    tokens = word_tokenize(text.lower())
-    stop_words = set(stopwords.words("english"))
-    tokens = [w for w in tokens if w.isalpha() and w not in stop_words]
-    return " ".join(tokens)
+        # Download
+        st.subheader("⬇️ Download Data")
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("Download Dataset (CSV)", data=csv, file_name="EDA_data.csv", mime="text/csv")
+    else:
+        st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
-# ---- Word Cloud ----
-st.subheader("☁️ Word Cloud from Blogs")
-all_text = preprocess_text(df_blog["Content"])
-if all_text.strip():
-    wc = WordCloud(width=800, height=400, background_color="white").generate(all_text)
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.imshow(wc, interpolation="bilinear")
-    ax.axis("off")
-    st.pyplot(fig)
+# ----------------------------
+# Forum Scraper Page (PropertyGuru Articles)
+# ----------------------------
+elif page == "💬 Forum Scraper":
+    st.title("🏡 Rent vs Buy — PropertyGuru Articles (Malaysia)")
+    st.write("Fetching latest property articles without API keys.")
 
-# ---- Blog Category Counts ----
-st.subheader("📊 Blog Category Distribution")
-if "Category" in df_blog.columns:
-    st.bar_chart(df_blog["Category"].value_counts())
+    # ----------------------------
+    # Scraper Function
+    # ----------------------------
+    def scrape_propertyguru(query="rent buy", limit=20):
+        base_url = "https://www.propertyguru.com.my/property-news"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        posts = []
+
+        try:
+            r = requests.get(base_url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                return pd.DataFrame([{"error": f"Failed to fetch PropertyGuru data: {r.status_code}"}])
+
+            soup = BeautifulSoup(r.text, "html.parser")
+            articles = soup.find_all("article")[:limit]
+
+            for a in articles:
+                title_tag = a.find("h2")
+                snippet_tag = a.find("p")
+                url_tag = a.find("a", href=True)
+
+                title = title_tag.text.strip() if title_tag else ""
+                snippet = snippet_tag.text.strip() if snippet_tag else ""
+                url = url_tag["href"] if url_tag else ""
+
+                # Filter locally for query keywords
+                if any(k in (title + " " + snippet).lower() for k in query.lower().split()):
+                    posts.append({
+                        "platform": "PropertyGuru",
+                        "title": title,
+                        "content": snippet,
+                        "url": url
+                    })
+
+        except Exception as e:
+            st.error(f"Scraping failed: {e}")
+
+        return pd.DataFrame(posts)
+
+    # ----------------------------
+    # Text Processing Functions
+    # ----------------------------
+    def preprocess_text(text_series):
+        lemmatizer = WordNetLemmatizer()
+        stop_words = set(stopwords.words('english'))
+
+        all_tokens = []
+        for text in text_series.dropna().astype(str):
+            tokens = word_tokenize(text.lower())
+            tokens = [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
+            all_tokens.extend(tokens)
+        return all_tokens
+
+    def get_top_ngrams(tokens, n=1, top_k=10):
+        if n == 1:
+            c = Counter(tokens)
+        else:
+            c = Counter(ngrams(tokens, n))
+        return c.most_common(top_k)
+
+    # ----------------------------
+    # Streamlit UI
+    # ----------------------------
+    query = st.text_input("Search query:", "rent buy")
+    limit = st.slider("Number of articles", 5, 20, 10)
+    ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
+
+    if st.button("Scrape Articles"):
+        with st.spinner("Fetching PropertyGuru articles..."):
+            df = scrape_propertyguru(query, limit)
+
+            if not df.empty:
+                st.success(f"Fetched {len(df)} articles matching '{query}'")
+                st.dataframe(df)
+
+                # Download scraped articles
+                st.subheader("⬇️ Download Articles")
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button("Download Articles (CSV)", data=csv, file_name="PropertyGuru_articles.csv", mime="text/csv")
+
+                # Word Cloud & Top Words
+                st.subheader("📊 Word Cloud & Top Words/Phrases")
+                text_series = df["title"] + " " + df["content"]
+                tokens = preprocess_text(text_series)
+
+                if tokens:
+                    n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
+                    top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.write("### Word Cloud")
+                        if n == 1:
+                            wc_text = " ".join(tokens)
+                            wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
+                            fig, ax = plt.subplots(figsize=(10,5))
+                            ax.imshow(wc, interpolation="bilinear")
+                            ax.axis("off")
+                            st.pyplot(fig)
+                        else:
+                            st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
+
+                    with col2:
+                        st.write(f"### Top 10 {ngram_option}")
+                        top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
+                        counts = [count for w, count in top_ngrams]
+                        st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
+
+            else:
+                st.warning(f"No articles found matching '{query}'. Try another keyword.")
