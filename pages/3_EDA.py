@@ -25,18 +25,8 @@ nltk.download('wordnet')
 # ----------------------------
 @st.cache_data
 def load_data():
-    local_path = "utils/Data.csv"  # updated path to utils folder
-    github_url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/utils/Data.csv"
-
-    if os.path.exists(local_path):
-        df = pd.read_csv(local_path)
-    else:
-        try:
-            df = pd.read_csv(github_url)
-        except Exception as e:
-            st.error(f"Could not load data. Make sure 'Data.csv' exists.\nError: {e}")
-            return None
-    return df
+    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/utils/Data.csv"
+    return pd.read_csv(url)
 
 # ----------------------------
 # Reddit Scraper
