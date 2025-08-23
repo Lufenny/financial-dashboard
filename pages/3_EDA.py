@@ -88,10 +88,12 @@ elif page == "☁️ WordCloud":
         # Combine all blog text
         text_data = " ".join(df_text["Content"].dropna().astype(str))
 
-        # Tokenize & clean
-        tokens = word_tokenize(text_data.lower())
+        # Tokenize & clean using regex (safe for Streamlit Cloud)
+        import re
+        tokens = re.findall(r"\b[a-zA-Z]+\b", text_data.lower())
+
         stop_words = set(stopwords.words("english"))
-        cleaned_tokens = [word for word in tokens if word.isalpha() and word not in stop_words]
+        cleaned_tokens = [word for word in tokens if word not in stop_words]
 
         # WordCloud
         wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(cleaned_tokens))
