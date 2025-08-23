@@ -7,8 +7,6 @@ st.set_page_config(page_title='Analysis', layout='wide')
 st.title('📑 Scenario Analysis')
 
 # ---- Page Content ----
-st.title("📑 Analysis")
-
 st.markdown("### 🔄 Scenario Comparison")
 with st.expander("ℹ️ Description", expanded=False):
     st.write("""
