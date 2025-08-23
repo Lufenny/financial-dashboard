@@ -8,7 +8,6 @@ from nltk.stem import WordNetLemmatizer
 from nltk import ngrams
 import re
 import nltk
-import praw
 
 # ----------------------------
 # NLTK Setup
@@ -105,72 +104,124 @@ if page == "📊 EDA":
         st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
 # ----------------------------
-# Forum Scraper Page (PRAW)
+# Page 2: Multi-Forum Scraper
 # ----------------------------
 elif page == "💬 Forum Scraper":
     st.title("🏡 Rent vs Buy — Forum Discussions (Malaysia)")
-    st.write("Fetching latest Reddit discussions via official API.")
+    st.write("Fetch discussions from Lowyat.NET or PropertyGuru without API keys.")
 
-    # Reddit API credentials from Streamlit secrets
-    try:
-        client_id = st.secrets["REDDIT_CLIENT_ID"]
-        client_secret = st.secrets["REDDIT_CLIENT_SECRET"]
-        user_agent = "streamlit_app_by_lufenny"
-        reddit = praw.Reddit(
-            client_id=client_id,
-            client_secret=client_secret,
-            user_agent=user_agent
-        )
-    except Exception as e:
-        st.error(f"Reddit API not configured correctly. Error: {e}")
-        st.stop()
+    import requests
+    from bs4 import BeautifulSoup
+    from nltk.corpus import stopwords
+    from nltk.stem import WordNetLemmatizer
+    from nltk import ngrams
+    from collections import Counter
+    import re
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    from wordcloud import WordCloud
 
+    # ----------------------------
+    # User Inputs
+    # ----------------------------
+    forum = st.selectbox("Choose Forum:", ["Lowyat.NET", "PropertyGuru"])
     query = st.text_input("Search query:", "rent vs buy")
-    subreddit = st.selectbox("Choose subreddit:", ["MalaysianPF", "Malaysia", "personalfinance", "realestate"])
-    limit = st.slider("Number of posts", 5, 50, 20)
+    limit = st.slider("Number of posts", 5, 20, 10)
     ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
 
+    # ----------------------------
+    # Scraper Functions
+    # ----------------------------
+    def scrape_lowyat(query, limit=10):
+        base_url = "https://forum.lowyat.net/search.php"
+        params = {
+            "keywords": query,
+            "terms": "all",
+            "author": "",
+            "fid[]": "",   
+            "sc": "1",
+            "sf": "titleonly",
+            "sr": "topics",
+            "st": "0",
+            "ch": "300",
+            "submit": "Search"
+        }
+        headers = {"User-Agent": "Mozilla/5.0"}
+        posts = []
+        try:
+            res = requests.get(base_url, params=params, headers=headers, timeout=10)
+            soup = BeautifulSoup(res.text, "html.parser")
+            threads = soup.find_all("li", class_="searchpost")[:limit]
+            for t in threads:
+                title = t.find("h3").text.strip() if t.find("h3") else ""
+                url = t.find("a")["href"] if t.find("a") else ""
+                snippet = t.find("div", class_="searchpost-content").text.strip() if t.find("div", class_="searchpost-content") else ""
+                posts.append({"title": title, "content": snippet, "url": url})
+        except Exception as e:
+            st.error(f"Lowyat.NET scraping failed: {e}")
+        return pd.DataFrame(posts)
+
+    def scrape_propertyguru(query, limit=10):
+        base_url = "https://www.propertyguru.com.my/property-news"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        posts = []
+        try:
+            res = requests.get(base_url, headers=headers, timeout=10)
+            soup = BeautifulSoup(res.text, "html.parser")
+            articles = soup.find_all("div", class_="article-item")[:limit]
+            for art in articles:
+                title_tag = art.find("h2")
+                title = title_tag.text.strip() if title_tag else ""
+                url = title_tag.find("a")["href"] if title_tag and title_tag.find("a") else ""
+                snippet_tag = art.find("p")
+                snippet = snippet_tag.text.strip() if snippet_tag else ""
+                if query.lower() in title.lower() or query.lower() in snippet.lower():
+                    posts.append({"title": title, "content": snippet, "url": url})
+        except Exception as e:
+            st.error(f"PropertyGuru scraping failed: {e}")
+        return pd.DataFrame(posts)
+
+    # ----------------------------
+    # Text Processing Functions
+    # ----------------------------
+    def preprocess_text(text_series):
+        lemmatizer = WordNetLemmatizer()
+        stop_words = set(stopwords.words("english"))
+        tokens = []
+        for text in text_series.astype(str):
+            tks = re.findall(r'\b[a-zA-Z]+\b', text.lower())
+            tks = [lemmatizer.lemmatize(w) for w in tks if w not in stop_words]
+            tokens.extend(tks)
+        return tokens
+
+    def get_top_ngrams(tokens, n=1, top_k=10):
+        if n == 1:
+            return Counter(tokens).most_common(top_k)
+        else:
+            return Counter(ngrams(tokens, n)).most_common(top_k)
+
+    # ----------------------------
+    # Scraping & Display
+    # ----------------------------
     if st.button("Scrape Discussions"):
-        with st.spinner("Fetching Reddit posts..."):
-            try:
-                posts = []
-                for submission in reddit.subreddit(subreddit).search(query, limit=limit, sort="new"):
-                    posts.append({
-                        "title": submission.title,
-                        "content": submission.selftext[:300],
-                        "url": submission.url
-                    })
+        with st.spinner(f"Scraping {forum}..."):
+            if forum == "Lowyat.NET":
+                df = scrape_lowyat(query, limit)
+            else:
+                df = scrape_propertyguru(query, limit)
 
-                df = pd.DataFrame(posts)
-
-                if df.empty:
-                    st.warning("No posts found. Try another query or subreddit.")
-                    st.stop()
-
-                st.success(f"Fetched {len(df)} posts from r/{subreddit}")
+            if not df.empty:
+                st.success(f"Fetched {len(df)} posts from {forum}")
                 st.dataframe(df)
 
-                # Combine title + content for analysis
-                text_series = df["title"].fillna("") + " " + df["content"].fillna("")
-
-                # Text Preprocessing
-                lemmatizer = WordNetLemmatizer()
-                stop_words = set(stopwords.words("english"))
-                all_tokens = []
-
-                for text in text_series.astype(str):
-                    tokens = re.findall(r'\b[a-zA-Z]+\b', text.lower())
-                    tokens = [lemmatizer.lemmatize(t) for t in tokens if t not in stop_words]
-                    all_tokens.extend(tokens)
-
-                tokens = all_tokens
+                # Word Cloud & Top Words
+                st.subheader("📊 Word Cloud & Top Words/Phrases")
+                text_series = df["title"] + " " + df["content"]
+                tokens = preprocess_text(text_series)
 
                 if tokens:
-                    n = 1 if ngram_option == "Unigrams" else 2 if ngram_option == "Bigrams" else 3
-                    if n == 1:
-                        top_ngrams = Counter(tokens).most_common(10)
-                    else:
-                        top_ngrams = Counter(ngrams(tokens, n)).most_common(10)
+                    n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
+                    top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
 
                     col1, col2 = st.columns(2)
 
@@ -191,8 +242,8 @@ elif page == "💬 Forum Scraper":
                         top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
                         counts = [count for w, count in top_ngrams]
                         st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
-                else:
-                    st.warning("No text available for Word Cloud / n-gram analysis.")
 
-            except Exception as e:
-                st.error(f"Error fetching Reddit posts: {e}")
+                else:
+                    st.warning("No text available for analysis.")
+            else:
+                st.warning(f"No posts found for '{query}' in {forum}.")
