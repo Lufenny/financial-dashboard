@@ -11,93 +11,189 @@ from nltk import word_tokenize, ngrams
 from nltk.stem import WordNetLemmatizer
 import os
 
+# Download required NLTK data
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
+
 st.set_page_config(page_title='EDA', layout='wide')
 st.title('🔎 Exploratory Data Analysis (EDA)')
 
-# =========================
-# Load Data
-# =========================
-data = {
-    "Year": list(range(2010, 2026)),
-    "OPR_avg": [2.47, 3.11, 3.00, 3.00, 3.12, 3.25, 3.13, 3.00, 3.00, 3.00,
-                2.11, 1.75, 2.15, 2.92, 3.00, 2.88],
-    "EPF": [5.80, 6.00, 6.15, 6.35, 6.75, 6.40, 5.70, 6.90, 6.15, 5.45,
-            5.20, 6.10, 5.35, 5.50, 6.30, None],
-    "PriceGrowth": [7.86, 11.22, 14.31, 9.35, 8.69, 6.47, 6.97, 6.13, 2.52, 1.79,
-                    1.21, 1.89, 3.90, 3.85, 4.43, 2.00],
-    "RentYield": [3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 4.1, 4.2, 4.3, 4.4,
-                  4.5, 4.6, 4.5, 4.6, 4.6, 4.6]
-}
-df = pd.DataFrame(data)
+# ----------------------------
+# Load EDA Data
+# ----------------------------
+@st.cache_data
+def load_data():
+    return pd.read_csv("data.csv")  # replace with your CSV path
 
-# =========================
-# Streamlit UI
-# =========================
-st.set_page_config(page_title="Buy vs Rent EDA", layout="wide")
-st.title("🏡 Buy vs Rent Analysis (2010–2025)")
-st.markdown("Exploratory Data Analysis of **Malaysia’s housing market, EPF returns, and rental yields**.")
+# ----------------------------
+# Reddit Scraper
+# ----------------------------
+def scrape_reddit_no_api(query="rent vs buy", subreddit="MalaysianPF", limit=20):
+    url = f"https://www.reddit.com/r/{subreddit}/search.json?q={query}&restrict_sr=1&limit={limit}&sort=new"
+    headers = {"User-Agent": "Mozilla/5.0"}  
+    r = requests.get(url, headers=headers)
 
-# =========================
-# Chart 1: OPR vs EPF Dividend
-# =========================
-st.subheader("📉 OPR vs 📈 EPF Dividend Rates")
-fig, ax = plt.subplots()
-ax.plot(df["Year"], df["OPR_avg"], marker="o", label="OPR (Bank Negara)")
-ax.plot(df["Year"], df["EPF"], marker="o", label="EPF Dividend")
-ax.set_ylabel("Percentage (%)")
-ax.legend()
-st.pyplot(fig)
+    if r.status_code != 200:
+        return pd.DataFrame([{"error": f"Failed to fetch Reddit data: {r.status_code}"}])
 
-with st.expander("🔎 Analyst Notes: OPR vs EPF"):
-    st.markdown("""
-    - **EPF consistently outperforms OPR** — average EPF dividend (~6.0%) is more than double the average OPR (~2.8%).  
-    - This means savings in EPF historically delivered **higher and safer returns** than paying down loans.  
-    - **Implication:** Unless property grows faster than EPF, saving remains a strong alternative.
-    """)
+    data = r.json()
+    posts = []
+    for post in data.get("data", {}).get("children", []):
+        p = post["data"]
+        posts.append({
+            "platform": "Reddit",
+            "subreddit": subreddit,
+            "title": p.get("title"),
+            "url": "https://reddit.com" + p.get("permalink"),
+            "content": p.get("selftext", "")[:300]
+        })
+    return pd.DataFrame(posts)
 
-# =========================
-# Chart 2: Property Price Growth
-# =========================
-st.subheader("🏠 Property Price Growth (%)")
-fig, ax = plt.subplots()
-ax.bar(df["Year"], df["PriceGrowth"], color="skyblue")
-ax.set_ylabel("Price Growth (%)")
-st.pyplot(fig)
+# ----------------------------
+# Text Preprocessing
+# ----------------------------
+def preprocess_text(text_series):
+    lemmatizer = WordNetLemmatizer()
+    stop_words = set(stopwords.words('english'))
 
-with st.expander("🔎 Analyst Notes: Property Price Growth"):
-    st.markdown("""
-    - Early **2010s saw double-digit growth**, peaking at +14% in 2012.  
-    - After 2018, growth slowed sharply, dipping below 2% in 2019–2021 (COVID impact).  
-    - **Implication:** Property investment became less lucrative in recent years, with appreciation stabilizing.  
-    """)
+    all_tokens = []
+    for text in text_series.dropna().astype(str):
+        tokens = word_tokenize(text.lower())
+        tokens = [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
+        all_tokens.extend(tokens)
+    return all_tokens
 
-# =========================
-# Chart 3: Rental Yield Trend
-# =========================
-st.subheader("📊 Rental Yield Trend")
-fig, ax = plt.subplots()
-ax.plot(df["Year"], df["RentYield"], marker="s", color="green")
-ax.set_ylabel("Rental Yield (%)")
-st.pyplot(fig)
+def get_top_ngrams(tokens, n=1, top_k=10):
+    if n == 1:
+        c = Counter(tokens)
+    else:
+        c = Counter(ngrams(tokens, n))
+    return c.most_common(top_k)
 
-with st.expander("🔎 Analyst Notes: Rental Yield"):
-    st.markdown("""
-    - Yields steadily rose from ~3.5% (2010) to ~4.6% (2025).  
-    - As property growth slowed, **renting became more attractive**, especially post-2018.  
-    - **Implication:** Renters may find better value now, as rental returns grow while capital appreciation slows.
-    """)
+# ----------------------------
+# Streamlit Layout
+# ----------------------------
+st.set_page_config(page_title="EDA & Forum Scraper", layout="wide")
+st.sidebar.title("🔍 Navigation")
+page = st.sidebar.radio("Go to:", ["📊 EDA", "💬 Forum Scraper"])
 
-# =========================
-# Summary Section
-# =========================
-st.subheader("📌 Overall Insights")
-with st.expander("Click to expand summary"):
-    st.markdown("""
-    - **EPF vs Property**: EPF outperformed loan costs, making savings relatively stronger than property debt.  
-    - **Property Growth**: Explosive in the 2010s, but slowed after 2018, nearing stagnation during COVID.  
-    - **Rent Yields**: Consistently rising, suggesting renting is comparatively more favorable now.  
+# ----------------------------
+# Page 1: EDA
+# ----------------------------
+if page == "📊 EDA":
+    st.title("🔎 Exploratory Data Analysis (EDA)")
 
-    👉 **Analyst View:**  
-    In the 2010s, buying property was compelling due to rapid growth.  
-    Post-2018, with slower growth and rising yields, **renting became more financially sensible**.
-    """)
+    df = load_data()
+
+    # Ensure Year is integer
+    if "Year" in df.columns:
+        df["Year"] = df["Year"].astype(int)
+        df = df.reset_index(drop=True)
+
+    # Data Preview
+    st.subheader("📋 Data Preview")
+    st.dataframe(df)
+
+    # Summary Statistics
+    st.subheader("📊 Summary Statistics")
+    st.write(df.describe())
+
+    # Chart Selector
+    st.subheader("📈 Visual Analysis")
+    chart_type = st.selectbox(
+        "Select a chart to display:",
+        ["OPR vs Year", "EPF vs Year", "Price Growth vs Year", "Rent Yield vs Year", "Correlation Heatmap"]
+    )
+
+    if chart_type == "OPR vs Year" and "OPR_avg" in df.columns:
+        fig, ax = plt.subplots()
+        ax.plot(df["Year"], df["OPR_avg"], marker="o", label="OPR (%)", color="blue")
+        ax.set_xlabel("Year"); ax.set_ylabel("OPR (%)")
+        ax.set_title("Trend of OPR vs Year")
+        ax.legend(); st.pyplot(fig)
+
+    elif chart_type == "EPF vs Year" and "EPF" in df.columns:
+        fig, ax = plt.subplots()
+        ax.plot(df["Year"], df["EPF"], marker="s", label="EPF (%)", color="orange")
+        ax.set_xlabel("Year"); ax.set_ylabel("EPF (%)")
+        ax.set_title("Trend of EPF vs Year")
+        ax.legend(); st.pyplot(fig)
+
+    elif chart_type == "Price Growth vs Year" and "PriceGrowth" in df.columns:
+        fig, ax = plt.subplots()
+        ax.plot(df["Year"], df["PriceGrowth"], marker="^", label="Price Growth (%)", color="green")
+        ax.set_xlabel("Year"); ax.set_ylabel("Price Growth (%)")
+        ax.set_title("Trend of Price Growth vs Year")
+        ax.legend(); st.pyplot(fig)
+
+    elif chart_type == "Rent Yield vs Year" and "RentYield" in df.columns:
+        fig, ax = plt.subplots()
+        ax.plot(df["Year"], df["RentYield"], marker="d", label="Rental Yield (%)", color="purple")
+        ax.set_xlabel("Year"); ax.set_ylabel("Rental Yield (%)")
+        ax.set_title("Trend of Rental Yield vs Year")
+        ax.legend(); st.pyplot(fig)
+
+    elif chart_type == "Correlation Heatmap":
+        st.write("### Correlation Matrix")
+        corr = df.corr(numeric_only=True)
+        st.dataframe(corr.style.background_gradient(cmap="Blues"))
+
+    # Download
+    st.subheader("⬇️ Download Data")
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download Dataset (CSV)", data=csv, file_name="EDA_data.csv", mime="text/csv")
+
+# ----------------------------
+# Page 2: Forum Scraper (Side-by-side Word Cloud & Top Words)
+# ----------------------------
+elif page == "💬 Forum Scraper":
+    st.title("🏡 Rent vs Buy — Forum Discussions (Malaysia)")
+    st.write("Fetching latest Reddit discussions without API keys.")
+
+    query = st.text_input("Search query:", "rent vs buy")
+    subreddit = st.selectbox("Choose subreddit:", ["MalaysianPF", "Malaysia", "personalfinance", "realestate"])
+    limit = st.slider("Number of posts", 5, 50, 20)
+    ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
+
+    if st.button("Scrape Discussions"):
+        with st.spinner("Scraping Reddit..."):
+            df = scrape_reddit_no_api(query, subreddit, limit)
+            if not df.empty:
+                st.success(f"Fetched {len(df)} posts from r/{subreddit}")
+                st.dataframe(df)
+
+                # Word Cloud & Top Words Side-by-Side
+                st.subheader("📊 Word Cloud & Top Words/Phrases")
+                text_series = df["title"] if "title" in df.columns else df["content"]
+                tokens = preprocess_text(text_series)
+
+                if tokens:
+                    n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
+                    top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
+
+                    # Create two columns
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.write("### Word Cloud")
+                        if n == 1:
+                            wc_text = " ".join(tokens)
+                            wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
+                            fig, ax = plt.subplots(figsize=(10,5))
+                            ax.imshow(wc, interpolation="bilinear")
+                            ax.axis("off")
+                            st.pyplot(fig)
+                        else:
+                            st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
+
+                    with col2:
+                        st.write(f"### Top 10 {ngram_option}")
+                        top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
+                        counts = [count for w, count in top_ngrams]
+                        st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
+
+                else:
+                    st.warning("No text available for analysis.")
+            else:
+                st.warning("No posts found. Try another query or subreddit.")
