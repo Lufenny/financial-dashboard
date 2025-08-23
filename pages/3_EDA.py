@@ -3,11 +3,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 from collections import Counter
+import nltk
 from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 from nltk import ngrams
-from nltk.tokenize import word_tokenize
-import nltk
 
 # ----------------------------
 # NLTK Setup
@@ -19,15 +19,15 @@ nltk.download('wordnet')
 # ----------------------------
 # Streamlit Page Config
 # ----------------------------
-st.set_page_config(page_title="EDA & Forum Analyzer", layout="wide")
+st.set_page_config(page_title="EDA & Blog Insights", layout="wide")
 st.sidebar.title("🔍 Navigation")
-page = st.sidebar.radio("Go to:", ["📊 EDA", "💬 Forum Analyzer"])
+page = st.sidebar.radio("Go to:", ["📊 EDA", "💬 Blog Insights"])
 
 # ----------------------------
 # Load EDA Data
 # ----------------------------
 @st.cache_data
-def load_data():
+def load_eda_data():
     url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/Data.csv"
     try:
         df = pd.read_csv(url)
@@ -37,16 +37,15 @@ def load_data():
         return pd.DataFrame()
 
 # ----------------------------
-# Load Forum Excel Data
+# Load Blog Excel Data
 # ----------------------------
 @st.cache_data
-def load_forum_data():
-    url = "https://raw.githubusercontent.com/Lufenny/financial-dashboard/main/forum_data.xlsx"
+def load_blog_data(file_path="Rent_vs_Buy_Blogs.xlsx"):
     try:
-        df = pd.read_excel(url)
+        df = pd.read_excel(file_path)
         return df
     except Exception as e:
-        st.error(f"Could not load forum_data.xlsx. Error: {e}")
+        st.error(f"Could not load blog Excel file. Error: {e}")
         return pd.DataFrame()
 
 # ----------------------------
@@ -74,22 +73,19 @@ def get_top_ngrams(tokens, n=1, top_k=10):
 # ----------------------------
 if page == "📊 EDA":
     st.title("🔎 Exploratory Data Analysis (EDA)")
-    df = load_data()
+    df = load_eda_data()
     
     if not df.empty:
         if "Year" in df.columns:
             df["Year"] = df["Year"].astype(int)
             df = df.reset_index(drop=True)
         
-        # Data Preview
         st.subheader("📋 Data Preview")
         st.dataframe(df)
 
-        # Summary Statistics
         st.subheader("📊 Summary Statistics")
         st.write(df.describe())
 
-        # Chart Selector
         st.subheader("📈 Visual Analysis")
         chart_type = st.selectbox(
             "Select a chart to display:",
@@ -98,94 +94,83 @@ if page == "📊 EDA":
 
         if chart_type == "OPR vs Year" and "OPR_avg" in df.columns:
             fig, ax = plt.subplots()
-            ax.plot(df["Year"], df["OPR_avg"], marker="o", label="OPR (%)", color="blue")
+            ax.plot(df["Year"], df["OPR_avg"], marker="o", color="blue")
             ax.set_xlabel("Year"); ax.set_ylabel("OPR (%)")
             ax.set_title("Trend of OPR vs Year")
-            ax.legend(); st.pyplot(fig)
+            st.pyplot(fig)
 
         elif chart_type == "EPF vs Year" and "EPF" in df.columns:
             fig, ax = plt.subplots()
-            ax.plot(df["Year"], df["EPF"], marker="s", label="EPF (%)", color="orange")
+            ax.plot(df["Year"], df["EPF"], marker="s", color="orange")
             ax.set_xlabel("Year"); ax.set_ylabel("EPF (%)")
             ax.set_title("Trend of EPF vs Year")
-            ax.legend(); st.pyplot(fig)
+            st.pyplot(fig)
 
         elif chart_type == "Price Growth vs Year" and "PriceGrowth" in df.columns:
             fig, ax = plt.subplots()
-            ax.plot(df["Year"], df["PriceGrowth"], marker="^", label="Price Growth (%)", color="green")
+            ax.plot(df["Year"], df["PriceGrowth"], marker="^", color="green")
             ax.set_xlabel("Year"); ax.set_ylabel("Price Growth (%)")
             ax.set_title("Trend of Price Growth vs Year")
-            ax.legend(); st.pyplot(fig)
+            st.pyplot(fig)
 
         elif chart_type == "Rent Yield vs Year" and "RentYield" in df.columns:
             fig, ax = plt.subplots()
-            ax.plot(df["Year"], df["RentYield"], marker="d", label="Rental Yield (%)", color="purple")
+            ax.plot(df["Year"], df["RentYield"], marker="d", color="purple")
             ax.set_xlabel("Year"); ax.set_ylabel("Rental Yield (%)")
             ax.set_title("Trend of Rental Yield vs Year")
-            ax.legend(); st.pyplot(fig)
+            st.pyplot(fig)
 
         elif chart_type == "Correlation Heatmap":
             st.write("### Correlation Matrix")
             corr = df.corr(numeric_only=True)
             st.dataframe(corr.style.background_gradient(cmap="Blues"))
 
-        # Download
         st.subheader("⬇️ Download Data")
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download Dataset (CSV)", data=csv, file_name="EDA_data.csv", mime="text/csv")
-    else:
-        st.warning("EDA data is empty. Check GitHub CSV URL or network.")
 
 # ----------------------------
-# Forum Analyzer Page (Excel-based)
+# Blog Insights Page
 # ----------------------------
-elif page == "💬 Forum Analyzer":
-    st.title("🏡 Rent vs Buy — Forum Analysis (Excel Data)")
+elif page == "💬 Blog Insights":
+    st.title("🏡 Rent vs Buy — Malaysia Finance Blogs")
     
-    df = load_forum_data()
+    df_blog = load_blog_data()
     
-    if not df.empty:
-        st.subheader("📋 Data Preview")
-        st.dataframe(df)
+    if not df_blog.empty:
+        st.subheader("📋 Blog Articles")
+        st.dataframe(df_blog)
+
+        ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
         
-        # Download option
-        st.subheader("⬇️ Download Forum Data")
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download Dataset (CSV)", data=csv, file_name="forum_data.csv", mime="text/csv")
+        # Combine all blog content
+        text_series = df_blog["Content"].fillna("")
+        tokens = preprocess_text(text_series)
         
-        # Word Cloud & n-grams
-        if all(col in df.columns for col in ["title", "content"]):
-            text_series = df["title"].fillna("") + " " + df["content"].fillna("")
-            tokens = preprocess_text(text_series)
+        if tokens:
+            n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
+            top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
 
-            if tokens:
-                ngram_option = st.radio("Show:", ["Unigrams", "Bigrams", "Trigrams"])
-                n = 1 if ngram_option=="Unigrams" else 2 if ngram_option=="Bigrams" else 3
-                top_ngrams = get_top_ngrams(tokens, n=n, top_k=10)
+            col1, col2 = st.columns(2)
 
-                col1, col2 = st.columns(2)
+            with col1:
+                st.write("### Word Cloud")
+                if n == 1:
+                    wc_text = " ".join(tokens)
+                    wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
+                    fig, ax = plt.subplots(figsize=(10,5))
+                    ax.imshow(wc, interpolation="bilinear")
+                    ax.axis("off")
+                    st.pyplot(fig)
+                else:
+                    st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
 
-                with col1:
-                    st.write("### Word Cloud")
-                    if n == 1:
-                        wc_text = " ".join(tokens)
-                        wc = WordCloud(width=800, height=400, background_color="white").generate(wc_text)
-                        fig, ax = plt.subplots(figsize=(10,5))
-                        ax.imshow(wc, interpolation="bilinear")
-                        ax.axis("off")
-                        st.pyplot(fig)
-                    else:
-                        st.info("Word Cloud only for unigrams. Showing Top Phrases instead.")
-
-                with col2:
-                    st.write(f"### Top 10 {ngram_option}")
-                    top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
-                    counts = [count for w, count in top_ngrams]
-                    st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
-
-            else:
-                st.warning("No text available for analysis.")
+            with col2:
+                st.write(f"### Top 10 {ngram_option}")
+                top_words = [" ".join(w) if isinstance(w, tuple) else w for w, count in top_ngrams]
+                counts = [count for w, count in top_ngrams]
+                st.table(pd.DataFrame({"Word/Phrase": top_words, "Count": counts}))
         else:
-            st.warning("No 'title' or 'content' columns found in the Excel file.")
+            st.warning("No blog content available for analysis.")
     else:
-        st.warning("Forum Excel file is empty.")
+        st.warning("Blog Excel file is empty or missing. Please upload the file.")
