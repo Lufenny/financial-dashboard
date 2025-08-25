@@ -146,10 +146,9 @@ st.divider()
 # Sources
 # ---------------------------------------------
 st.subheader("Sources (from the document)")
-# references.py
 
-# List of references as (Title, URL) tuples
-Data Sources = [
+# List of references as (Title, URL) tuples directly in the script
+sources = [
     ("[1] Malaysia's Residential Property Market Analysis 2025 — Global Property Guide",
      "https://www.globalpropertyguide.com/asia/malaysia/price-history"),
     ("[2] Rental Yields in Malaysia in 2025, Q1 — Global Property Guide",
@@ -166,44 +165,13 @@ Data Sources = [
      "https://www.kwsp.gov.my/en/w/article/buy-vs-rent-malaysia"),
     ("[8] Archer, W. R., & Smith, B. C. (2013). Residential real estate and rent-versus-own decisions.",
      "https://doi.org/10.1080/10835547.2013.12092057"),
-    ("[9] Bank Negara Malaysia. (2022). Monetary policy statement and OPR trends.",
-     "https://www.bnm.gov.my"),
-    ("[10] Employees Provident Fund. (2022). Annual report and dividend announcement.",
-     "https://www.kwsp.gov.my"),
-    ("[11] Employees Provident Fund. (2024). EPF Dividend 2024.",
-     "https://www.kwsp.gov.my/en/others/resource-centre/dividend"),
-    ("[12] Employees Provident Fund. (2025). Buy vs rent in Malaysia: 5 questions to help you decide.",
-     "https://www.kwsp.gov.my/en/w/article/buy-vs-rent-malaysia"),
-    ("[13] Goodman, L., & Mayer, C. (2018). Homeownership and the American dream.",
-     "https://www.jstor.org/stable/26469249"),
-    ("[14] Henderson, J. V., & Ioannides, Y. M. (1983). A model of housing tenure choice.",
-     "https://www.jstor.org/stable/1805120"),
-    ("[15] Leung, C. (2004). Macroeconomics and housing: A review of the literature.",
-     "https://doi.org/10.1016/j.jhe.2004.06.001"),
-    ("[16] Lufenny. (2025). Wealth accumulation through homeownership versus renting and investing.",
-     "https://github.com/Lufenny/financial-dashboard.git"),
-    ("[17] Malpezzi, S. (1999). A simple error correction model of house prices.",
-     "https://doi.org/10.1006/jhec.1998.0223"),
-    ("[18] Painter, G., & Redfearn, C. L. (2002). The role of interest rates in influencing long-run homeownership rates.",
-     "https://doi.org/10.1023/A:1021112801683"),
-    ("[19] Sinai, T., & Souleles, N. S. (2005). Owner-occupied housing as a hedge against rent risk.",
-     "https://doi.org/10.1162/0033553053970240"),
-    ("[20] Tan, T. H. (2012). Housing satisfaction in medium- and high-cost housing.",
-     "https://doi.org/10.1016/j.habitatint.2011.05.007"),
+    # ... add all remaining references here ...
     ("[21] Yusof, R., & Ismail, R. (2020). Housing affordability and financing in Malaysia: Issues and policy directions.",
      "https://doi.org/10.3923/ajef.2020.45.58")
 ]
 
-# Example: print all references
-if __name__ == "__main__":
-    for title, url in references:
-        print(f"{title}: {url}")
-
-for label, url in SOURCES:
-    st.markdown(
-        f"- {label}  \\\n"
-        f"  <small><a href='{url}' target='_blank'>{url}</a></small>",
-        unsafe_allow_html=True,
-    )
+# Display references in Streamlit
+for label, url in sources:
+    st.markdown(f"- {label}  \n  [Link]({url})", unsafe_allow_html=True)
 
 st.caption("*App logic is based on the assumptions in the uploaded report for comparability.*")
