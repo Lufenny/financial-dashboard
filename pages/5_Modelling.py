@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
 st.set_page_config(page_title='Modelling', layout='wide')
-st.title('📊 Modelling — Sensitivity Analysis')
+st.title('📊 Modelling')
 
 # ---------------------------------------------
 # Modelling Content
