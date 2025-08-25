@@ -4,10 +4,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title='Analysis', layout='wide')
-st.title('📑 Scenario Analysis')
+st.title('Analysis')
 
 # ---- Page Content ----
-st.markdown("### 🔄 Scenario Comparison")
+st.markdown("### 🔄 Scenario Analysis")
 with st.expander("ℹ️ Description", expanded=False):
     st.write("""
     Scenario analysis evaluates how investment outcomes change under 
