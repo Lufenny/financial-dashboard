@@ -2,19 +2,6 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 
-# ---- Page Content ----
-
-st.set_page_config(page_title='Expected Outcomes', layout='wide')
-st.title('🎯 Expected Outcomes')
-
-st.markdown("### ✅ Key Deliverables")
-st.write("""
-- Insights on financial performance under multiple conditions  
-- Visualization of scenario-based growth trends    
-""")
-
-st.success("The expected outcomes serve as the foundation for deeper analysis and modelling.")
-
 # ---------------------------------------------
 # Page setup
 # ---------------------------------------------
@@ -26,11 +13,18 @@ st.set_page_config(
 
 st.title("🏠 Buying vs Renting in Kuala Lumpur: 30-Year Wealth Simulation")
 
+st.markdown("### ✅ Key Deliverables")
+st.write("""
+- Insights on financial performance under multiple conditions  
+- Visualization of scenario-based growth trends    
+""")
+
+st.success("The expected outcomes serve as the foundation for deeper analysis and modelling.")
+
 # ---------------------------------------------
 # Core financial functions
 # ---------------------------------------------
 def monthly_mortgage_payment(principal: float, annual_rate: float, years: int) -> float:
-    """Calculate monthly mortgage payment."""
     r = annual_rate / 12.0
     n = years * 12
     if annual_rate == 0:
@@ -38,11 +32,9 @@ def monthly_mortgage_payment(principal: float, annual_rate: float, years: int) -
     return principal * (r * (1 + r) ** n) / ((1 + r) ** n - 1)
 
 def fv_lump_sum(pv: float, annual_rate: float, years: int) -> float:
-    """Future value of a lump sum investment."""
     return pv * ((1 + annual_rate) ** years)
 
 def fv_monthly_annuity(pmt: float, annual_rate: float, years: int) -> float:
-    """Future value of monthly contributions."""
     r = annual_rate / 12.0
     n = years * 12
     if annual_rate == 0:
@@ -58,16 +50,11 @@ def buy_vs_rent_wealth(
     invest_return: float = 0.06,
     home_appreciation: float = 0.02,
 ):
-    """Compare long-term wealth between buying and renting."""
     loan = house_price * (1 - down_pct)
     down = house_price * down_pct
-
-    # Monthly mortgage and rent
     m_mort = monthly_mortgage_payment(loan, mortgage_rate, term_years)
     monthly_rent = (house_price * rent_yield) / 12.0
     monthly_contribution = m_mort - monthly_rent
-
-    # Wealth calculations
     buy_wealth = fv_lump_sum(house_price, home_appreciation, term_years)
     rent_wealth = fv_lump_sum(down, invest_return, term_years) + \
                   fv_monthly_annuity(monthly_contribution, invest_return, term_years)
@@ -78,10 +65,8 @@ def buy_vs_rent_wealth(
 # Sidebar — Inputs
 # ---------------------------------------------
 st.sidebar.header("Inputs")
-house_price = st.sidebar.number_input(
-    "House Price (RM)", min_value=100000, max_value=5_000_000,
-    value=800_000, step=10_000, format="%d"
-)
+house_price = st.sidebar.number_input("House Price (RM)", min_value=100000, max_value=5_000_000,
+                                      value=800_000, step=10_000, format="%d")
 down_pct = st.sidebar.slider("Down Payment (%)", 0.0, 0.9, 0.10, 0.01)
 mortgage_rate = st.sidebar.slider("Mortgage Rate (%)", 0.0, 10.0, 4.0, 0.1) / 100.0
 term_years = st.sidebar.slider("Loan Term (years)", 5, 40, 30, 1)
@@ -89,15 +74,8 @@ rent_yield = st.sidebar.slider("Rent Yield (% of property / year)", 0.0, 10.0, 4
 invest_return = st.sidebar.slider("Investment Return (%)", 0.0, 15.0, 6.0, 0.1) / 100.0
 home_appreciation = st.sidebar.slider("Home Appreciation (%)", 0.0, 10.0, 2.0, 0.1) / 100.0
 
-# Compute base case
 buy_wealth, rent_wealth, diff = buy_vs_rent_wealth(
-    house_price=house_price,
-    down_pct=down_pct,
-    mortgage_rate=mortgage_rate,
-    term_years=term_years,
-    rent_yield=rent_yield,
-    invest_return=invest_return,
-    home_appreciation=home_appreciation,
+    house_price, down_pct, mortgage_rate, term_years, rent_yield, invest_return, home_appreciation
 )
 
 # ---------------------------------------------
@@ -125,7 +103,6 @@ with exp_cols[0]:
     - Rent is **expensive (≥ 4.5% of price)**
     - Over **long horizons (≈30 yrs)**
     """)
-
 with exp_cols[1]:
     st.markdown("""
     **When Renting Wins**
@@ -143,11 +120,10 @@ st.info(
 st.divider()
 
 # ---------------------------------------------
-# Sources
+# Sources (collapsible)
 # ---------------------------------------------
 st.subheader("Sources (from the document)")
 
-# List of references as (Title, URL) tuples directly in the script
 sources = [
     ("[1] Malaysia's Residential Property Market Analysis 2025 — Global Property Guide",
      "https://www.globalpropertyguide.com/asia/malaysia/price-history"),
@@ -165,13 +141,36 @@ sources = [
      "https://www.kwsp.gov.my/en/w/article/buy-vs-rent-malaysia"),
     ("[8] Archer, W. R., & Smith, B. C. (2013). Residential real estate and rent-versus-own decisions.",
      "https://doi.org/10.1080/10835547.2013.12092057"),
-    # ... add all remaining references here ...
+    ("[9] Bank Negara Malaysia. (2022). Monetary policy statement and OPR trends.",
+     "https://www.bnm.gov.my"),
+    ("[10] Employees Provident Fund. (2022). Annual report and dividend announcement.",
+     "https://www.kwsp.gov.my"),
+    ("[11] Employees Provident Fund. (2024). EPF Dividend 2024.",
+     "https://www.kwsp.gov.my/en/others/resource-centre/dividend"),
+    ("[12] Employees Provident Fund. (2025). Buy vs rent in Malaysia: 5 questions to help you decide.",
+     "https://www.kwsp.gov.my/en/w/article/buy-vs-rent-malaysia"),
+    ("[13] Goodman, L., & Mayer, C. (2018). Homeownership and the American dream.",
+     "https://www.jstor.org/stable/26469249"),
+    ("[14] Henderson, J. V., & Ioannides, Y. M. (1983). A model of housing tenure choice.",
+     "https://www.jstor.org/stable/1805120"),
+    ("[15] Leung, C. (2004). Macroeconomics and housing: A review of the literature.",
+     "https://doi.org/10.1016/j.jhe.2004.06.001"),
+    ("[16] Lufenny. (2025). Wealth accumulation through homeownership versus renting and investing.",
+     "https://github.com/Lufenny/financial-dashboard.git"),
+    ("[17] Malpezzi, S. (1999). A simple error correction model of house prices.",
+     "https://doi.org/10.1006/jhec.1998.0223"),
+    ("[18] Painter, G., & Redfearn, C. L. (2002). The role of interest rates in influencing long-run homeownership rates.",
+     "https://doi.org/10.1023/A:1021112801683"),
+    ("[19] Sinai, T., & Souleles, N. S. (2005). Owner-occupied housing as a hedge against rent risk.",
+     "https://doi.org/10.1162/0033553053970240"),
+    ("[20] Tan, T. H. (2012). Housing satisfaction in medium- and high-cost housing.",
+     "https://doi.org/10.1016/j.habitatint.2011.05.007"),
     ("[21] Yusof, R., & Ismail, R. (2020). Housing affordability and financing in Malaysia: Issues and policy directions.",
      "https://doi.org/10.3923/ajef.2020.45.58")
 ]
 
-# Display references in Streamlit
-for label, url in sources:
-    st.markdown(f"- {label}  \n  [Link]({url})", unsafe_allow_html=True)
+with st.expander("Click to view all sources"):
+    for label, url in sources:
+        st.markdown(f"- {label}  \n  [Link]({url})", unsafe_allow_html=True)
 
 st.caption("*App logic is based on the assumptions in the uploaded report for comparability.*")
