@@ -10,7 +10,6 @@ st.title('📊 Modelling')
 # ---------------------------------------------
 # Modelling Content
 # ---------------------------------------------
-st.title("📊 Modelling")
 
 st.markdown("### 📈 Sensitivity Analysis")
 with st.expander("ℹ️ Description", expanded=False):
