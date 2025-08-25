@@ -6,14 +6,11 @@ import pandas as pd
 
 st.set_page_config(page_title='Expected Outcomes', layout='wide')
 st.title('🎯 Expected Outcomes')
-st.markdown('This section outlines the intended results of the analysis, ensuring clear alignment between objectives and deliverables.')
 
 st.markdown("### ✅ Key Deliverables")
 st.write("""
 - Insights on financial performance under multiple conditions  
-- Visualization of scenario-based growth trends  
-- Identification of potential risks and opportunities  
-- Structured reporting for decision-making  
+- Visualization of scenario-based growth trends    
 """)
 
 st.success("The expected outcomes serve as the foundation for deeper analysis and modelling.")
@@ -149,45 +146,58 @@ st.divider()
 # Sources
 # ---------------------------------------------
 st.subheader("Sources (from the document)")
-SOURCES = [
-Archer, W. R., & Smith, B. C. (2013). *Residential real estate and rent-versus-own decisions.* _Journal of Real Estate Research, 35_(1), 1–29.
+# references.py
 
-Bank Negara Malaysia. (2022). *Monetary policy statement and OPR trends.* Kuala Lumpur: Bank Negara Malaysia. https://www.bnm.gov.my
-
-Employees Provident Fund. (2022). *Annual report and dividend announcement.* Kuala Lumpur: EPF.
-
-Employees Provident Fund. (2024). *EPF Dividend 2024.* https://www.kwsp.gov.my/en/others/resource-centre/dividend
-
-Employees Provident Fund. (2025). *Buy vs rent in Malaysia: 5 questions to help you decide.* https://www.kwsp.gov.my/en/w/article/buy-vs-rent-malaysia
-
-Global Property Guide. (2025a). *Malaysia's residential property market analysis 2025.* https://www.globalpropertyguide.com/asia/malaysia/price-history
-
-Global Property Guide. (2025b). *Rental yields in Malaysia in 2025, Q1.* https://www.globalpropertyguide.com/asia/malaysia/rental-yields
-
-Maybank Malaysia. (2025). *Base lending rates.* https://www.maybank2u.com.my/maybank2u/malaysia/en/personal/rates/blr_rates.page
-
-Reuters. (2025, July 9). *Malaysia c.bank lowers key rate to 2.75%.* https://www.reuters.com/world/asia-pacific/malaysia-cbank-lowers-key-rate-275-2025-07-09/
-
-FocusEconomics. (2025). *Malaysia inflation (CPI).* https://www.focus-economics.com/country-indicator/malaysia/inflation/
-
-Goodman, L., & Mayer, C. (2018). *Homeownership and the American dream.* _Journal of Economic Perspectives, 32_(1), 31–58.
-
-Henderson, J. V., & Ioannides, Y. M. (1983). *A model of housing tenure choice.* _American Economic Review, 73_(1), 98–113.
-
-Leung, C. (2004). *Macroeconomics and housing: A review of the literature.* _Journal of Housing Economics, 13_(4), 249–267.
-
-Lufenny. (2025). *Wealth accumulation through homeownership versus renting and investing: Evidence from Kuala Lumpur* [Computer software]. GitHub. https://github.com/Lufenny/financial-dashboard.git
-
-Malpezzi, S. (1999). *A simple error correction model of house prices.* _Journal of Housing Economics, 8_(1), 27–62.
-
-Painter, G., & Redfearn, C. L. (2002). *The role of interest rates in influencing long-run homeownership rates.* _Journal of Real Estate Finance and Economics, 25_(2–3), 243–267.
-
-Sinai, T., & Souleles, N. S. (2005). *Owner-occupied housing as a hedge against rent risk.* _Quarterly Journal of Economics, 120_(2), 763–789.
-
-Tan, T. H. (2012). *Housing satisfaction in medium- and high-cost housing: The case of Greater Kuala Lumpur, Malaysia.* _Habitat International, 36_(1), 108–116.
-
-Yusof, R., & Ismail, R. (2020). *Housing affordability and financing in Malaysia: Issues and policy directions.* _Asian Journal of Economics and Finance, 2_(1), 45–58.    
+# List of references as (Title, URL) tuples
+Data Sources = [
+    ("[1] Malaysia's Residential Property Market Analysis 2025 — Global Property Guide",
+     "https://www.globalpropertyguide.com/asia/malaysia/price-history"),
+    ("[2] Rental Yields in Malaysia in 2025, Q1 — Global Property Guide",
+     "https://www.globalpropertyguide.com/asia/malaysia/rental-yields"),
+    ("[3] Base Lending Rates — Maybank Malaysia",
+     "https://www.maybank2u.com.my/maybank2u/malaysia/en/personal/rates/blr_rates.page"),
+    ("[4] Malaysia c.bank lowers key rate to 2.75% — Reuters",
+     "https://www.reuters.com/world/asia-pacific/malaysia-cbank-lowers-key-rate-275-2025-07-09/"),
+    ("[5] Malaysia Inflation (CPI) — FocusEconomics",
+     "https://www.focus-economics.com/country-indicator/malaysia/inflation/"),
+    ("[6] EPF Dividend 2024 — KWSP Malaysia",
+     "https://www.kwsp.gov.my/en/others/resource-centre/dividend"),
+    ("[7] Buy vs Rent in Malaysia — KWSP Malaysia",
+     "https://www.kwsp.gov.my/en/w/article/buy-vs-rent-malaysia"),
+    ("[8] Archer, W. R., & Smith, B. C. (2013). Residential real estate and rent-versus-own decisions.",
+     "https://doi.org/10.1080/10835547.2013.12092057"),
+    ("[9] Bank Negara Malaysia. (2022). Monetary policy statement and OPR trends.",
+     "https://www.bnm.gov.my"),
+    ("[10] Employees Provident Fund. (2022). Annual report and dividend announcement.",
+     "https://www.kwsp.gov.my"),
+    ("[11] Employees Provident Fund. (2024). EPF Dividend 2024.",
+     "https://www.kwsp.gov.my/en/others/resource-centre/dividend"),
+    ("[12] Employees Provident Fund. (2025). Buy vs rent in Malaysia: 5 questions to help you decide.",
+     "https://www.kwsp.gov.my/en/w/article/buy-vs-rent-malaysia"),
+    ("[13] Goodman, L., & Mayer, C. (2018). Homeownership and the American dream.",
+     "https://www.jstor.org/stable/26469249"),
+    ("[14] Henderson, J. V., & Ioannides, Y. M. (1983). A model of housing tenure choice.",
+     "https://www.jstor.org/stable/1805120"),
+    ("[15] Leung, C. (2004). Macroeconomics and housing: A review of the literature.",
+     "https://doi.org/10.1016/j.jhe.2004.06.001"),
+    ("[16] Lufenny. (2025). Wealth accumulation through homeownership versus renting and investing.",
+     "https://github.com/Lufenny/financial-dashboard.git"),
+    ("[17] Malpezzi, S. (1999). A simple error correction model of house prices.",
+     "https://doi.org/10.1006/jhec.1998.0223"),
+    ("[18] Painter, G., & Redfearn, C. L. (2002). The role of interest rates in influencing long-run homeownership rates.",
+     "https://doi.org/10.1023/A:1021112801683"),
+    ("[19] Sinai, T., & Souleles, N. S. (2005). Owner-occupied housing as a hedge against rent risk.",
+     "https://doi.org/10.1162/0033553053970240"),
+    ("[20] Tan, T. H. (2012). Housing satisfaction in medium- and high-cost housing.",
+     "https://doi.org/10.1016/j.habitatint.2011.05.007"),
+    ("[21] Yusof, R., & Ismail, R. (2020). Housing affordability and financing in Malaysia: Issues and policy directions.",
+     "https://doi.org/10.3923/ajef.2020.45.58")
 ]
+
+# Example: print all references
+if __name__ == "__main__":
+    for title, url in references:
+        print(f"{title}: {url}")
 
 for label, url in SOURCES:
     st.markdown(
