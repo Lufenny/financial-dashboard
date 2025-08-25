@@ -23,13 +23,6 @@ st.markdown("""
 
 2. **Environment Setup**  
    - Ensure `requirements.txt` contains all dependencies.  
-   - Example:  
-     ```
-     streamlit
-     pandas
-     numpy
-     matplotlib
-     ```
 
 3. **Streamlit Cloud**  
    - Connect GitHub repo to Streamlit Cloud.  
