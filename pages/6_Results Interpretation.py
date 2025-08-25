@@ -12,8 +12,7 @@ st.title("📑 Results & Interpretation")
 st.header("📊 Comparative Results")
 st.write("""
 This section summarises how different investment and housing strategies perform 
-over time based on modelling results. We compare **Buy**, **Rent & Invest**, 
-and variations in **savings rate / market returns**.
+over time based on modelling results.
 """)
 
 # --- Example Comparative Data ---
