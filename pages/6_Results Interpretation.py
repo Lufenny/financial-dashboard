@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from itertools import cycle
 
 st.set_page_config(page_title='Results & Interpretation', layout='wide')
@@ -129,25 +128,3 @@ st.download_button(
     mime="text/csv",
     key="download_filtered"
 )
-
-# --------------------------
-# Heatmap for Tipping Points (Final Year)
-# --------------------------
-st.subheader("🌡️ Tipping Point Heatmap – Final Year")
-
-df_final_year = df_plot[df_plot['Year']==df_plot['Year'].max()]
-
-if not df_final_year.empty:
-    pivot = df_final_year.pivot_table(
-        index='MortgageRate',
-        columns='InvestReturn',
-        values='Difference',
-        aggfunc='mean'
-    ).fillna(0)
-
-    fig_hm, ax_hm = plt.subplots(figsize=(6,4))
-    sns.heatmap(pivot, annot=True, fmt=".0f", center=0, cmap="RdBu_r", cbar_kws={'label':'Buy - Rent (RM)'}, ax=ax_hm)
-    ax_hm.set_title(f"Tipping Map – Year {df_final_year['Year'].max()} | Appreciation {selected_app}% | Rent Yield {selected_ry}%")
-    st.pyplot(fig_hm)
-else:
-    st.info("No data available for the heatmap.")
