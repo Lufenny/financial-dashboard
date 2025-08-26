@@ -6,21 +6,33 @@ st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
 st.title("📌 Expected Outcomes – Baseline Comparison")
 
 # --------------------------
-# Baseline Assumptions
+# Baseline Assumptions (Sidebar)
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
-
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300_000, step=10_000)
 mortgage_years = st.sidebar.slider("Mortgage Term (Years)", 10, 35, 30)
 monthly_contribution = st.sidebar.number_input("Monthly Mortgage Contribution (RM)", value=1_200, step=100)
 initial_investment = st.sidebar.number_input("Initial Investment for Rent & Invest (RM)", value=50_000, step=10_000)
 analysis_years = st.sidebar.slider("Analysis Horizon (Years)", 10, 40, 20)
 
-# Historical averages (default values)
+# Historical averages (baseline defaults)
 annual_property_growth = 0.03        # 3%
 annual_investment_return = 0.06      # 6%
 mortgage_rate = 0.05                  # 5%
 rent_yield = 0.04                     # 4%
+
+# --------------------------
+# Sources & References
+# --------------------------
+st.sidebar.header("📚 Sources / References")
+st.sidebar.markdown("""
+- **Property Growth (3% p.a.)**: NAPIC Malaysia, Residential Property Price Index 2010–2025  
+- **Investment Return (6% p.a.)**: EPF Annual Dividends 2010–2025  
+- **Mortgage Rate (~5%)**: Bank Negara Malaysia OPR + typical bank margin  
+- **Rental Yield (4%)**: NAPIC Malaysia / Property portals (iProperty, PropertyGuru)  
+- **Initial Property Price (RM300k)**: Example mid-range condo in Kuala Lumpur  
+- **Analysis Horizon (20 years)**: Standard long-term financial planning horizon
+""")
 
 # --------------------------
 # Mortgage Payment Function
@@ -58,7 +70,7 @@ for i, year in enumerate(years):
     rent_wealth.append(invest_value)
 
 df_baseline = pd.DataFrame({
-    "Year": [int(y) for y in years],
+    "Year": [int(y) for y in years],  # integer years
     "PropertyValue": property_value,
     "MortgageBalance": loan_balances,
     "BuyWealth": buy_wealth,
