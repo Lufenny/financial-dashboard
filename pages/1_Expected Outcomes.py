@@ -1,40 +1,26 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
-import seaborn as sns
 
-st.set_page_config(page_title='Expected Outcomes Dashboard', layout='wide')
-st.title("📌 Expected Outcomes – Dashboard")
+st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
+st.title("📌 Expected Outcomes – Baseline Comparison")
 
 # --------------------------
-# Sidebar Inputs
+# Baseline Assumptions
 # --------------------------
-st.sidebar.header("⚙️ Assumptions & Parameters")
+st.sidebar.header("⚙️ Baseline Assumptions")
 
-uploaded_file = st.sidebar.file_uploader("Upload Historical Data (CSV, optional)", type=["csv"])
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300_000, step=10_000)
 mortgage_years = st.sidebar.slider("Mortgage Term (Years)", 10, 35, 30)
 monthly_contribution = st.sidebar.number_input("Monthly Mortgage Contribution (RM)", value=1_200, step=100)
 initial_investment = st.sidebar.number_input("Initial Investment for Rent & Invest (RM)", value=50_000, step=10_000)
 analysis_years = st.sidebar.slider("Analysis Horizon (Years)", 10, 40, 20)
 
-# --------------------------
-# Load Dataset or Use Defaults
-# --------------------------
-if uploaded_file is not None:
-    df_data = pd.read_csv(uploaded_file)
-    df_data.columns = df_data.columns.str.strip()
-    annual_property_growth = df_data["PriceGrowth"].mean() / 100
-    annual_investment_return = df_data["EPF"].mean() / 100
-    mortgage_rate = df_data["OPR_avg"].mean() / 100 + 0.01
-    rent_yield = df_data["RentYield"].mean() / 100
-else:
-    # Default historical averages (2010–2025 example)
-    annual_property_growth = 0.03        # 3%
-    annual_investment_return = 0.06      # 6%
-    mortgage_rate = 0.04 + 0.01          # 4% + margin
-    rent_yield = 0.04                     # 4%
+# Historical averages (default values)
+annual_property_growth = 0.03        # 3%
+annual_investment_return = 0.06      # 6%
+mortgage_rate = 0.05                  # 5%
+rent_yield = 0.04                     # 4%
 
 # --------------------------
 # Mortgage Payment Function
@@ -72,7 +58,7 @@ for i, year in enumerate(years):
     rent_wealth.append(invest_value)
 
 df_baseline = pd.DataFrame({
-    "Year": [int(y) for y in years],  # ensure no decimals
+    "Year": [int(y) for y in years],
     "PropertyValue": property_value,
     "MortgageBalance": loan_balances,
     "BuyWealth": buy_wealth,
@@ -80,64 +66,35 @@ df_baseline = pd.DataFrame({
 })
 
 # --------------------------
-# Optimized Sensitivity Analysis
+# Display Table and Plot
 # --------------------------
-prop_growth_range = st.sidebar.slider("Property Growth (%)", 1.0, 6.0, (2.0, 4.0), 0.5)
-investment_return_range = st.sidebar.slider("Investment Return (%)", 2.0, 12.0, (4.0, 8.0), 1.0)
-rent_yield_range = st.sidebar.slider("Rental Yield (%)", 2.0, 6.0, (3.0, 5.0), 0.5)
+st.subheader("📊 Baseline Outcomes")
+st.dataframe(df_baseline)
 
-growth_values = np.arange(prop_growth_range[0]/100, prop_growth_range[1]/100 + 0.001, 0.005)
-return_values = np.arange(investment_return_range[0]/100, investment_return_range[1]/100 + 0.001, 0.01)
-rent_values = np.arange(rent_yield_range[0]/100, rent_yield_range[1]/100 + 0.001, 0.005)
-
-PG, IR, RY = np.meshgrid(growth_values, return_values, rent_values, indexing='ij')
-PG = PG.ravel()
-IR = IR.ravel()
-RY = RY.ravel()
-n = analysis_years
-
-buy_final = (initial_property_price * (1 + PG) ** n) - (initial_property_price * (1 + mortgage_rate) ** n - monthly_mortgage*12 * ((1 + mortgage_rate) ** n - 1) / mortgage_rate)
-invest_final = initial_investment * (1 + IR) ** n + (monthly_mortgage*12 - initial_property_price*RY) * (((1+IR)**n - 1)/IR)
-diff = buy_final - invest_final
-
-df_sens_opt = pd.DataFrame({
-    "PropGrowth(%)": PG*100,
-    "InvestReturn(%)": IR*100,
-    "RentYield(%)": RY*100,
-    "BuyWealth": buy_final,
-    "RentWealth": invest_final,
-    "Difference": diff
-})
+st.subheader("💰 Wealth Projection (Baseline)")
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(df_baseline["Year"], df_baseline["BuyWealth"], label="Buy (Property Equity)", color="blue", marker="o")
+ax.plot(df_baseline["Year"], df_baseline["RentWealth"], label="Rent & Invest", color="green", marker="o")
+ax.set_xlabel("Year")
+ax.set_ylabel("Value (RM)")
+ax.set_title("Baseline Wealth Projection – Buy vs Rent & Invest")
+ax.grid(True, linestyle="--", alpha=0.5)
+ax.legend()
+st.pyplot(fig)
 
 # --------------------------
-# Dashboard Layout
+# Interpretation
 # --------------------------
-col1, col2 = st.columns(2)
+st.header("📝 Interpretation")
+st.write(f"""
+Based on the baseline assumptions:
+- Property growth ≈ {annual_property_growth*100:.1f}% per year
+- Investment return ≈ {annual_investment_return*100:.1f}% per year
+- Mortgage rate ≈ {mortgage_rate*100:.1f}%
+- Rental yield ≈ {rent_yield*100:.1f}%
 
-# Left: Baseline Table + Plot
-with col1:
-    st.subheader("📊 Baseline Outcomes")
-    st.dataframe(df_baseline)
-    fig, ax = plt.subplots(figsize=(8,4))
-    ax.plot(df_baseline["Year"], df_baseline["BuyWealth"], label="Buy (Equity)", color="blue")
-    ax.plot(df_baseline["Year"], df_baseline["RentWealth"], label="Rent & Invest", color="green")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Value (RM)")
-    ax.set_title("Baseline Wealth Projection")
-    ax.grid(True, linestyle="--", alpha=0.5)
-    ax.legend()
-    st.pyplot(fig)
-
-# Right: Sensitivity Table + Heatmap
-with col2:
-    st.subheader("📋 Sensitivity Analysis (Final Year)")
-    st.dataframe(df_sens_opt.sort_values("Difference", ascending=False).reset_index(drop=True))
-    st.subheader("🌡️ Heatmap – Buy vs Rent")
-    pivot = df_sens_opt.groupby(["PropGrowth(%)","InvestReturn(%)"])["Difference"].mean().reset_index()
-    heatmap_data = pivot.pivot(index="PropGrowth(%)", columns="InvestReturn(%)", values="Difference")
-    fig2, ax2 = plt.subplots(figsize=(8,6))
-    sns.heatmap(heatmap_data, annot=True, fmt=".0f", center=0, cmap="RdBu_r", cbar_kws={'label':'Buy - Rent (RM)'})
-    ax2.set_title("Tipping Point Heatmap – Buy vs Rent (Final Year)")
-    ax2.set_xlabel("Investment Return (%)")
-    ax2.set_ylabel("Property Growth (%)")
-    st.pyplot(fig2)
+**Key Insights:**
+- Buying builds steady equity over time, with growth depending on property appreciation.
+- Renting & investing can generate higher returns if investment yields exceed property growth.
+- This baseline provides a simple, illustrative comparison for planning purposes.
+""")
