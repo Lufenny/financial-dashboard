@@ -1,16 +1,18 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 st.set_page_config(page_title='Results & Interpretation', layout='wide')
 st.title("📑 Results & Interpretation (Dynamic)")
 
-# --- Load sensitivity results from Modelling ---
-# In production, you can pass df_sens directly via session_state
-try:
-    df_sens = st.session_state["df_sens"]
-except KeyError:
-    st.error("❌ Sensitivity results not found. Run Modelling page first.")
+# --- Load sensitivity results from CSV ---
+SENS_CSV_PATH = "sensitivity_analysis.csv"
+
+if os.path.exists(SENS_CSV_PATH):
+    df_sens = pd.read_csv(SENS_CSV_PATH)
+else:
+    st.error(f"❌ Sensitivity results not found at '{SENS_CSV_PATH}'. Run Modelling page first.")
     st.stop()
 
 # --- Select scenario to visualize ---
