@@ -1,84 +1,94 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
+import plotly.graph_objects as go
+from itertools import cycle
 
 st.set_page_config(page_title='Modelling', layout='wide')
 st.title('📊 Modelling')
 
 # ---------------------------------------------
-# Modelling Content
+# Sensitivity Analysis - Interactive Controls
 # ---------------------------------------------
 
 st.markdown("### 📈 Sensitivity Analysis")
 with st.expander("ℹ️ Description", expanded=False):
     st.write("""
-    Sensitivity analysis investigates how variations in key parameters—such as 
-    contribution rates, return assumptions, and inflation—affect long-term 
-    investment outcomes.
+    Explore how changes in monthly contributions, annual returns, and investment horizon
+    affect your portfolio value over time. Hover over lines to see exact values.
     """)
 
-# --- Example Data ---
-contrib_rates = [200, 400, 600]
-returns = [0.05, 0.07, 0.09]
-years = np.arange(2025, 2046)
+# --- User Inputs ---
+st.sidebar.header("Adjust Parameters")
 
+monthly_contribs = st.sidebar.multiselect(
+    "Monthly Contribution (RM)",
+    options=[100, 200, 400, 600, 800, 1000],
+    default=[200, 400, 600]
+)
+
+annual_returns = st.sidebar.multiselect(
+    "Annual Return Rate (%)",
+    options=[3, 5, 7, 9, 11],
+    default=[5, 7, 9]
+)
+
+start_year = st.sidebar.number_input("Start Year", min_value=2020, max_value=2030, value=2025, step=1)
+end_year = st.sidebar.number_input("End Year", min_value=start_year+5, max_value=2050, value=2045, step=1)
+
+years = np.arange(start_year, end_year + 1)
+n_months = len(years) * 12
+
+# --- Sensitivity Calculation ---
 results = []
-for c in contrib_rates:
-    for r in returns:
-        values = np.cumsum([c * ((1 + r)**i) for i in range(len(years))])
+for c in monthly_contribs:
+    for r in annual_returns:
+        r_decimal = r / 100
+        monthly_rate = r_decimal / 12
+        fv = []
+        for i in range(1, n_months + 1):
+            fv.append(c * ((1 + monthly_rate)**i))
+        yearly_values = [sum(fv[i*12:(i+1)*12]) for i in range(len(years))]
         results.append(pd.DataFrame({
             "Year": years,
             "Contribution": c,
             "Return": r,
-            "Value": values
+            "Value": np.cumsum(yearly_values)
         }))
 
 df_sens = pd.concat(results)
+df_sens.sort_values(["Contribution", "Return"], inplace=True)
 
-# Ensure Year is integer
-df_sens["Year"] = df_sens["Year"].astype(int)
+# --- Plotly Interactive Plot ---
+fig = go.Figure()
 
-# --- Chart ---
-fig, ax = plt.subplots(figsize=(12,6))
+colors = cycle(['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b'])
+line_styles = cycle(['solid', 'dash', 'dot', 'dashdot'])
 
-# Sort the groupings by Contribution first, then Return
-for (c, r), group in df_sens.groupby(["Contribution", "Return"], sort=True):
-    ax.plot(group["Year"], group["Value"], label=f"RM{c}/m @ {int(r*100)}%")
+contrib_colors = {c: color for c, color in zip(sorted(monthly_contribs), colors)}
 
-ax.set_title("Sensitivity of Contributions & Returns")
-ax.set_xlabel("Year")
-ax.set_ylabel("Portfolio Value (RM)")
+for c in sorted(monthly_contribs):
+    for r, ls in zip(sorted(annual_returns), line_styles):
+        group = df_sens[(df_sens['Contribution']==c) & (df_sens['Return']==r)]
+        fig.add_trace(go.Scatter(
+            x=group['Year'],
+            y=group['Value'],
+            mode='lines+markers',
+            name=f"RM{c}/m @ {r}%",
+            line=dict(color=contrib_colors[c], dash=ls),
+            hovertemplate='Year: %{x}<br>Value: RM%{y:,.0f}<extra></extra>'
+        ))
 
-# Sort legend entries by Contribution and Return
-handles, labels = ax.get_legend_handles_labels()
-sorted_handles_labels = sorted(zip(handles, labels), key=lambda x: (
-    int(x[1].split('/m')[0][2:]),  # Contribution RM value
-    int(x[1].split('@')[1].replace('%',''))  # Return %
-))
-handles, labels = zip(*sorted_handles_labels)
-ax.legend(handles, labels)
+fig.update_layout(
+    title="Portfolio Value Sensitivity",
+    xaxis_title="Year",
+    yaxis_title="Portfolio Value (RM)",
+    legend_title="Scenario",
+    hovermode="x unified",
+    template="plotly_white"
+)
 
-# Automatically set x-axis interval based on number of years
-years_range = df_sens["Year"].max() - df_sens["Year"].min()
-if years_range <= 10:
-    interval = 1
-elif years_range <= 20:
-    interval = 2
-else:
-    interval = 5
-
-ax.xaxis.set_major_locator(mticker.MultipleLocator(interval))
-ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x)}'))
-
-# Format y-axis as RM with commas
-ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f'RM{int(x):,}'))
-
-# Add grid for better readability
-ax.grid(True, linestyle='--', alpha=0.5)
-
-st.pyplot(fig)
+st.plotly_chart(fig, use_container_width=True)
 
 # --- Download ---
 csv = df_sens.to_csv(index=False).encode("utf-8")
