@@ -1,163 +1,117 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-from itertools import cycle
+import pandas as pd
+import matplotlib.pyplot as plt
 
-st.set_page_config(page_title='Modelling', layout='wide')
-st.title('📊 Modelling')
+st.set_page_config(page_title="Buy vs Rent Model", layout="wide")
+st.title("🏡 Buy vs Rent Modelling and Sensitivity Analysis")
 
-# ---------------------------------------------
-# Sensitivity Analysis - Interactive Controls
-# ---------------------------------------------
+# --------------------------
+# Sidebar Inputs
+# --------------------------
+st.sidebar.header("📌 Assumptions")
 
-st.markdown("### 📈 Sensitivity Analysis")
-with st.expander("ℹ️ Description", expanded=False):
-    st.write("""
-    Explore how changes in monthly contributions, annual returns, and investment horizon
-    affect your portfolio value over time.
+purchase_price = st.sidebar.number_input("Property Price (RM)", value=500000, step=10000)
+down_payment_pct = st.sidebar.slider("Down Payment (%)", 0.0, 0.5, 0.1)
+mortgage_rate = st.sidebar.slider("Mortgage Rate (%)", 2.0, 8.0, 4.0, step=0.1)
+mortgage_term = st.sidebar.slider("Mortgage Term (years)", 10, 35, 30)
 
-    Use the sidebar to adjust parameters.  
-    Toggle between **Scenario Comparison** and **Contribution vs. Growth Breakdown**.  
-    You can also choose to see results **inflation-adjusted**.
-    """)
+rent_yield = st.sidebar.slider("Rental Yield (%)", 2.0, 6.0, 4.0, step=0.1)
+investment_return = st.sidebar.slider("Investment Return (%)", 2.0, 12.0, 6.0, step=0.1)
+prop_appreciation = st.sidebar.slider("Property Appreciation (%)", 0.0, 6.0, 3.0, step=0.1)
 
-# --- Sidebar User Inputs ---
-st.sidebar.header("Adjust Parameters")
+years = st.sidebar.slider("Analysis Horizon (years)", 5, 40, 20)
 
-monthly_contribs = st.sidebar.multiselect(
-    "Monthly Contribution (RM)",
-    options=[100, 200, 400, 600, 800, 1000],
-    default=[200, 400, 600]
-)
+# --------------------------
+# Functions
+# --------------------------
+def mortgage_payment(principal, annual_rate, n_years):
+    r = annual_rate / 12
+    n = n_years * 12
+    if r == 0:
+        return principal / n
+    return principal * r / (1 - (1 + r) ** -n)
 
-annual_returns = st.sidebar.multiselect(
-    "Annual Return Rate (%)",
-    options=[3, 5, 7, 9, 11],
-    default=[5, 7, 9]
-)
+def outstanding_balance(principal, annual_rate, n_years, months_elapsed):
+    r = annual_rate / 12
+    n = n_years * 12
+    pmt = mortgage_payment(principal, annual_rate, n_years)
+    balance = principal * (1 + r)**months_elapsed - pmt * ((1 + r)**months_elapsed - 1) / r
+    return balance
 
-start_year = st.sidebar.number_input("Start Year", min_value=2020, max_value=2030, value=2025, step=1)
-end_year = st.sidebar.number_input("End Year", min_value=start_year+5, max_value=2050, value=2045, step=1)
+# --------------------------
+# Buy Scenario
+# --------------------------
+dp = purchase_price * down_payment_pct
+loan = purchase_price - dp
+pmt = mortgage_payment(loan, mortgage_rate/100, mortgage_term)
 
-# Inflation settings
-st.sidebar.subheader("Inflation Adjustment")
-adjust_inflation = st.sidebar.checkbox("Show Inflation-Adjusted Values", value=False)
-inflation_rate = st.sidebar.slider("Annual Inflation Rate (%)", 0.0, 10.0, 2.0, step=0.5)
+years_list = np.arange(1, years+1)
+buy_equity = []
 
-years = np.arange(start_year, end_year + 1)
-n_months = len(years) * 12
+for t in years_list:
+    Vt = purchase_price * (1 + prop_appreciation/100)**t
+    bal = outstanding_balance(loan, mortgage_rate/100, mortgage_term, t*12)
+    eq = Vt - bal
+    buy_equity.append(eq)
 
-# --- Sensitivity Calculation ---
-results = []
-for c in monthly_contribs:
-    for r in annual_returns:
-        r_decimal = r / 100
-        monthly_rate = r_decimal / 12
-        fv, contrib_only = [], []
-        total_contrib = 0
+# --------------------------
+# Rent + Invest Scenario
+# --------------------------
+annual_rent = purchase_price * rent_yield
+rent_series = [annual_rent * (1.02**t) for t in range(years)]  # rent grows 2%/yr
+invested = dp  # renter invests down payment too
+rent_vs_buy = []
 
-        for i in range(1, n_months + 1):
-            total_contrib += c
-            contrib_only.append(total_contrib)
-            fv.append(c * ((1 + monthly_rate)**i))
+for t in years_list:
+    invested = invested * (1 + investment_return/100) + (pmt*12 - rent_series[t-1])
+    rent_vs_buy.append(invested)
 
-        yearly_values = [sum(fv[i*12:(i+1)*12]) for i in range(len(years))]
-        yearly_contribs = [contrib_only[(i+1)*12 - 1] for i in range(len(years))]
+# --------------------------
+# Results
+# --------------------------
+df = pd.DataFrame({
+    "Year": years_list,
+    "Buy_Equity": buy_equity,
+    "Rent_Portfolio": rent_vs_buy,
+    "Difference": np.array(buy_equity) - np.array(rent_vs_buy)
+})
 
-        df = pd.DataFrame({
-            "Year": years,
-            "Contribution": c,
-            "Return": r,
-            "TotalValue": np.cumsum(yearly_values),
-            "TotalContribution": yearly_contribs
-        })
+st.subheader("📊 Wealth Accumulation Over Time")
+st.line_chart(df.set_index("Year")[["Buy_Equity","Rent_Portfolio"]])
 
-        # Inflation adjustment (convert to "real" value)
-        if adjust_inflation:
-            df["InflationFactor"] = [(1 + inflation_rate/100)**(y - start_year) for y in years]
-            df["TotalValue"] = df["TotalValue"] / df["InflationFactor"]
-            df["TotalContribution"] = df["TotalContribution"] / df["InflationFactor"]
+st.subheader("📈 Final Comparison")
+st.write(f"After {years} years:")
+st.write(f"- Buy Equity: RM{buy_equity[-1]:,.0f}")
+st.write(f"- Rent & Invest Portfolio: RM{rent_vs_buy[-1]:,.0f}")
+st.write(f"- Difference: RM{df['Difference'].iloc[-1]:,.0f}")
 
-        results.append(df)
+# --------------------------
+# Sensitivity Heatmap
+# --------------------------
+st.subheader("🧮 Sensitivity Analysis")
 
-df_sens = pd.concat(results)
-df_sens.sort_values(["Contribution", "Return"], inplace=True)
-df_sens["Growth"] = df_sens["TotalValue"] - df_sens["TotalContribution"]
+mortgage_rates = [3, 4, 5, 6, 7]
+investment_returns = [4, 5, 6, 7, 8]
 
-# --- Tabs ---
-tab1, tab2 = st.tabs(["📊 Scenario Comparison", "🧩 Contribution vs. Growth Breakdown"])
+records = []
+for mr in mortgage_rates:
+    for ir in investment_returns:
+        buy_end = purchase_price*(1+prop_appreciation/100)**years - outstanding_balance(loan, mr/100, mortgage_term, years*12)
+        rent_end = dp*(1+ir/100)**years
+        records.append([mr, ir, buy_end-rent_end])
 
-# --- Tab 1: Scenario Comparison ---
-with tab1:
-    fig1 = go.Figure()
-    colors = cycle(['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b'])
-    line_styles = cycle(['solid', 'dash', 'dot', 'dashdot'])
+sens = pd.DataFrame(records, columns=["MortgageRate","InvestReturn","Diff"])
+pivot = sens.pivot(index="MortgageRate", columns="InvestReturn", values="Diff")
 
-    contrib_colors = {c: color for c, color in zip(sorted(monthly_contribs), colors)}
+fig, ax = plt.subplots(figsize=(6,4))
+sns = __import__('seaborn')
+sns.heatmap(pivot, annot=True, fmt=".0f", center=0, cmap="RdBu_r", cbar_kws={'label':'Buy - Rent (RM)'})
+plt.title(f"Sensitivity Analysis ({years} years)")
+st.pyplot(fig)
 
-    for c in sorted(monthly_contribs):
-        for r, ls in zip(sorted(annual_returns), line_styles):
-            group = df_sens[(df_sens['Contribution']==c) & (df_sens['Return']==r)]
-            fig1.add_trace(go.Scatter(
-                x=group['Year'],
-                y=group['TotalValue'],
-                mode='lines+markers',
-                name=f"RM{c}/m @ {r}%",
-                line=dict(color=contrib_colors[c], dash=ls),
-                hovertemplate='Year: %{x}<br>Total Value: RM%{y:,.0f}<extra></extra>'
-            ))
-
-    fig1.update_layout(
-        title="Portfolio Value Sensitivity (Scenario Comparison)" + 
-              (" – Inflation Adjusted" if adjust_inflation else " – Nominal"),
-        xaxis_title="Year",
-        yaxis_title="Portfolio Value (RM)",
-        legend_title="Scenario",
-        hovermode="x unified",
-        template="plotly_white"
-    )
-    st.plotly_chart(fig1, use_container_width=True)
-
-# --- Tab 2: Contribution vs. Growth Breakdown ---
-with tab2:
-    contrib_choice = st.selectbox("Select Contribution Level (RM)", sorted(monthly_contribs))
-    return_choice = st.selectbox("Select Return Rate (%)", sorted(annual_returns))
-
-    group = df_sens[(df_sens['Contribution']==contrib_choice) & (df_sens['Return']==return_choice)]
-
-    fig2 = go.Figure()
-    fig2.add_trace(go.Bar(
-        x=group["Year"],
-        y=group["TotalContribution"],
-        name="Total Contribution",
-        marker_color="#1f77b4",
-        hovertemplate="Year: %{x}<br>Contribution: RM%{y:,.0f}<extra></extra>"
-    ))
-    fig2.add_trace(go.Bar(
-        x=group["Year"],
-        y=group["Growth"],
-        name="Growth (Returns)",
-        marker_color="#ff7f0e",
-        hovertemplate="Year: %{x}<br>Growth: RM%{y:,.0f}<extra></extra>"
-    ))
-
-    fig2.update_layout(
-        barmode="stack",
-        title=f"Contribution vs. Growth Breakdown (RM{contrib_choice}/m @ {return_choice}%)" + 
-              (" – Inflation Adjusted" if adjust_inflation else " – Nominal"),
-        xaxis_title="Year",
-        yaxis_title="Portfolio Value (RM)",
-        hovermode="x unified",
-        template="plotly_white"
-    )
-    st.plotly_chart(fig2, use_container_width=True)
-
-# --- Download ---
-csv = df_sens.to_csv(index=False).encode("utf-8")
-st.download_button(
-    "⬇️ Download Sensitivity Results (CSV)",
-    data=csv,
-    file_name="sensitivity_analysis.csv",
-    mime="text/csv"
-)
+# --------------------------
+# Download
+# --------------------------
+csv = df.to_csv(index=False).encode("utf-8")
+st.download_button("⬇️ Download Results (CSV)", data=csv, file_name="buy_vs_rent_results.csv", mime="text/csv")
