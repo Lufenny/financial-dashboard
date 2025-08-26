@@ -81,52 +81,57 @@ st.write(f"- Rent & Invest Portfolio: RM{rent_portfolio[-1]:,.0f}")
 st.write(f"- Difference: RM{df['Difference'].iloc[-1]:,.0f}")
 
 # --------------------------
-# Sensitivity Analysis (Yearly)
+# Sensitivity Analysis (4 Parameters)
 # --------------------------
-st.subheader("🧮 Sensitivity Analysis (Yearly, 4 Parameters)")
+st.subheader("🧮 Sensitivity Analysis (4 Parameters)")
 
-# Define ranges
 mortgage_rates = [3, 4, 5, 6, 7]          # Mortgage %
 investment_returns = [4, 5, 6, 7, 8]      # Investment %
 appreciations = [2, 3, 4]                 # Property appreciation %
 rent_yields = [3, 4, 5]                   # Rental yields %
 
 records = []
-
 for mr in mortgage_rates:
     for ir in investment_returns:
         for g in appreciations:
             for ry in rent_yields:
-                yearly_buy, yearly_rent = [], []
-                invested = dp
-                for t in years_list:
-                    # Buy side
-                    Vt = purchase_price * (1 + g/100)**t
-                    bal = outstanding_balance(loan, mr/100, mortgage_term, t*12)
-                    eq = Vt - bal
-                    yearly_buy.append(eq)
-                    
-                    # Rent & Invest side
-                    annual_rent = purchase_price * ry * (1.02**(t-1))
-                    invested = invested * (1 + ir/100) + (pmt*12 - annual_rent)
-                    yearly_rent.append(invested)
-                    
-                    diff = eq - invested
-                    records.append([t, mr, ir, g, ry, eq, invested, diff])
+                # Buy side
+                Vt = purchase_price * (1 + g/100)**years
+                bal = outstanding_balance(loan, mr/100, mortgage_term, years*12)
+                eq = Vt - bal
+                
+                # Rent side
+                annual_rent = purchase_price * ry
+                # Future value of rent & invest portfolio
+                rent_val = dp * (1 + ir/100)**years + (pmt*12 - annual_rent) * (((1 + ir/100)**years - 1) / (ir/100))
+                
+                diff = eq - rent_val
+                records.append([mr, ir, g, ry, eq, rent_val, diff])
 
-df_sens = pd.DataFrame(records, columns=[
-    "Year","MortgageRate","InvestReturn","Appreciation","RentYield",
-    "BuyEquity","RentPortfolio","Difference"
-])
+df_sens = pd.DataFrame(
+    records,
+    columns=["MortgageRate", "InvestReturn", "Appreciation", "RentYield", "BuyEquity", "RentPortfolio", "Difference"]
+)
 
 # --------------------------
-# Heatmap Slice Example
+# Heatmap Visualization
 # --------------------------
 chosen_app = st.selectbox("Select Property Appreciation (%)", appreciations)
 chosen_ry = st.selectbox("Select Rental Yield (%)", rent_yields)
 
-df_slice = df_sens[(df_sens["Appreciation"]==chosen_app) & (df_sens["RentYield"]==chosen_ry)]
-pivot = df_slice.pivot(index="MortgageRate", columns="InvestReturn", values="Difference").fillna(0)
+# Filter for selected slice
+df_slice = df_sens[
+    (df_sens["Appreciation"] == chosen_app) &
+    (df_sens["RentYield"] == chosen_ry)
+]
+
+# Use pivot_table to handle duplicates safely
+pivot = df_slice.pivot_table(
+    index="MortgageRate",
+    columns="InvestReturn",
+    values="Difference",
+    aggfunc='mean'   # or 'first' if you prefer
+).fillna(0)
 
 fig, ax = plt.subplots(figsize=(6,4))
 sns.heatmap(pivot, annot=True, fmt=".0f", center=0, cmap="RdBu_r", cbar_kws={'label':'Buy - Rent (RM)'})
@@ -134,7 +139,12 @@ plt.title(f"Tipping Map – {years} yrs | Appreciation {chosen_app}% | Rent Yiel
 st.pyplot(fig)
 
 # --------------------------
-# Download
+# Download CSV
 # --------------------------
 csv = df_sens.to_csv(index=False).encode("utf-8")
-st.download_button("⬇️ Download Sensitivity Results (CSV)", data=csv, file_name="buy_vs_rent_sensitivity.csv", mime="text/csv")
+st.download_button(
+    "⬇️ Download Sensitivity Results (CSV)",
+    data=csv,
+    file_name="buy_vs_rent_sensitivity.csv",
+    mime="text/csv"
+)
