@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 st.set_page_config(page_title="Buy vs Rent Model", layout="wide")
 st.title("🏡 Buy vs Rent Modelling and Sensitivity Analysis")
@@ -13,14 +14,15 @@ st.sidebar.header("📌 Assumptions")
 
 purchase_price = st.sidebar.number_input("Property Price (RM)", value=500000, step=10000)
 down_payment_pct = st.sidebar.slider("Down Payment (%)", 0.0, 0.5, 0.1)
-mortgage_rate = st.sidebar.slider("Mortgage Rate (%)", 2.0, 8.0, 4.0, step=0.1)
 mortgage_term = st.sidebar.slider("Mortgage Term (years)", 10, 35, 30)
 
+years = st.sidebar.slider("Analysis Horizon (years)", 5, 40, 20)
+
+# Base-case rates
+mortgage_rate = st.sidebar.slider("Mortgage Rate (%)", 2.0, 8.0, 4.0, step=0.1)
+prop_appreciation = st.sidebar.slider("Property Appreciation (%)", 0.0, 6.0, 3.0, step=0.1)
 rent_yield = st.sidebar.slider("Rental Yield (%)", 2.0, 6.0, 4.0, step=0.1)
 investment_return = st.sidebar.slider("Investment Return (%)", 2.0, 12.0, 6.0, step=0.1)
-prop_appreciation = st.sidebar.slider("Property Appreciation (%)", 0.0, 6.0, 3.0, step=0.1)
-
-years = st.sidebar.slider("Analysis Horizon (years)", 5, 40, 20)
 
 # --------------------------
 # Functions
@@ -40,78 +42,86 @@ def outstanding_balance(principal, annual_rate, n_years, months_elapsed):
     return balance
 
 # --------------------------
-# Buy Scenario
+# Buy vs Rent Simulation
 # --------------------------
 dp = purchase_price * down_payment_pct
 loan = purchase_price - dp
 pmt = mortgage_payment(loan, mortgage_rate/100, mortgage_term)
 
 years_list = np.arange(1, years+1)
-buy_equity = []
+buy_equity, rent_portfolio = [], []
 
 for t in years_list:
     Vt = purchase_price * (1 + prop_appreciation/100)**t
     bal = outstanding_balance(loan, mortgage_rate/100, mortgage_term, t*12)
     eq = Vt - bal
     buy_equity.append(eq)
+    
+    annual_rent = purchase_price * rent_yield * (1.02**(t-1))  # rent grows 2% annually
+    invested = (rent_portfolio[-1] if t > 1 else dp)
+    invested = invested * (1 + investment_return/100) + (pmt*12 - annual_rent)
+    rent_portfolio.append(invested)
 
-# --------------------------
-# Rent + Invest Scenario
-# --------------------------
-annual_rent = purchase_price * rent_yield
-rent_series = [annual_rent * (1.02**t) for t in range(years)]  # rent grows 2%/yr
-invested = dp  # renter invests down payment too
-rent_vs_buy = []
-
-for t in years_list:
-    invested = invested * (1 + investment_return/100) + (pmt*12 - rent_series[t-1])
-    rent_vs_buy.append(invested)
-
-# --------------------------
-# Results
-# --------------------------
 df = pd.DataFrame({
     "Year": years_list,
     "Buy_Equity": buy_equity,
-    "Rent_Portfolio": rent_vs_buy,
-    "Difference": np.array(buy_equity) - np.array(rent_vs_buy)
+    "Rent_Portfolio": rent_portfolio,
+    "Difference": np.array(buy_equity) - np.array(rent_portfolio)
 })
 
+# --------------------------
+# Charts
+# --------------------------
 st.subheader("📊 Wealth Accumulation Over Time")
 st.line_chart(df.set_index("Year")[["Buy_Equity","Rent_Portfolio"]])
 
 st.subheader("📈 Final Comparison")
 st.write(f"After {years} years:")
 st.write(f"- Buy Equity: RM{buy_equity[-1]:,.0f}")
-st.write(f"- Rent & Invest Portfolio: RM{rent_vs_buy[-1]:,.0f}")
+st.write(f"- Rent & Invest Portfolio: RM{rent_portfolio[-1]:,.0f}")
 st.write(f"- Difference: RM{df['Difference'].iloc[-1]:,.0f}")
 
 # --------------------------
-# Sensitivity Heatmap
+# Sensitivity Analysis (4D)
 # --------------------------
-st.subheader("🧮 Sensitivity Analysis")
+st.subheader("🧮 Sensitivity Analysis (4 Parameters)")
 
-mortgage_rates = [3, 4, 5, 6, 7]
-investment_returns = [4, 5, 6, 7, 8]
+mortgage_rates = [3, 4, 5, 6, 7]          # Mortgage %
+investment_returns = [4, 5, 6, 7, 8]      # Investment %
+appreciations = [2, 3, 4]                 # Property appreciation %
+rent_yields = [3, 4, 5]                   # Rental yields %
 
 records = []
 for mr in mortgage_rates:
     for ir in investment_returns:
-        buy_end = purchase_price*(1+prop_appreciation/100)**years - outstanding_balance(loan, mr/100, mortgage_term, years*12)
-        rent_end = dp*(1+ir/100)**years
-        records.append([mr, ir, buy_end-rent_end])
+        for g in appreciations:
+            for ry in rent_yields:
+                # Buy side
+                Vt = purchase_price * (1 + g/100)**years
+                bal = outstanding_balance(loan, mr/100, mortgage_term, years*12)
+                eq = Vt - bal
+                # Rent side
+                annual_rent = purchase_price * ry
+                rent_val = dp * (1 + ir/100)**years + (pmt*12 - annual_rent) * (((1+ir/100)**years - 1)/(ir/100))
+                diff = eq - rent_val
+                records.append([mr, ir, g, ry, eq, rent_val, diff])
 
-sens = pd.DataFrame(records, columns=["MortgageRate","InvestReturn","Diff"])
-pivot = sens.pivot(index="MortgageRate", columns="InvestReturn", values="Diff")
+df_sens = pd.DataFrame(records, columns=["MortgageRate","InvestReturn","Appreciation","RentYield","BuyEquity","RentPortfolio","Difference"])
+
+# Pick one slice for visualization (fix appreciation & rent yield, vary mortgage vs return)
+chosen_app = st.selectbox("Select Property Appreciation (%)", appreciations)
+chosen_ry = st.selectbox("Select Rental Yield (%)", rent_yields)
+
+df_slice = df_sens[(df_sens["Appreciation"]==chosen_app) & (df_sens["RentYield"]==chosen_ry)]
+pivot = df_slice.pivot(index="MortgageRate", columns="InvestReturn", values="Difference")
 
 fig, ax = plt.subplots(figsize=(6,4))
-sns = __import__('seaborn')
 sns.heatmap(pivot, annot=True, fmt=".0f", center=0, cmap="RdBu_r", cbar_kws={'label':'Buy - Rent (RM)'})
-plt.title(f"Sensitivity Analysis ({years} years)")
+plt.title(f"Tipping Map – {years} yrs | Appreciation {chosen_app}% | Rent Yield {chosen_ry}%")
 st.pyplot(fig)
 
 # --------------------------
 # Download
 # --------------------------
-csv = df.to_csv(index=False).encode("utf-8")
-st.download_button("⬇️ Download Results (CSV)", data=csv, file_name="buy_vs_rent_results.csv", mime="text/csv")
+csv = df_sens.to_csv(index=False).encode("utf-8")
+st.download_button("⬇️ Download Sensitivity Results (CSV)", data=csv, file_name="buy_vs_rent_sensitivity.csv", mime="text/csv")
