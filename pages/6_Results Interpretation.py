@@ -83,10 +83,15 @@ st.pyplot(fig)
 # --- Interpretation ---
 st.header("📝 Interpretation")
 st.write("""
-- Solid lines represent **Rent & Invest** growth, dotted lines represent **Buy** contributions.  
-- Wealth divergence increases with higher contribution and higher returns.  
-- The crossing points (where solid lines overtake dotted lines) indicate when investment surpasses property contributions.  
-- Multiple scenarios help compare how different monthly contributions and return rates affect long-term wealth accumulation.
+- **Solid lines** represent the *Rent & Invest* strategy, while **dotted lines** show the *Buy* path.  
+- The **crossing points** indicate the tipping year when renting & investing surpasses buying (or vice versa).  
+- Higher **contributions** and **investment returns** accelerate Rent & Invest growth, while lower mortgage costs and stronger property appreciation favor Buying.  
+- In the short term (<10 years), renting often looks cheaper due to flexibility and lower upfront costs. Over longer horizons (15–30 years), compounding effects from both property appreciation and investment returns become more significant.  
+- For **households**, this highlights that the better option depends on personal circumstances:  
+  - Buying is more attractive under low mortgage rates and steady property growth.  
+  - Renting can outperform when investment returns are strong and rental costs remain affordable.  
+- For **financial advisors**, scenario comparisons help clients see how small changes in rates or returns shift long-term outcomes.  
+- For **policymakers**, sensitivity results highlight how interest rate changes, subsidies, or rental market conditions impact household wealth outcomes.  
 """)
 
 # --- Download Multi-Scenario Data ---
