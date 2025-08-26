@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker  # ✅ for integer year ticks
 
 st.set_page_config(page_title='Expected Outcomes', layout='wide')
 st.title("📌 Expected Outcomes – Baseline Comparison")
@@ -44,7 +45,7 @@ for i, year in enumerate(years):
 
 # --- Convert to DataFrame ---
 df = pd.DataFrame({
-    "Year": pd.Series(years, dtype=int),  # ✅ force Year as integer
+    "Year": years,
     "PropertyValue": property_value,
     "MortgageBalance": loan_balances,
     "BuyWealth": buy_wealth,
@@ -65,6 +66,7 @@ ax.set_ylabel("Value (RM)")
 ax.set_title("Baseline Wealth Projection – Buy vs Rent & Invest")
 ax.grid(True, linestyle="--", alpha=0.5)
 ax.legend()
+ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))  # ✅ force integer ticks
 st.pyplot(fig)
 
 # --- Plot Property vs Mortgage ---
@@ -77,6 +79,7 @@ ax2.set_ylabel("Value (RM)")
 ax2.set_title("Property Value vs Mortgage Balance (Baseline)")
 ax2.grid(True, linestyle="--", alpha=0.5)
 ax2.legend()
+ax2.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))  # ✅ force integer ticks
 st.pyplot(fig2)
 
 # --- Interpretation ---
