@@ -6,7 +6,7 @@ st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
 st.title("📌 Expected Outcomes – Baseline Comparison")
 
 # --------------------------
-# Baseline Assumptions (Sidebar)
+# Baseline Assumptions
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300_000, step=10_000)
@@ -20,19 +20,6 @@ annual_property_growth = 0.03        # 3%
 annual_investment_return = 0.06      # 6%
 mortgage_rate = 0.05                  # 5%
 rent_yield = 0.04                     # 4%
-
-# --------------------------
-# Sources & References
-# --------------------------
-st.sidebar.header("📚 Sources / References")
-st.sidebar.markdown("""
-- **Property Growth (3% p.a.)**: NAPIC Malaysia, Residential Property Price Index 2010–2025  
-- **Investment Return (6% p.a.)**: EPF Annual Dividends 2010–2025  
-- **Mortgage Rate (~5%)**: Bank Negara Malaysia OPR + typical bank margin  
-- **Rental Yield (4%)**: NAPIC Malaysia / Property portals (iProperty, PropertyGuru)  
-- **Initial Property Price (RM300k)**: Example mid-range condo in Kuala Lumpur  
-- **Analysis Horizon (20 years)**: Standard long-term financial planning horizon
-""")
 
 # --------------------------
 # Mortgage Payment Function
@@ -69,6 +56,9 @@ for i, year in enumerate(years):
     invest_value = invest_value * (1 + annual_investment_return) + monthly_mortgage*12 - annual_rent
     rent_wealth.append(invest_value)
 
+# --------------------------
+# Convert to DataFrame
+# --------------------------
 df_baseline = pd.DataFrame({
     "Year": [int(y) for y in years],  # integer years
     "PropertyValue": property_value,
@@ -109,4 +99,17 @@ Based on the baseline assumptions:
 - Buying builds steady equity over time, with growth depending on property appreciation.
 - Renting & investing can generate higher returns if investment yields exceed property growth.
 - This baseline provides a simple, illustrative comparison for planning purposes.
+""")
+
+# --------------------------
+# Sources
+# --------------------------
+st.subheader("📚 Sources / References")
+st.markdown("""
+- **Property Growth (3% p.a.)**: NAPIC Malaysia, Residential Property Price Index 2010–2025  
+- **Investment Return (6% p.a.)**: EPF Annual Dividends 2010–2025  
+- **Mortgage Rate (~5%)**: Bank Negara Malaysia OPR + typical bank margin  
+- **Rental Yield (4%)**: NAPIC Malaysia / Property portals (iProperty, PropertyGuru)  
+- **Initial Property Price (RM300k)**: Example mid-range condo in Kuala Lumpur  
+- **Analysis Horizon (20 years)**: Standard long-term financial planning horizon
 """)
