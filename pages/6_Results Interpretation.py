@@ -41,8 +41,15 @@ df_plot = df_sens[
     df_sens["Return"].isin(selected_returns)
 ].copy()
 
-df_plot["Buy (RM)"] = df_plot["TotalContribution"]
+# --- Wealth definitions ---
+# Rent & Invest wealth
 df_plot["Rent & Invest (RM)"] = df_plot["TotalValue"]
+
+# Buy wealth: use provided column if available, otherwise approximate with contributions + growth
+if "TotalBuyWealth" in df_plot.columns:
+    df_plot["Buy (RM)"] = df_plot["TotalBuyWealth"]
+else:
+    df_plot["Buy (RM)"] = df_plot["TotalContribution"] + df_plot["Growth"]
 
 # --- Plot Multi-Scenario Curves ---
 fig, ax = plt.subplots(figsize=(12, 6))
@@ -64,7 +71,7 @@ for c in selected_contribs:
             linestyle=ls, 
             marker="o"
         )
-        # Optional: Plot Buy as thin dotted line
+        # Plot Buy as dotted reference line
         ax.plot(
             scenario["Year"], 
             scenario["Buy (RM)"], 
@@ -73,7 +80,7 @@ for c in selected_contribs:
             alpha=0.5
         )
 
-ax.set_title("Multi-Scenario Wealth Comparison (Solid: Invested, Dotted: Buy Contribution)")
+ax.set_title("Multi-Scenario Wealth Comparison (Solid: Rent & Invest, Dotted: Buy)")
 ax.set_xlabel("Year")
 ax.set_ylabel("Value (RM)")
 ax.grid(True, linestyle='--', alpha=0.5)
@@ -83,15 +90,17 @@ st.pyplot(fig)
 # --- Interpretation ---
 st.header("📝 Interpretation")
 st.write("""
-- **Solid lines** represent the *Rent & Invest* strategy, while **dotted lines** show the *Buy* path.  
-- The **crossing points** indicate the tipping year when renting & investing surpasses buying (or vice versa).  
-- Higher **contributions** and **investment returns** accelerate Rent & Invest growth, while lower mortgage costs and stronger property appreciation favor Buying.  
-- In the short term (<10 years), renting often looks cheaper due to flexibility and lower upfront costs. Over longer horizons (15–30 years), compounding effects from both property appreciation and investment returns become more significant.  
-- For **households**, this highlights that the better option depends on personal circumstances:  
-  - Buying is more attractive under low mortgage rates and steady property growth.  
-  - Renting can outperform when investment returns are strong and rental costs remain affordable.  
-- For **financial advisors**, scenario comparisons help clients see how small changes in rates or returns shift long-term outcomes.  
-- For **policymakers**, sensitivity results highlight how interest rate changes, subsidies, or rental market conditions impact household wealth outcomes.  
+- **Solid lines** = Rent & Invest strategy, **dotted lines** = Buy strategy.  
+- **Crossing points** indicate the tipping year when investing surpasses owning (or vice versa).  
+- Higher **monthly contributions** and **investment returns** accelerate Rent & Invest wealth.  
+- Lower mortgage costs and stronger property appreciation improve Buy outcomes.  
+- In the **short term (<10 years)**, renting often looks cheaper due to flexibility and lower upfront costs.  
+- Over **long horizons (15–30 years)**, compounding from both property appreciation and investments become decisive.  
+
+**Practical Implications**  
+- 🏠 **Households**: Buying is stronger under low mortgage rates and steady appreciation. Renting can win when investment returns are high and rent remains affordable.  
+- 💼 **Financial Advisors**: Scenario comparisons help clients see how small changes in rates or returns shift long-term outcomes.  
+- 🏛️ **Policymakers**: Sensitivity results highlight how changes in interest rates, subsidies, or rental market conditions affect household wealth.  
 """)
 
 # --- Download Multi-Scenario Data ---
