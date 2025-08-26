@@ -83,13 +83,19 @@ st.subheader("📊 Baseline Outcomes")
 st.dataframe(df_baseline)
 
 # --------------------------
-# Plot Wealth Projection
+# Plot Wealth Projection with better spacing
 # --------------------------
 st.subheader("💰 Wealth Projection (Baseline)")
-fig, ax = plt.subplots(figsize=(10, 5))
+fig, ax = plt.subplots(figsize=(12, 5))  # wider figure for more space
+
 ax.plot(df_baseline["Year"], df_baseline["BuyWealth"], label="Buy (Property Equity)", color="blue", marker="o")
 ax.plot(df_baseline["Year"], df_baseline["RentWealth"], label="Rent & Invest", color="green", marker="o")
-ax.set_xticks(df_baseline["Year"])  # force x-axis ticks as integers
+
+# Increase spacing: show only every N years
+year_interval = max(1, len(df_baseline)//10)  # aim for ~10 ticks max
+ax.set_xticks(df_baseline["Year"][::year_interval])
+ax.set_xticklabels(df_baseline["Year"][::year_interval], rotation=45)
+
 ax.set_xlabel("Year")
 ax.set_ylabel("Value (RM)")
 ax.set_title("Baseline Wealth Projection – Buy vs Rent & Invest")
