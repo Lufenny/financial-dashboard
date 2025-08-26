@@ -1,43 +1,19 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
 
 st.set_page_config(page_title='Expected Outcomes', layout='wide')
 st.title("📌 Expected Outcomes – Baseline Comparison")
 
-# --- Load Dataset ---
-def load_data(path="Data.csv"):
-    if os.path.exists(path):
-        return pd.read_csv(path)
-    else:
-        st.error("❌ Data.csv not found. Please upload or place it in the working directory.")
-        st.stop()
-
-df = load_data()
-
-# --- Derive Baseline Assumptions from EDA (historical averages) ---
-baseline_property_growth = df["PriceGrowth"].mean() / 100 if "PriceGrowth" in df.columns else 0.02
-baseline_investment_return = df["EPF"].mean() / 100 if "EPF" in df.columns else 0.05
-
-# --- Display assumptions ---
-st.subheader("📌 Baseline Assumptions (from historical data)")
-st.markdown(f"""
-- Initial property price: **RM300,000**  
-- Mortgage term: **30 years** @ 4% interest (simplified)  
-- Monthly mortgage contribution: **RM200**  
-- Initial lump sum for Rent & Invest: **RM50,000**  
-- Property appreciation (avg PriceGrowth): **{baseline_property_growth*100:.2f}%**  
-- Investment return (avg EPF dividend): **{baseline_investment_return*100:.2f}%**  
-""")
-
-# --- Parameters ---
-initial_property_price = 300000
+# --- Baseline Assumptions (Malaysia context) ---
+initial_property_price = 300000   # RM (example condo price)
+annual_property_growth = 0.02     # 2% appreciation
 mortgage_years = 30
-mortgage_rate = 0.04
-monthly_contribution = 200
-initial_investment = 50000
-years = list(range(2025, 2045))
+mortgage_rate = 0.04              # 4% interest
+monthly_contribution = 200        # RM
+initial_investment = 50000        # Rent & invest lump sum
+annual_investment_return = 0.05   # 5% (EPF-like return)
+years = list(range(2025, 2045))   # 20-year horizon
 
 # --- Mortgage Calculation (Simplified) ---
 loan_balance = initial_property_price
@@ -47,10 +23,10 @@ buy_wealth, rent_wealth, property_value, loan_balances = [], [], [], []
 
 for i, year in enumerate(years):
     # Property value grows
-    value = initial_property_price * ((1 + baseline_property_growth) ** i)
+    value = initial_property_price * ((1 + annual_property_growth) ** i)
     property_value.append(value)
     
-    # Loan balance reduces (simplified linear paydown)
+    # Loan balance reduces (simplified linear paydown for demo)
     loan_balance = max(0, loan_balance - annual_mortgage_payment)
     loan_balances.append(loan_balance)
     
@@ -63,12 +39,12 @@ for i, year in enumerate(years):
         invest_value = initial_investment
     else:
         invest_value = rent_wealth[-1]
-    invest_value = invest_value * (1 + baseline_investment_return) + annual_mortgage_payment
+    invest_value = invest_value * (1 + annual_investment_return) + annual_mortgage_payment
     rent_wealth.append(invest_value)
 
 # --- Convert to DataFrame ---
-df_baseline = pd.DataFrame({
-    "Year": years,
+df = pd.DataFrame({
+    "Year": pd.Series(years, dtype=int),  # ✅ force Year as integer
     "PropertyValue": property_value,
     "MortgageBalance": loan_balances,
     "BuyWealth": buy_wealth,
@@ -77,13 +53,13 @@ df_baseline = pd.DataFrame({
 
 # --- Display table ---
 st.subheader("📊 Baseline Outcomes Data")
-st.dataframe(df_baseline)
+st.dataframe(df)
 
 # --- Plot Wealth Comparison ---
 st.subheader("💰 Wealth Projection (Baseline)")
 fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(df_baseline["Year"], df_baseline["BuyWealth"], label="Buy (Property Equity)", color="blue", marker="o")
-ax.plot(df_baseline["Year"], df_baseline["RentWealth"], label="Rent & Invest", color="green", marker="o")
+ax.plot(df["Year"], df["BuyWealth"], label="Buy (Property Equity)", color="blue", marker="o")
+ax.plot(df["Year"], df["RentWealth"], label="Rent & Invest", color="green", marker="o")
 ax.set_xlabel("Year")
 ax.set_ylabel("Value (RM)")
 ax.set_title("Baseline Wealth Projection – Buy vs Rent & Invest")
@@ -94,8 +70,8 @@ st.pyplot(fig)
 # --- Plot Property vs Mortgage ---
 st.subheader("🏠 Property Value vs Mortgage Balance")
 fig2, ax2 = plt.subplots(figsize=(10, 5))
-ax2.plot(df_baseline["Year"], df_baseline["PropertyValue"], label="Property Value", color="orange", marker="o")
-ax2.plot(df_baseline["Year"], df_baseline["MortgageBalance"], label="Mortgage Balance", color="red", marker="o")
+ax2.plot(df["Year"], df["PropertyValue"], label="Property Value", color="orange", marker="o")
+ax2.plot(df["Year"], df["MortgageBalance"], label="Mortgage Balance", color="red", marker="o")
 ax2.set_xlabel("Year")
 ax2.set_ylabel("Value (RM)")
 ax2.set_title("Property Value vs Mortgage Balance (Baseline)")
@@ -105,11 +81,23 @@ st.pyplot(fig2)
 
 # --- Interpretation ---
 st.header("📝 Interpretation of Expected Outcomes")
-st.write(f"""
-- Baseline assumptions are **derived from historical data**: property appreciation ≈ {baseline_property_growth*100:.2f}%, EPF-like returns ≈ {baseline_investment_return*100:.2f}%.  
-- **Rent & Invest strategy** grows faster due to compounding, especially with the RM50k initial investment.  
-- **Buy strategy** builds equity slowly but steadily as property value rises and mortgage balance declines.  
-- Early years favor renting (less debt, more compounding), while later years improve buying as mortgage burden falls.  
+st.write("""
+Under the baseline assumptions, two distinct wealth trajectories emerge:
 
-This baseline sets a **benchmark reference**, later extended in scenario analysis, sensitivity modelling, and multi-scenario interpretation.
+- **Rent & Invest** demonstrates stronger compounding effects, growing more rapidly over the 20-year horizon. 
+  The combination of an initial RM50,000 lump sum and steady 5% annual returns 
+  allows this strategy to accumulate wealth at a faster pace than property ownership.  
+
+- **Buy (Property Ownership)** builds wealth gradually through equity. 
+  In the early years, equity remains modest due to high outstanding mortgage balances. 
+  Over time, however, property appreciation (≈2% annually) and consistent mortgage repayments 
+  reduce liabilities and increase the owner’s stake in the property.  
+
+**Key Insight:**  
+Renting and investing appears financially superior under these baseline conditions, 
+especially in the short to medium term. Buying becomes more attractive if property appreciation accelerates, 
+mortgage rates decrease, or holding periods extend well beyond 20 years.  
+
+This baseline analysis provides a **reference benchmark** before applying sensitivity tests and scenario comparisons, 
+which examine how changes in assumptions (e.g., higher appreciation or lower returns) alter long-term outcomes.  
 """)
