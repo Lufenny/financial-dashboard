@@ -45,7 +45,7 @@ def load_dataset(uploaded_file=None, fallback_path="Data.csv"):
 # Page 1: EDA
 # ----------------------------
 if page == "📊 EDA":
-    st.title("🔎 Exploratory Data Analysis (EDA) — Full dataset period support")
+    st.title("🔎 Exploratory Data Analysis (EDA)")
 
     uploaded_file = st.file_uploader("Upload your dataset (CSV)", type=["csv"])
     df = load_dataset(uploaded_file, fallback_path="Data.csv")
