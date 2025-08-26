@@ -14,10 +14,9 @@ import numpy as np
 # ----------------------------
 try:
     stopwords.words("english")
-except Exception:
-    with st.spinner("Downloading NLTK data..."):
-        nltk.download('punkt')
-        nltk.download('stopwords')
+except LookupError:
+    nltk.download('punkt')
+    nltk.download('stopwords')
 
 # ----------------------------
 # App config + Sidebar Navigation
@@ -69,8 +68,6 @@ if page == "📊 EDA":
         year_max = int(df["Year"].max())
         span_years = year_max - year_min + 1
         st.markdown(f"**Dataset period:** {year_min} — {year_max}  (_{span_years} years total_)")
-        # short validation message to replace the old 2010–2014 wording
-        st.info(f"The EDA below now uses the full available period ({year_min}—{year_max}). If your earlier draft referenced 2010–2014 only, this interactive analysis will show the full-span behaviour for OPR, EPF, price growth and rent yields.")
     else:
         year_min = year_max = None
 
@@ -112,7 +109,6 @@ if page == "📊 EDA":
 
     if chart_type == "OPR vs Year":
         plot_line("Year", "OPR_avg", "OPR (%)", f"Trend of OPR ({y0}–{y1})" if year_min else "Trend of OPR")
-        # add a short automated observation (basic)
         if "OPR_avg" in df_plot.columns and "Year" in df_plot.columns:
             start, end = float(df_plot["OPR_avg"].iloc[0]), float(df_plot["OPR_avg"].iloc[-1])
             st.write(f"**Observation:** OPR changed from {start:.2f}% to {end:.2f}% between {df_plot['Year'].iloc[0]} and {df_plot['Year'].iloc[-1]} (selected range).")
@@ -138,11 +134,12 @@ if page == "📊 EDA":
             ax.set_yticks(np.arange(len(corr.index)))
             ax.set_xticklabels(corr.columns, rotation=45, ha="right")
             ax.set_yticklabels(corr.index)
-            # annotate
+            # annotate with contrast
             for i in range(len(corr.index)):
                 for j in range(len(corr.columns)):
                     val = corr.values[i, j]
-                    ax.text(j, i, f"{val:.2f}", ha="center", va="center", fontsize=8, color="black")
+                    color = "white" if abs(val) > 0.5 else "black"
+                    ax.text(j, i, f"{val:.2f}", ha="center", va="center", fontsize=8, color=color)
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             ax.set_title(f"Correlation matrix ({y0}–{y1})" if year_min else "Correlation matrix")
             plt.tight_layout()
@@ -171,26 +168,21 @@ elif page == "☁️ WordCloud":
     if "Content" not in df_text.columns:
         st.error("CSV file must contain a 'Content' column with blog text.")
     else:
-        # Combine all blog text
         text_data = " ".join(df_text["Content"].dropna().astype(str))
-
-        # Tokenize & clean using regex
         tokens = re.findall(r"\b[a-zA-Z]+\b", text_data.lower())
 
+        # Stopwords: English + some Malay fillers
         stop_words = set(stopwords.words("english"))
+        extra_stops = {"akan", "dan", "atau", "yang", "untuk", "dengan", "jika"}  
+        stop_words |= extra_stops
+
         cleaned_tokens = [word for word in tokens if word not in stop_words]
 
-        # WordCloud
         wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(cleaned_tokens))
 
-        # Top words frequency
         word_freq = Counter(cleaned_tokens).most_common(15)
-        if len(word_freq) > 0:
-            words, counts = zip(*word_freq)
-        else:
-            words, counts = [], []
+        words, counts = zip(*word_freq) if word_freq else ([], [])
 
-        # Layout side by side
         col1, col2 = st.columns(2)
 
         with col1:
@@ -209,4 +201,5 @@ elif page == "☁️ WordCloud":
                 ax_bar.set_ylabel("Word")
             else:
                 ax_bar.text(0.5, 0.5, "No words found", ha="center")
+                ax_bar.set_title("No data")
             st.pyplot(fig_bar)
