@@ -6,7 +6,7 @@ st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
 st.title("📌 Expected Outcomes – Baseline Comparison")
 
 # --------------------------
-# Baseline Assumptions
+# Baseline Assumptions (Sidebar)
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300_000, step=10_000)
@@ -15,11 +15,11 @@ monthly_contribution = st.sidebar.number_input("Monthly Mortgage Contribution (R
 initial_investment = st.sidebar.number_input("Initial Investment for Rent & Invest (RM)", value=50_000, step=10_000)
 analysis_years = st.sidebar.slider("Analysis Horizon (Years)", 10, 40, 20)
 
-# Historical averages (baseline defaults)
+# Baseline averages (default)
 annual_property_growth = 0.03        # 3%
 annual_investment_return = 0.06      # 6%
-mortgage_rate = 0.05                  # 5%
-rent_yield = 0.04                     # 4%
+mortgage_rate = 0.05                 # 5%
+rent_yield = 0.04                    # 4%
 
 # --------------------------
 # Mortgage Payment Function
@@ -44,10 +44,16 @@ buy_wealth, rent_wealth, property_value, loan_balances = [], [], [], []
 for i, year in enumerate(years):
     value = initial_property_price * ((1 + annual_property_growth) ** i)
     property_value.append(value)
+    
+    # Mortgage/Loan balance
     loan_balance = max(0, loan_balance * (1 + mortgage_rate) - monthly_mortgage*12)
     loan_balances.append(loan_balance)
+    
+    # Buy equity
     buy_equity = value - loan_balance
     buy_wealth.append(buy_equity)
+    
+    # Rent & invest
     if i == 0:
         invest_value = initial_investment
     else:
@@ -60,23 +66,30 @@ for i, year in enumerate(years):
 # Convert to DataFrame
 # --------------------------
 df_baseline = pd.DataFrame({
-    "Year": [int(y) for y in years],  # integer years
+    "Year": years,
     "PropertyValue": property_value,
     "MortgageBalance": loan_balances,
     "BuyWealth": buy_wealth,
     "RentWealth": rent_wealth
 })
 
+# Force Year column to integer type
+df_baseline["Year"] = df_baseline["Year"].astype(int)
+
 # --------------------------
-# Display Table and Plot
+# Display Table
 # --------------------------
 st.subheader("📊 Baseline Outcomes")
 st.dataframe(df_baseline)
 
+# --------------------------
+# Plot Wealth Projection
+# --------------------------
 st.subheader("💰 Wealth Projection (Baseline)")
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.plot(df_baseline["Year"], df_baseline["BuyWealth"], label="Buy (Property Equity)", color="blue", marker="o")
 ax.plot(df_baseline["Year"], df_baseline["RentWealth"], label="Rent & Invest", color="green", marker="o")
+ax.set_xticks(df_baseline["Year"])  # force x-axis ticks as integers
 ax.set_xlabel("Year")
 ax.set_ylabel("Value (RM)")
 ax.set_title("Baseline Wealth Projection – Buy vs Rent & Invest")
@@ -102,7 +115,7 @@ Based on the baseline assumptions:
 """)
 
 # --------------------------
-# Sources
+# Sources / References
 # --------------------------
 st.subheader("📚 Sources / References")
 st.markdown("""
