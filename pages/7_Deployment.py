@@ -1,6 +1,4 @@
 import streamlit as st
-import matplotlib.pyplot as plt
-import networkx as nx
 
 st.set_page_config(page_title='Deployment', layout='wide')
 st.title("🚀 Deployment")
@@ -16,25 +14,15 @@ The system is published via **Streamlit Cloud**, with all source code hosted on 
 """)
 
 # ---------------------------------------------
-# Pipeline Diagram
+# Pipeline Flow (Text-based)
 # ---------------------------------------------
 st.subheader("🔄 Analytical Pipeline Overview")
-
-G = nx.DiGraph()
-G.add_edges_from([
-    ("Main.py", "Modelling"),
-    ("Modelling", "Sensitivity Analysis"),
-    ("Sensitivity Analysis", "Results & Interpretation"),
-    ("Results & Interpretation", "Deployment")
-])
-
-plt.figure(figsize=(8,4))
-pos = nx.spring_layout(G, seed=42)
-nx.draw(G, pos, with_labels=True, node_size=4000, node_color="#A2D2FF", font_size=12, font_weight="bold", arrowsize=20)
-st.pyplot(plt.gcf())
-
 st.markdown("""
-**Flow Explanation:**  
+**Flow:**
+
+`Main.py` ➡️ `Modelling` ➡️ `Sensitivity Analysis` ➡️ `Results & Interpretation` ➡️ `Deployment`
+
+**Explanation:**
 - **Main.py**: Entry point of the app, loads data & sets navigation.  
 - **Modelling**: Buy vs Rent calculations and sensitivity analysis.  
 - **Sensitivity Analysis**: Explore scenarios with different mortgage, investment, property, and rent assumptions.  
@@ -43,7 +31,7 @@ st.markdown("""
 """)
 
 # ---------------------------------------------
-# Deployment Steps (Collapsible)
+# Deployment Steps
 # ---------------------------------------------
 with st.expander("🔧 Deployment Steps", expanded=True):
     st.markdown("""
@@ -69,22 +57,6 @@ with st.expander("🔧 Deployment Steps", expanded=True):
      streamlit run Main.py
      ```
 """)
-    requirements_content = """streamlit>=1.29.0
-pandas>=2.0.3
-numpy>=1.26.0
-matplotlib>=3.8.0
-seaborn>=0.13.0
-scikit-learn>=1.3.0
-wordcloud>=1.9.2
-nltk>=3.8.1
-"""
-    st.download_button(
-        label="⬇️ Download requirements.txt",
-        data=requirements_content,
-        file_name="requirements.txt",
-        mime="text/plain"
-    )
-    st.info("💡 Make sure `Main.py` is selected as the entry point when deploying on Streamlit Cloud.")
 
 # ---------------------------------------------
 # Streamlit Cloud Deployment
@@ -98,7 +70,7 @@ with st.expander("☁️ Streamlit Cloud Deployment"):
 """)
 
 # ---------------------------------------------
-# Future Improvements (Collapsible)
+# Future Improvements
 # ---------------------------------------------
 with st.expander("📌 Future Improvements"):
     st.markdown("""
