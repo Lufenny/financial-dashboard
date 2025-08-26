@@ -1,54 +1,79 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
+from itertools import cycle
 
 st.set_page_config(page_title='Results & Interpretation', layout='wide')
-st.title("📑 Results & Interpretation (Dynamic)")
+st.title("📑 Results & Interpretation (Multi-Scenario)")
 
-# --- Load sensitivity results from CSV ---
-SENS_CSV_PATH = "sensitivity_analysis.csv"
+# --- Upload sensitivity CSV ---
+st.sidebar.header("Upload Sensitivity Results")
+uploaded_file = st.sidebar.file_uploader(
+    "Upload 'sensitivity_analysis.csv' from Modelling page",
+    type=["csv"]
+)
 
-if os.path.exists(SENS_CSV_PATH):
-    df_sens = pd.read_csv(SENS_CSV_PATH)
+if uploaded_file is not None:
+    df_sens = pd.read_csv(uploaded_file)
 else:
-    st.error(f"❌ Sensitivity results not found at '{SENS_CSV_PATH}'. Run Modelling page first.")
+    st.warning("Please upload 'sensitivity_analysis.csv' from the Modelling page to proceed.")
     st.stop()
 
-# --- Select scenario to visualize ---
-st.sidebar.header("Select Scenario")
+# --- Multi-Scenario Selection ---
+st.sidebar.header("Select Scenarios to Compare")
 contrib_options = sorted(df_sens["Contribution"].unique())
 return_options = sorted(df_sens["Return"].unique())
 
-selected_contrib = st.sidebar.selectbox("Monthly Contribution (RM)", contrib_options)
-selected_return = st.sidebar.selectbox("Annual Return (%)", return_options)
+selected_contribs = st.sidebar.multiselect(
+    "Monthly Contribution (RM)", contrib_options, default=[contrib_options[0]]
+)
+selected_returns = st.sidebar.multiselect(
+    "Annual Return (%)", return_options, default=[return_options[0]]
+)
 
-df_scenario = df_sens[
-    (df_sens["Contribution"] == selected_contrib) &
-    (df_sens["Return"] == selected_return)
-].copy()
-
-if df_scenario.empty:
-    st.warning("No data found for this scenario.")
+if not selected_contribs or not selected_returns:
+    st.warning("Please select at least one contribution and one return rate.")
     st.stop()
 
-# --- Prepare Data ---
-df_scenario["Buy (RM)"] = df_scenario["TotalContribution"]
-df_scenario["Rent & Invest (RM)"] = df_scenario["TotalValue"]
+# --- Filter Data ---
+df_plot = df_sens[
+    df_sens["Contribution"].isin(selected_contribs) &
+    df_sens["Return"].isin(selected_returns)
+].copy()
 
-# --- Dynamic Crossover Year ---
-crossover = df_scenario[df_scenario["Rent & Invest (RM)"] > df_scenario["Buy (RM)"]]
-crossover_year = crossover["Year"].iloc[0] if not crossover.empty else None
+df_plot["Buy (RM)"] = df_plot["TotalContribution"]
+df_plot["Rent & Invest (RM)"] = df_plot["TotalValue"]
 
-# --- Show Data ---
-with st.expander("🔎 View Scenario Dataframe"):
-    st.dataframe(df_scenario[["Year", "Buy (RM)", "Rent & Invest (RM)"]], use_container_width=True)
+# --- Plot Multi-Scenario Curves ---
+fig, ax = plt.subplots(figsize=(12, 6))
+colors = cycle(["blue", "green", "orange", "red", "purple", "brown"])
+line_styles = cycle(["solid", "dashed", "dotted", "dashdot"])
 
-# --- Plot ---
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(df_scenario["Year"], df_scenario["Buy (RM)"], marker="o", label="Buy", color="blue")
-ax.plot(df_scenario["Year"], df_scenario["Rent & Invest (RM)"], marker="s", label="Rent & Invest", color="green")
-ax.set_title(f"Wealth Comparison (RM{selected_contrib}/m @ {selected_return}%)")
+for c in selected_contribs:
+    for r in selected_returns:
+        scenario = df_plot[(df_plot["Contribution"] == c) & (df_plot["Return"] == r)]
+        if scenario.empty:
+            continue
+        color = next(colors)
+        ls = next(line_styles)
+        ax.plot(
+            scenario["Year"], 
+            scenario["Rent & Invest (RM)"], 
+            label=f"RM{c}/m @ {r}%", 
+            color=color, 
+            linestyle=ls, 
+            marker="o"
+        )
+        # Optional: Plot Buy as thin dotted line
+        ax.plot(
+            scenario["Year"], 
+            scenario["Buy (RM)"], 
+            color=color, 
+            linestyle="dotted",
+            alpha=0.5
+        )
+
+ax.set_title("Multi-Scenario Wealth Comparison (Solid: Invested, Dotted: Buy Contribution)")
 ax.set_xlabel("Year")
 ax.set_ylabel("Value (RM)")
 ax.grid(True, linestyle='--', alpha=0.5)
@@ -57,18 +82,18 @@ st.pyplot(fig)
 
 # --- Interpretation ---
 st.header("📝 Interpretation")
-st.write(f"""
-- **Rent & Invest** consistently outperforms **Buy** under the selected scenario.  
-- Wealth divergence increases over time due to compounding returns.  
-- Rent & Invest overtakes Buy around **{crossover_year}**.  
-- The **Buy** scenario offers tangible property ownership and housing security.
+st.write("""
+- Solid lines represent **Rent & Invest** growth, dotted lines represent **Buy** contributions.  
+- Wealth divergence increases with higher contribution and higher returns.  
+- The crossing points (where solid lines overtake dotted lines) indicate when investment surpasses property contributions.  
+- Multiple scenarios help compare how different monthly contributions and return rates affect long-term wealth accumulation.
 """)
 
-# --- Download ---
-csv_bytes = df_scenario[["Year", "Buy (RM)", "Rent & Invest (RM)"]].to_csv(index=False).encode("utf-8")
+# --- Download Multi-Scenario Data ---
+csv_bytes = df_plot[["Year", "Contribution", "Return", "Buy (RM)", "Rent & Invest (RM)"]].to_csv(index=False).encode("utf-8")
 st.download_button(
-    "⬇️ Download Results CSV",
+    "⬇️ Download Multi-Scenario Results CSV",
     data=csv_bytes,
-    file_name=f"results_interpretation_RM{selected_contrib}_{selected_return}.csv",
+    file_name="results_interpretation_multiscenario.csv",
     mime="text/csv"
 )
