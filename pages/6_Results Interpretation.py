@@ -58,27 +58,28 @@ crossings_summary = []
 for mr in selected_mortgages:
     for r in selected_returns:
         scenario = df_plot[(df_plot["MortgageRate"] == mr) & (df_plot["InvestReturn"] == r)]
+        
+        # 🚨 Skip if no data matches
         if scenario.empty:
+            st.warning(f"No data for Mortgage {mr}% and Return {r}%. Skipping...")
             continue
+
         color = next(colors)
         ls = next(line_styles)
 
-        # Plot Rent line
+        # Plot Rent & Invest
         ax.plot(
             scenario["Year"],
             scenario["RentPortfolio"],
             label=f"Rent @ {r}% | Mort {mr}%",
-            color=color,
-            linestyle=ls,
-            marker="o"
+            color=color, linestyle=ls, marker="o"
         )
-        # Plot Buy line
+
+        # Plot Buy
         ax.plot(
             scenario["Year"],
             scenario["BuyEquity"],
-            color=color,
-            linestyle="dotted",
-            alpha=0.6
+            color=color, linestyle="dotted", alpha=0.6
         )
 
         # --- Detect crossing point ---
@@ -92,16 +93,12 @@ for mr in selected_mortgages:
         if cross_idx is not None:
             year_cross = scenario["Year"].iloc[cross_idx]
             rent_val = scenario["RentPortfolio"].iloc[cross_idx]
-            buy_val = scenario["BuyEquity"].iloc[cross_idx]
             ax.scatter(year_cross, rent_val, color=color, s=80, edgecolor="black", zorder=5)
             ax.annotate(
                 f"Cross @ {year_cross}",
                 (year_cross, rent_val),
-                textcoords="offset points",
-                xytext=(0,10),
-                ha="center",
-                fontsize=8,
-                color=color
+                textcoords="offset points", xytext=(0,10),
+                ha="center", fontsize=8, color=color
             )
             crossings_summary.append(f"- Rent @ {r}% | Mort {mr}% → Tipping year ≈ {year_cross}")
 
