@@ -82,10 +82,22 @@ st.pyplot(fig2)
 # --- Interpretation ---
 st.header("📝 Interpretation of Expected Outcomes")
 st.write("""
-- Under baseline assumptions (property appreciation ≈2%, EPF-like returns ≈5%), the **Rent & Invest strategy grows faster** due to higher compounding.  
-- The **Buy strategy** gradually builds equity as the property value rises and mortgage balance decreases.  
-- In early years, homeowners carry more debt, so equity is modest. Over time, property appreciation and mortgage repayments increase Buy wealth.  
-- Meanwhile, renters benefit from both lower initial costs and consistent investment growth, making Rent & Invest more competitive under baseline assumptions.  
+Under the baseline assumptions, two distinct wealth trajectories emerge:
 
-This baseline comparison provides a reference point before applying **sensitivity and scenario analyses**, which explore how outcomes change under different assumptions.
+- **Rent & Invest** demonstrates stronger compounding effects, growing more rapidly over the 20-year horizon. 
+  The combination of an initial RM50,000 lump sum and steady 5% annual returns 
+  allows this strategy to accumulate wealth at a faster pace than property ownership.  
+
+- **Buy (Property Ownership)** builds wealth gradually through equity. 
+  In the early years, equity remains modest due to high outstanding mortgage balances. 
+  Over time, however, property appreciation (≈2% annually) and consistent mortgage repayments 
+  reduce liabilities and increase the owner’s stake in the property.  
+
+**Key Insight:**  
+Renting and investing appears financially superior under these baseline conditions, 
+especially in the short to medium term. Buying becomes more attractive if property appreciation accelerates, 
+mortgage rates decrease, or holding periods extend well beyond 20 years.  
+
+This baseline analysis provides a **reference benchmark** before applying sensitivity tests and scenario comparisons, 
+which examine how changes in assumptions (e.g., higher appreciation or lower returns) alter long-term outcomes.  
 """)
