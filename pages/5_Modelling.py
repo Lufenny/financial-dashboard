@@ -71,7 +71,7 @@ df_base = pd.DataFrame({
 # --------------------------
 # Base-case Charts
 # --------------------------
-st.subheader("📊 Wealth Accumulation Over Time")
+st.subheader("📊 Wealth Accumulation Over Time (Base-case)")
 st.line_chart(df_base.set_index("Year")[["BuyEquity","RentPortfolio"]])
 
 st.subheader("📈 Final Comparison")
