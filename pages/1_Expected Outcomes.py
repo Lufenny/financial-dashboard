@@ -17,7 +17,7 @@ is a forward-looking projection based on Malaysia’s EPF long-run average.
 # --------------------------
 # Baseline Assumptions (Sidebar)
 # --------------------------
-st.sidebar.header("⚙️ Baseline Assumptions")
+st.sidebar.header("⚙️ Model Baseline Assumptions (illustrative)")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300_000, step=10_000)
 mortgage_years = st.sidebar.slider("Mortgage Term (Years)", 10, 35, 30)
 monthly_contribution = st.sidebar.number_input("Monthly Mortgage Contribution (RM)", value=1_200, step=100)
@@ -107,7 +107,7 @@ ax.set_xticklabels(df_baseline["Year"][::year_interval], rotation=45)
 
 ax.set_xlabel("Year")
 ax.set_ylabel("Value (RM)")
-ax.set_title("Baseline Wealth Projection – Buy vs Rent & Invest")
+ax.set_title("Model Baseline Wealth Projection – Buy vs Rent & Invest")
 ax.grid(True, linestyle="--", alpha=0.5)
 ax.legend()
 st.pyplot(fig)
@@ -115,7 +115,7 @@ st.pyplot(fig)
 # --------------------------
 # Interpretation
 # --------------------------
-st.header("📝 Interpretation")
+st.header("📝 Interpretation (Model Baseline)")
 st.write(f"""
 Based on the baseline assumptions:
 - Property growth ≈ {annual_property_growth*100:.1f}% per year
