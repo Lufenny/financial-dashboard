@@ -6,12 +6,12 @@ st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
 st.title("📌 Expected Outcomes — Model Baseline (not a forecast)")
 
 st.info("""
-**Note on terminology:**
-This page shows a **Model Baseline** — default inputs for illustration (e.g., 3% property growth, 
-6% investment return).  
+**Note on Terminology:**
+This page shows a **Model Baseline** — default parameters for illustration 
+(e.g., 3% property growth, 6% investment return, 5% mortgage rate, 4% rental yield).
 
-In contrast, the **Scenario Baseline (5%)** in the Scenario Analysis is a forward-looking forecast 
-anchored to Malaysia’s EPF average. 
+In contrast, the **Scenario Baseline (5%)** in the Scenario Analysis 
+is a forward-looking projection based on Malaysia’s EPF long-run average. 
 """)
 
 # --------------------------
@@ -88,13 +88,13 @@ df_baseline["Year"] = df_baseline["Year"].astype(int)
 # --------------------------
 # Display Table
 # --------------------------
-st.subheader("📊 Baseline Outcomes")
+st.subheader("📊 Model Baseline Outcomes (Illustrative)")
 st.dataframe(df_baseline)
 
 # --------------------------
 # Plot Wealth Projection with better spacing
 # --------------------------
-st.subheader("💰 Wealth Projection (Baseline)")
+st.subheader("💰 Wealth Projection - Model Baseline)")
 fig, ax = plt.subplots(figsize=(12, 5))  # wider figure for more space
 
 ax.plot(df_baseline["Year"], df_baseline["BuyWealth"], label="Buy (Property Equity)", color="blue", marker="o")
