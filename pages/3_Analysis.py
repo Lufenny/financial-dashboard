@@ -12,12 +12,15 @@ with st.expander("ℹ️ Description", expanded=False):
     This scenario analysis extends the historical insights from the EDA (2010–2025) 
     into a forward-looking projection (2025–2045). The growth rates chosen are 
     informed by historical patterns:
-    - Baseline (5%): consistent with Malaysia’s long-run EPF average.
-    - Optimistic (8%): reflects strong market years where EPF exceeded 7%.
-    - Pessimistic (3%): aligned with slower property price growth observed recently.
-    
-    This highlights how even small differences in annual growth, when compounded, 
-    create wide divergences in long-term wealth outcomes.
+
+    - **Baseline (5%)**: consistent with Malaysia’s long-run EPF average.
+    - **Optimistic (8%)**: reflects strong market years where EPF exceeded 7%.
+    - **Pessimistic (3%)**: aligned with slower property price growth observed recently.
+
+    ⚠️ *Note:* This **Scenario Baseline (5%)** is different from the 
+    **Model Baseline** shown in the Expected Outcomes page.  
+    - Model Baseline = default illustrative assumptions.  
+    - Scenario Baseline = forecast anchored to EPF average.
     """)
 
 # --- Define Scenarios ---
