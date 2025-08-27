@@ -3,7 +3,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
-st.title("📌 Expected Outcomes – Baseline Comparison")
+st.title("📌 Expected Outcomes — Model Baseline (not a forecast)")
+
+st.info("""
+**Note on terminology:**
+This page shows a **Model Baseline** — default inputs for illustration (e.g., 3% property growth, 
+6% investment return).  
+
+In contrast, the **Scenario Baseline (5%)** in the Scenario Analysis is a forward-looking forecast 
+anchored to Malaysia’s EPF average. 
+""")
 
 # --------------------------
 # Baseline Assumptions (Sidebar)
