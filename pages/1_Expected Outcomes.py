@@ -9,6 +9,13 @@ from matplotlib import rcParams
 st.set_page_config(page_title="Expected Outcomes – Baseline", layout="wide")
 st.title("📊 Expected Outcomes – Buy vs EPF Wealth")
 
+# Intro explanation
+st.write(
+    "This section compares the long-term outcomes of **buying a house** versus saving in "
+    "**EPF (Employees Provident Fund)**. The projection shows how your property equity "
+    "(Buy Wealth) and EPF savings could grow over time based on the assumptions you set."
+)
+
 # --------------------------
 # Font Setup (Times New Roman)
 # --------------------------
