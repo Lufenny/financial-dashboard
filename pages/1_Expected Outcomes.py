@@ -3,8 +3,18 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+# --------------------------
+# Page Config & Title
+# --------------------------
 st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
 st.title("📌 Expected Outcomes – Buy vs EPF Wealth")
+
+# Intro explanation
+st.write(
+    "This section compares the long-term outcomes of **buying a house** versus saving in "
+    "**EPF (Employees Provident Fund)**. The projection shows how your property equity "
+    "(Buy Wealth) and EPF savings could grow over time based on the assumptions you set."
+)
 
 # --------------------------
 # Baseline Assumptions (Sidebar)
@@ -26,7 +36,7 @@ P = initial_property_price
 r = mortgage_rate
 n = loan_term_years
 if r > 0:
-    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)
+    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)  # standard annuity formula
 else:
     PMT = P / n  # zero interest case
 
@@ -100,3 +110,29 @@ st.download_button(
     file_name="expected_outcomes_buy_vs_epf.csv",
     mime="text/csv"
 )
+
+# --------------------------
+# Summary Box
+# --------------------------
+final_buy = buy_wealth[-1]
+final_epf = epf_wealth[-1]
+
+st.subheader("📌 Summary")
+if final_buy > final_epf:
+    st.success(
+        f"After **{years} years**, buying a house results in higher wealth:\n\n"
+        f"- 🏡 Buy Wealth: **RM {final_buy:,.0f}**\n"
+        f"- 💰 EPF Wealth: **RM {final_epf:,.0f}**"
+    )
+elif final_epf > final_buy:
+    st.info(
+        f"After **{years} years**, saving in EPF results in higher wealth:\n\n"
+        f"- 💰 EPF Wealth: **RM {final_epf:,.0f}**\n"
+        f"- 🏡 Buy Wealth: **RM {final_buy:,.0f}**"
+    )
+else:
+    st.warning(
+        f"After **{years} years**, both strategies result in about the same wealth:\n\n"
+        f"- 🏡 Buy Wealth: **RM {final_buy:,.0f}**\n"
+        f"- 💰 EPF Wealth: **RM {final_epf:,.0f}**"
+    )
