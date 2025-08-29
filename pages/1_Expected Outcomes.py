@@ -2,93 +2,101 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
 
-# --------------------------
-# Streamlit Config
-# --------------------------
-st.set_page_config(page_title="Expected Outcomes – Baseline", layout="wide")
-st.title("📌 Expected Outcomes – Baseline Comparison")
+st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
+st.title("📌 Expected Outcomes – Buy vs EPF Wealth")
 
 # --------------------------
 # Baseline Assumptions (Sidebar)
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
-initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500000, step=10000)
-annual_property_growth = st.sidebar.number_input("Annual Property Growth (%)", value=3.0, step=0.5) / 100
-mortgage_rate = st.sidebar.number_input("Mortgage Rate (%)", value=5.0, step=0.1) / 100
-loan_term = st.sidebar.number_input("Loan Term (years)", value=30, step=5)
-annual_rent = st.sidebar.number_input("Annual Rent (RM)", value=20000, step=1000)
-annual_investment_return = st.sidebar.number_input("Investment Return (%)", value=6.0, step=0.5) / 100
-years = st.sidebar.number_input("Projection Years", value=20, step=5)
+
+initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300000, step=10000)
+property_growth_rate = st.sidebar.slider("Annual Property Growth Rate (%)", 0.0, 10.0, 5.0) / 100
+mortgage_rate = st.sidebar.slider("Mortgage Interest Rate (%)", 0.0, 10.0, 4.0) / 100
+loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=20, step=1)
+epf_rate = st.sidebar.slider("Annual EPF Dividend Rate (%)", 0.0, 10.0, 5.0) / 100
+annual_epf_contribution = st.sidebar.number_input("Annual EPF Contribution (RM)", value=12000, step=1000)
+years = st.sidebar.number_input("Projection Horizon (Years)", value=20, step=1)
 
 # --------------------------
 # Mortgage Calculation
 # --------------------------
-loan_amount = initial_property_price
-monthly_rate = mortgage_rate / 12
-n_payments = loan_term * 12
-monthly_mortgage = loan_amount * monthly_rate / (1 - (1 + monthly_rate) ** (-n_payments))
-
-# --------------------------
-# Initialize Values
-# --------------------------
-loan_balance = loan_amount
-invest_value = 0
-records = []
+P = initial_property_price
+r = mortgage_rate
+n = loan_term_years
+if r > 0:
+    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)
+else:
+    PMT = P / n  # zero interest case
 
 # --------------------------
 # Projection Loop
 # --------------------------
-for i in range(1, years + 1):
-    # Property value growth
-    value = initial_property_price * ((1 + annual_property_growth) ** i)
-    
-    # Loan balance amortization
-    loan_balance = loan_balance * (1 + mortgage_rate) - monthly_mortgage * 12
-    loan_balance = max(loan_balance, 0)
-    
-    # Buy scenario: equity = property value - loan balance
-    buy_equity = value - loan_balance
-    
-    # Rent scenario: invest instead of mortgage, minus rent
-    invest_value = invest_value * (1 + annual_investment_return)
-    invest_value += monthly_mortgage * 12
-    invest_value -= annual_rent
-    
-    records.append([2025 + i, value, loan_balance, buy_equity, invest_value])
+property_values = [P]
+mortgage_balances = [P]
+buy_wealth = [0]
+epf_wealth = [0]
+
+for t in range(1, years + 1):
+    # Property growth
+    new_property_value = property_values[-1] * (1 + property_growth_rate)
+    property_values.append(new_property_value)
+
+    # Mortgage balance update
+    interest_payment = mortgage_balances[-1] * r
+    principal_payment = PMT - interest_payment
+    new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
+    mortgage_balances.append(new_mortgage_balance)
+
+    # Buy Wealth = Property Value - Mortgage Balance
+    new_buy_wealth = new_property_value - new_mortgage_balance
+    buy_wealth.append(new_buy_wealth)
+
+    # EPF Wealth = previous * (1+rate) + contribution
+    new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + annual_epf_contribution
+    epf_wealth.append(new_epf_wealth)
 
 # --------------------------
-# Convert to DataFrame
+# DataFrame Results
 # --------------------------
-df_baseline = pd.DataFrame(records, columns=["Year", "PropertyValue", "MortgageBalance", "BuyWealth", "RentWealth"])
+df = pd.DataFrame({
+    "Year": np.arange(0, years + 1),
+    "Property Value (RM)": property_values,
+    "Mortgage Balance (RM)": mortgage_balances,
+    "Buy Wealth (RM)": buy_wealth,
+    "EPF Wealth (RM)": epf_wealth
+})
+
+# Format numbers with commas and RM
+df_fmt = df.copy()
+for col in ["Property Value (RM)", "Mortgage Balance (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
+    df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
 # --------------------------
-# Format Table with RM
+# Plot
 # --------------------------
-df_display = df_baseline.copy()
-df_display["PropertyValue"] = df_display["PropertyValue"].apply(lambda x: f"RM {x:,.0f}")
-df_display["MortgageBalance"] = df_display["MortgageBalance"].apply(lambda x: f"RM {x:,.0f}")
-df_display["BuyWealth"] = df_display["BuyWealth"].apply(lambda x: f"RM {x:,.0f}")
-df_display["RentWealth"] = df_display["RentWealth"].apply(lambda x: f"RM {x:,.0f}")
-
-st.subheader("📊 Model Baseline Outcomes (Illustrative)")
-st.dataframe(df_display)
-
-# --------------------------
-# Plot Chart
-# --------------------------
-fig, ax = plt.subplots(figsize=(12, 5))
-
-ax.plot(df_baseline["Year"], df_baseline["BuyWealth"], label="Buy (Property Equity)", color="blue", marker="o")
-ax.plot(df_baseline["Year"], df_baseline["RentWealth"], label="Rent & Invest", color="green", marker="o")
-
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2)
+ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth", linewidth=2)
 ax.set_xlabel("Year")
 ax.set_ylabel("Wealth (RM)")
-ax.set_title("Expected Outcomes: Buy vs Rent")
+ax.set_title("Buy vs EPF Wealth Projection")
 ax.legend()
+ax.grid(True)
 
-# Format Y-axis with RM
-ax.yaxis.set_major_formatter(mtick.StrMethodFormatter("RM {x:,.0f}"))
-
+# --------------------------
+# Streamlit Outputs
+# --------------------------
 st.pyplot(fig)
+st.subheader("📊 Projection Table")
+st.dataframe(df_fmt, use_container_width=True)
+
+# Download CSV
+csv = df.to_csv(index=False).encode("utf-8")
+st.download_button(
+    "⬇️ Download Results (CSV)",
+    data=csv,
+    file_name="expected_outcomes_buy_vs_epf.csv",
+    mime="text/csv"
+)
