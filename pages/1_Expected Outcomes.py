@@ -3,21 +3,29 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+# --------------------------
+# Page Setup
+# --------------------------
 st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
 st.title("📌 Expected Outcomes – Buy vs EPF Wealth")
 
 # --------------------------
-# Baseline Assumptions (Sidebar)
+# Show Flowchart Infographic
+# --------------------------
+st.subheader("🔗 Link Between EDA & Expected Outcomes")
+st.image("A_flowchart_infographic_titled_Link_Between_EDA_&.png", use_column_width=True)
+
+# --------------------------
+# Baseline Assumptions
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
-
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300000, step=10000)
 property_growth_rate = st.sidebar.slider("Annual Property Growth Rate (%)", 0.0, 10.0, 5.0) / 100
 mortgage_rate = st.sidebar.slider("Mortgage Interest Rate (%)", 0.0, 10.0, 4.0) / 100
 loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=20, step=1)
 epf_rate = st.sidebar.slider("Annual EPF Dividend Rate (%)", 0.0, 10.0, 5.0) / 100
 annual_epf_contribution = st.sidebar.number_input("Annual EPF Contribution (RM)", value=12000, step=1000)
-years = st.sidebar.number_input("Projection Horizon (Years)", value=20, step=1)
+years = st.sidebar.number_input("Projection Horizon (Years)", value=30, step=1)
 
 # --------------------------
 # Mortgage Calculation
@@ -26,9 +34,9 @@ P = initial_property_price
 r = mortgage_rate
 n = loan_term_years
 if r > 0:
-    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)
+    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)  # Annualized mortgage payment
 else:
-    PMT = P / n  # zero interest case
+    PMT = P / n
 
 # --------------------------
 # Projection Loop
@@ -43,7 +51,7 @@ for t in range(1, years + 1):
     new_property_value = property_values[-1] * (1 + property_growth_rate)
     property_values.append(new_property_value)
 
-    # Mortgage balance update
+    # Mortgage repayment
     interest_payment = mortgage_balances[-1] * r
     principal_payment = PMT - interest_payment
     new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
@@ -68,17 +76,12 @@ df = pd.DataFrame({
     "EPF Wealth (RM)": epf_wealth
 })
 
-# Format numbers with commas and RM
-df_fmt = df.copy()
-for col in ["Property Value (RM)", "Mortgage Balance (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
-    df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
-
 # --------------------------
 # Plot
 # --------------------------
 fig, ax = plt.subplots(figsize=(10, 6))
-ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2)
-ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth", linewidth=2)
+ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2, color="blue")
+ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth", linewidth=2, color="green")
 ax.set_xlabel("Year")
 ax.set_ylabel("Wealth (RM)")
 ax.set_title("Buy vs EPF Wealth Projection")
@@ -90,9 +93,16 @@ ax.grid(True)
 # --------------------------
 st.pyplot(fig)
 st.subheader("📊 Projection Table")
-st.dataframe(df_fmt, use_container_width=True)
+st.dataframe(df.style.format({
+    "Property Value (RM)": "RM {:,.0f}",
+    "Mortgage Balance (RM)": "RM {:,.0f}",
+    "Buy Wealth (RM)": "RM {:,.0f}",
+    "EPF Wealth (RM)": "RM {:,.0f}"
+}), use_container_width=True)
 
+# --------------------------
 # Download CSV
+# --------------------------
 csv = df.to_csv(index=False).encode("utf-8")
 st.download_button(
     "⬇️ Download Results (CSV)",
