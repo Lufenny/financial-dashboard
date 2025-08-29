@@ -45,12 +45,18 @@ monthly_mortgage = mortgage_payment(initial_property_price, mortgage_rate, mortg
 # --------------------------
 # Baseline Simulation
 # --------------------------
+# --------------------------
+# Baseline Simulation (realistic rent from year 0)
+# --------------------------
 years = list(range(2025, 2025 + analysis_years))
 loan_balance = initial_property_price
 
 buy_wealth, rent_wealth, property_value, loan_balances = [], [], [], []
 
+invest_value = initial_investment  # start with initial cash for investing
+
 for i, year in enumerate(years):
+    # Property value growth
     value = initial_property_price * ((1 + annual_property_growth) ** i)
     property_value.append(value)
     
@@ -62,13 +68,11 @@ for i, year in enumerate(years):
     buy_equity = value - loan_balance
     buy_wealth.append(buy_equity)
     
-    # Rent & invest
-    if i == 0:
-        invest_value = initial_investment
-    else:
-        invest_value = rent_wealth[-1]
-    annual_rent = initial_property_price * rent_yield
-    invest_value = invest_value * (1 + annual_investment_return) + monthly_mortgage*12 - annual_rent
+    # Rent & invest (apply rent every year, including year 0)
+    annual_rent = value * rent_yield              # rent tracks property value
+    invest_value = invest_value * (1 + annual_investment_return)  # investment growth
+    invest_value += monthly_mortgage * 12         # savings (equivalent to mortgage payments)
+    invest_value -= annual_rent                   # subtract rent cost
     rent_wealth.append(invest_value)
 
 # --------------------------
