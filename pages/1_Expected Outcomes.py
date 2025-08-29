@@ -2,14 +2,32 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 
 # --------------------------
-# Page Config & Title
+# Global Font Style
 # --------------------------
+plt.rcParams["font.family"] = "Times New Roman"  # Apply to matplotlib plots
+
 st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
+
+# Apply CSS styling for Times New Roman in Streamlit text & tables
+st.markdown(
+    """
+    <style>
+    * {
+        font-family: 'Times New Roman', serif !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# --------------------------
+# Page Title & Intro
+# --------------------------
 st.title("📌 Expected Outcomes – Buy vs EPF Wealth")
 
-# Intro explanation
 st.write(
     "This section compares the long-term outcomes of **buying a house** versus saving in "
     "**EPF (Employees Provident Fund)**. The projection shows how your property equity "
@@ -87,13 +105,56 @@ for col in ["Property Value (RM)", "Mortgage Balance (RM)", "Buy Wealth (RM)", "
 # Plot
 # --------------------------
 fig, ax = plt.subplots(figsize=(10, 6))
-ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2)
-ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth", linewidth=2)
-ax.set_xlabel("Year")
-ax.set_ylabel("Wealth (RM)")
-ax.set_title("Buy vs EPF Wealth Projection")
-ax.legend()
-ax.grid(True)
+
+# Plot with thicker lines
+ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2.5, color="#2E86C1")
+ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth (Savings Growth)", linewidth=2.5, color="#27AE60")
+
+# Styling
+ax.set_xlabel("Year", fontsize=12)
+ax.set_ylabel("Wealth (RM)", fontsize=12)
+ax.set_title("Comparison of Buy vs EPF Wealth Projection", fontsize=14, weight="bold")
+ax.grid(True, linestyle="--", alpha=0.6)
+
+# Remove decimals on x-axis
+ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+
+# Format y-axis with RM and commas
+ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
+
+# Improved legend
+legend = ax.legend(
+    fontsize=11,
+    frameon=True,
+    fancybox=True,
+    shadow=True,
+    loc="upper left"
+)
+legend.get_frame().set_facecolor("white")
+legend.get_frame().set_edgecolor("black")
+
+# --------------------------
+# Annotate final wealth
+# --------------------------
+ax.annotate(
+    f"RM {buy_wealth[-1]:,.0f}",
+    xy=(years, buy_wealth[-1]),
+    xytext=(5, 0),
+    textcoords="offset points",
+    fontsize=11,
+    color="#2E86C1",
+    weight="bold"
+)
+
+ax.annotate(
+    f"RM {epf_wealth[-1]:,.0f}",
+    xy=(years, epf_wealth[-1]),
+    xytext=(5, -15),
+    textcoords="offset points",
+    fontsize=11,
+    color="#27AE60",
+    weight="bold"
+)
 
 # --------------------------
 # Streamlit Outputs
