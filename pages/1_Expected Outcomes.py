@@ -5,30 +5,16 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
 # --------------------------
-# Global Font Style
+# Page Config
 # --------------------------
-plt.rcParams["font.family"] = "Times New Roman"  # Apply to matplotlib plots
+st.set_page_config(page_title="Expected Outcomes – Baseline", layout="wide")
+st.title("📊 Expected Outcomes – Buy vs EPF Wealth")
 
-st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
-st.title("📌 Expected Outcomes – Buy vs EPF Wealth")
-
-# Apply CSS styling for Times New Roman in Streamlit text & tables
-st.markdown(
-    """
-    <style>
-    * {
-        font-family: 'Times New Roman', serif !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
+# --------------------------
+# Font Setup (Times New Roman)
+# --------------------------
+rcParams['font.family'] = 'Times New Roman'
 )
-
-# --------------------------
-# Page Setup
-# --------------------------
-st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
-st.title("📌 Expected Outcomes – Buy vs EPF Wealth")
 
 # --------------------------
 # Link Between EDA & Expected Outcomes
