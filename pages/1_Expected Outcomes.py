@@ -4,6 +4,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --------------------------
+# Global Font Style
+# --------------------------
+plt.rcParams["font.family"] = "Times New Roman"  # Apply to matplotlib plots
+
+st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
+
+# Apply CSS styling for Times New Roman in Streamlit text & tables
+st.markdown(
+    """
+    <style>
+    * {
+        font-family: 'Times New Roman', serif !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# --------------------------
 # Page Setup
 # --------------------------
 st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
@@ -94,29 +113,43 @@ df = pd.DataFrame({
     "EPF Wealth (RM)": epf_wealth
 })
 
+# Format numbers with commas and RM
+df_fmt = df.copy()
+for col in ["Property Value (RM)", "Mortgage Balance (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
+    df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
+
 # --------------------------
 # Plot
 # --------------------------
 fig, ax = plt.subplots(figsize=(10, 6))
-ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2, color="blue")
-ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth", linewidth=2, color="green")
-ax.set_xlabel("Year")
-ax.set_ylabel("Wealth (RM)")
-ax.set_title("Buy vs EPF Wealth Projection")
-ax.legend()
-ax.grid(True)
+
+# Plot with thicker lines & improved labels
+ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2.5, color="#2E86C1")
+ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth (Savings Growth)", linewidth=2.5, color="#27AE60")
+
+# Styling
+ax.set_xlabel("Year", fontsize=12)
+ax.set_ylabel("Wealth (RM)", fontsize=12)
+ax.set_title("Comparison of Buy vs EPF Wealth Projection", fontsize=14, weight="bold")
+ax.grid(True, linestyle="--", alpha=0.6)
+
+# Improved legend (white box, Times New Roman, larger font)
+legend = ax.legend(
+    fontsize=11,
+    frameon=True,
+    fancybox=True,
+    shadow=True,
+    loc="upper left"
+)
+legend.get_frame().set_facecolor("white")
+legend.get_frame().set_edgecolor("black")
 
 # --------------------------
 # Streamlit Outputs
 # --------------------------
 st.pyplot(fig)
 st.subheader("📊 Projection Table")
-st.dataframe(df.style.format({
-    "Property Value (RM)": "RM {:,.0f}",
-    "Mortgage Balance (RM)": "RM {:,.0f}",
-    "Buy Wealth (RM)": "RM {:,.0f}",
-    "EPF Wealth (RM)": "RM {:,.0f}"
-}), use_container_width=True)
+st.dataframe(df_fmt, use_container_width=True)
 
 # --------------------------
 # Download CSV
