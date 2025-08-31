@@ -10,22 +10,28 @@ st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
 st.title("📌 Expected Outcomes – Buy vs EPF Wealth")
 
 # --------------------------
-# Link Between EDA & Expected Outcomes (Text Only, no image)
+# Link Between EDA & Expected Outcomes
 # --------------------------
 st.subheader("🔗 Link to EDA Insights")
-st.write(
-    """
-    The Expected Outcomes model is not standalone — it is built on key insights from 
-    the Exploratory Data Analysis (EDA). For example:
-    - Historical property price growth rates were used as the assumption for property appreciation.  
-    - Historical EPF dividend trends informed the EPF return rate.  
-    - Inflation patterns were also reviewed to set realistic ranges.  
 
-    These EDA findings provide the **baseline parameters** for the scenario analysis here, 
-    helping to compare long-term wealth accumulation between **buying a house** 
-    and **saving in EPF**.
-    """
+# Short visible summary
+st.write(
+    "The Expected Outcomes are directly shaped by insights from the Exploratory Data Analysis (EDA), "
+    "which provided the assumptions for property growth, EPF returns, and inflation trends."
 )
+
+# Expander for more detail
+with st.expander("See how EDA informs Expected Outcomes"):
+    st.write(
+        """
+        - **Property Price Growth**: Historical market appreciation rates were used as the assumption.  
+        - **EPF Returns**: Dividend trends informed the baseline and optimistic return scenarios.  
+        - **Inflation**: Past patterns guided the selection of realistic inflation ranges.  
+
+        These EDA-driven assumptions serve as the foundation for comparing long-term 
+        wealth accumulation between **buying property** and **saving in EPF**.
+        """
+    )
 
 # --------------------------
 # Baseline Assumptions
