@@ -13,7 +13,7 @@ st.title("📊 Expected Outcomes – Buy vs EPF Wealth")
 # --------------------------
 # Font Setup (Times New Roman)
 # --------------------------
-rcParams['font.family'] = 'Times New Roman')
+rcParams['font.family'] = 'Times New Roman'
 
 # --------------------------
 # Link Between EDA & Expected Outcomes
@@ -28,15 +28,12 @@ st.write(
 
 # Expander for more detail
 with st.expander("See how EDA informs Expected Outcomes"):
-    st.write(
-        """
-        - **Property Price Growth**: Historical market appreciation rates were used as the assumption.  
-        - **EPF Returns**: Dividend trends informed the baseline and optimistic return scenarios.  
-        - **Inflation**: Past patterns guided the selection of realistic inflation ranges.  
-
-        These EDA-driven assumptions serve as the foundation for comparing long-term 
-        wealth accumulation between **buying property** and **saving in EPF**.
-        """
+    st.markdown(
+        "- **Property Price Growth**: Historical market appreciation rates were used as the assumption.  \n"
+        "- **EPF Returns**: Dividend trends informed the baseline and optimistic return scenarios.  \n"
+        "- **Inflation**: Past patterns guided the selection of realistic inflation ranges.  \n\n"
+        "These EDA-driven assumptions serve as the foundation for comparing long-term "
+        "wealth accumulation between **buying property** and **saving in EPF**."
     )
 
 # --------------------------
@@ -58,7 +55,7 @@ P = initial_property_price
 r = mortgage_rate
 n = loan_term_years
 if r > 0:
-    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)  # Monthly payment equivalent annualized
+    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)  # Annualized repayment
 else:
     PMT = P / n
 
@@ -100,7 +97,7 @@ df = pd.DataFrame({
     "EPF Wealth (RM)": epf_wealth
 })
 
-# Format numbers with commas and RM
+# Format numbers
 df_fmt = df.copy()
 for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
     df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
@@ -146,11 +143,7 @@ line2, = ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth", lin
 ax.set_xlabel("Year", fontsize=12)
 ax.set_ylabel("Wealth (RM)", fontsize=12)
 ax.set_title("Buy vs EPF Wealth Projection", fontsize=14, fontweight="bold")
-
-# Legend without square boxes (use lines instead)
 ax.legend(handles=[line1, line2], loc="upper left", frameon=False, fontsize=11)
-
-# Grid formatting
 ax.grid(True, linestyle="--", alpha=0.6)
 
 # Annotate CAGR + Final Values
@@ -175,58 +168,12 @@ else:
             fontsize=10, color="blue", ha="left", va="bottom")
     subtitle = "👉 In this scenario, **EPF outperforms Buying Property**."
 
-# Subtitle under chart
 plt.figtext(0.5, -0.05, subtitle, wrap=True, ha="center", fontsize=12, fontweight="bold", fontname="Times New Roman")
-
-
-# --------------------------
-# Annotate final wealth
-# --------------------------
-ax.annotate(
-    f"RM {buy_wealth[-1]:,.0f}",
-    xy=(years, buy_wealth[-1]),
-    xytext=(5, 0),
-    textcoords="offset points",
-    fontsize=11,
-    color="#2E86C1",
-    weight="bold"
-)
-
-ax.annotate(
-    f"RM {epf_wealth[-1]:,.0f}",
-    xy=(years, epf_wealth[-1]),
-    xytext=(5, -15),
-    textcoords="offset points",
-    fontsize=11,
-    color="#27AE60",
-    weight="bold"
-)
 
 # --------------------------
 # Streamlit Outputs
 # --------------------------
 st.pyplot(fig)
-
-st.subheader("📊 Projection Table")
-st.markdown(
-    """
-    <style>
-    table td, table th {
-        font-family: 'Times New Roman', serif;
-        font-size: 14px;
-    }
-    table th {
-        font-weight: bold !important;
-        text-align: center !important;
-        background-color: #f2f2f2;
-    }
-    table td {
-        text-align: center;
-    }
-    </style>
-    """, unsafe_allow_html=True
-)
-st.dataframe(df_fmt, use_container_width=True)
 
 # --------------------------
 # Download CSV
