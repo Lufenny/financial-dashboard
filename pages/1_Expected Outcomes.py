@@ -145,6 +145,29 @@ legend.get_frame().set_facecolor("white")
 legend.get_frame().set_edgecolor("black")
 
 # --------------------------
+# Annotate final wealth
+# --------------------------
+ax.annotate(
+    f"RM {buy_wealth[-1]:,.0f}",
+    xy=(years, buy_wealth[-1]),
+    xytext=(5, 0),
+    textcoords="offset points",
+    fontsize=11,
+    color="#2E86C1",
+    weight="bold"
+)
+
+ax.annotate(
+    f"RM {epf_wealth[-1]:,.0f}",
+    xy=(years, epf_wealth[-1]),
+    xytext=(5, -15),
+    textcoords="offset points",
+    fontsize=11,
+    color="#27AE60",
+    weight="bold"
+)
+
+# --------------------------
 # Streamlit Outputs
 # --------------------------
 st.pyplot(fig)
