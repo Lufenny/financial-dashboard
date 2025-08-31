@@ -1,81 +1,106 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import rcParams
 
 # --------------------------
-# Page Config
+# Page Setup
 # --------------------------
-st.set_page_config(page_title="Expected Outcomes – Baseline", layout="wide")
-st.title("📊 Expected Outcomes – Buy vs EPF Wealth")
-
-# Intro explanation
-st.write(
-    "This section compares the long-term outcomes of **buying a house** versus saving in "
-    "**EPF (Employees Provident Fund)**. The projection shows how your property equity "
-    "(Buy Wealth) and EPF savings could grow over time based on the assumptions you set."
-)
+st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
+st.title("📌 Expected Outcomes – Buy vs EPF Wealth")
 
 # --------------------------
-# Font Setup (Times New Roman)
-# --------------------------
-rcParams['font.family'] = 'Times New Roman'
-
-# --------------------------
-# Sidebar Inputs
+# Baseline Assumptions
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300000, step=10000)
-annual_property_growth = st.sidebar.number_input("Annual Property Growth (%)", value=3.0, step=0.1) / 100
-epf_interest_rate = st.sidebar.number_input("EPF Annual Dividend (%)", value=5.0, step=0.1) / 100
-years = st.sidebar.number_input("Investment Horizon (Years)", value=30, step=1)
+property_growth_rate = st.sidebar.slider("Annual Property Growth Rate (%)", 0.0, 10.0, 5.0) / 100
+mortgage_rate = st.sidebar.slider("Mortgage Interest Rate (%)", 0.0, 10.0, 4.0) / 100
+loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=20, step=1)
+epf_rate = st.sidebar.slider("Annual EPF Dividend Rate (%)", 0.0, 10.0, 5.0) / 100
+annual_epf_contribution = st.sidebar.number_input("Annual EPF Contribution (RM)", value=12000, step=1000)
+years = st.sidebar.number_input("Projection Horizon (Years)", value=30, step=1)
 
 # --------------------------
-# Wealth Calculations
+# Mortgage Calculation
 # --------------------------
-buy_wealth = [initial_property_price * ((1 + annual_property_growth) ** i) for i in range(years + 1)]
-epf_wealth = [initial_property_price * ((1 + epf_interest_rate) ** i) for i in range(years + 1)]
-year_range = list(range(years + 1))
+P = initial_property_price
+r = mortgage_rate
+n = loan_term_years
+if r > 0:
+    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)  # Monthly payment equivalent annualized
+else:
+    PMT = P / n
 
+# --------------------------
+# Projection Loop
+# --------------------------
+property_values = [P]
+mortgage_balances = [P]
+buy_wealth = [0]
+epf_wealth = [0]
+
+for t in range(1, years + 1):
+    # Property growth
+    new_property_value = property_values[-1] * (1 + property_growth_rate)
+    property_values.append(new_property_value)
+
+    # Mortgage repayment
+    interest_payment = mortgage_balances[-1] * r
+    principal_payment = PMT - interest_payment
+    new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
+    mortgage_balances.append(new_mortgage_balance)
+
+    # Buy Wealth = Property Value - Mortgage Balance
+    new_buy_wealth = new_property_value - new_mortgage_balance
+    buy_wealth.append(new_buy_wealth)
+
+    # EPF Wealth = previous * (1+rate) + contribution
+    new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + annual_epf_contribution
+    epf_wealth.append(new_epf_wealth)
+
+# --------------------------
+# DataFrame Results
+# --------------------------
 df = pd.DataFrame({
-    "Year": year_range,
-    "Buy Wealth (Property Equity)": buy_wealth,
-    "EPF Wealth": epf_wealth
+    "Year": np.arange(0, years + 1),
+    "Property Value (RM)": property_values,
+    "Mortgage Balance (RM)": mortgage_balances,
+    "Buy Wealth (RM)": buy_wealth,
+    "EPF Wealth (RM)": epf_wealth
 })
 
-# Format values to RM without decimals
-df["Buy Wealth (Property Equity)"] = df["Buy Wealth (Property Equity)"].apply(lambda x: f"RM {int(x):,}")
-df["EPF Wealth"] = df["EPF Wealth"].apply(lambda x: f"RM {int(x):,}")
-
 # --------------------------
-# Show Table
-# --------------------------
-st.subheader("📑 Wealth Projection Table")
-st.dataframe(df, use_container_width=True)
-
-# --------------------------
-# Plot Graph
+# Plot
 # --------------------------
 fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2, color="blue")
+ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth", linewidth=2, color="green")
+ax.set_xlabel("Year")
+ax.set_ylabel("Wealth (RM)")
+ax.set_title("Buy vs EPF Wealth Projection")
+ax.legend()
+ax.grid(True)
 
-# Plot lines
-ax.plot(year_range, [initial_property_price * ((1 + annual_property_growth) ** i) for i in year_range],
-        label="Buy Wealth (Property Equity)", color="blue", linewidth=2)
-ax.plot(year_range, [initial_property_price * ((1 + epf_interest_rate) ** i) for i in year_range],
-        label="EPF Wealth", color="green", linewidth=2)
-
-# Labels and Title
-ax.set_title("Buy vs EPF Wealth Projection", fontsize=16, fontweight="bold")
-ax.set_xlabel("Year", fontsize=14)
-ax.set_ylabel("Wealth (RM)", fontsize=14)
-
-# Format Y-axis with RM and no decimals
-ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, _: f"RM {int(x):,}"))
-
-# Legend (no square box, only lines)
-ax.legend(frameon=False, fontsize=12, prop={"family": "Times New Roman"})
-
-# Grid
-ax.grid(True, linestyle="--", alpha=0.6)
-
+# --------------------------
+# Streamlit Outputs
+# --------------------------
 st.pyplot(fig)
+st.subheader("📊 Projection Table")
+st.dataframe(df.style.format({
+    "Property Value (RM)": "RM {:,.0f}",
+    "Mortgage Balance (RM)": "RM {:,.0f}",
+    "Buy Wealth (RM)": "RM {:,.0f}",
+    "EPF Wealth (RM)": "RM {:,.0f}"
+}), use_container_width=True)
+
+# --------------------------
+# Download CSV
+# --------------------------
+csv = df.to_csv(index=False).encode("utf-8")
+st.download_button(
+    "⬇️ Download Results (CSV)",
+    data=csv,
+    file_name="expected_outcomes_buy_vs_epf.csv",
+    mime="text/csv"
+)
