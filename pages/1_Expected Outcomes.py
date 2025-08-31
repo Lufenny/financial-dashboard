@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
 
 # --------------------------
 # Global Font Style
@@ -9,6 +10,7 @@ import matplotlib.pyplot as plt
 plt.rcParams["font.family"] = "Times New Roman"  # Apply to matplotlib plots
 
 st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
+st.title("📌 Expected Outcomes – Buy vs EPF Wealth")
 
 # Apply CSS styling for Times New Roman in Streamlit text & tables
 st.markdown(
@@ -107,42 +109,90 @@ for t in range(1, years + 1):
 # --------------------------
 df = pd.DataFrame({
     "Year": np.arange(0, years + 1),
-    "Property Value (RM)": property_values,
-    "Mortgage Balance (RM)": mortgage_balances,
+    "Property (RM)": property_values,
+    "Mortgage (RM)": mortgage_balances,
     "Buy Wealth (RM)": buy_wealth,
     "EPF Wealth (RM)": epf_wealth
 })
 
 # Format numbers with commas and RM
 df_fmt = df.copy()
-for col in ["Property Value (RM)", "Mortgage Balance (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
+for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
     df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
+
+# --------------------------
+# Styled Table Output
+# --------------------------
+st.subheader("📊 Projection Table")
+st.markdown(
+    """
+    <style>
+    table td, table th {
+        font-family: 'Times New Roman', serif;
+        font-size: 14px;
+    }
+    table th {
+        font-weight: bold !important;
+        text-align: center !important;
+        background-color: #f2f2f2;
+    }
+    table td {
+        text-align: center;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
+st.dataframe(df_fmt, use_container_width=True)
+
+# --------------------------
+# CAGR Calculation
+# --------------------------
+buy_cagr = (buy_wealth[-1] / buy_wealth[0])**(1/years) - 1 if buy_wealth[0] > 0 else (buy_wealth[-1] / 1e3)**(1/years) - 1
+epf_cagr = (epf_wealth[-1] / epf_wealth[0])**(1/years) - 1 if epf_wealth[0] > 0 else (epf_wealth[-1] / 1e3)**(1/years) - 1
 
 # --------------------------
 # Plot
 # --------------------------
 fig, ax = plt.subplots(figsize=(10, 6))
 
-# Plot with thicker lines & improved labels
-ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2.5, color="#2E86C1")
-ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth (Savings Growth)", linewidth=2.5, color="#27AE60")
+line1, = ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2, color="blue")
+line2, = ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth", linewidth=2, color="green")
 
-# Styling
 ax.set_xlabel("Year", fontsize=12)
 ax.set_ylabel("Wealth (RM)", fontsize=12)
-ax.set_title("Comparison of Buy vs EPF Wealth Projection", fontsize=14, weight="bold")
+ax.set_title("Buy vs EPF Wealth Projection", fontsize=14, fontweight="bold")
+
+# Legend without square boxes (use lines instead)
+ax.legend(handles=[line1, line2], loc="upper left", frameon=False, fontsize=11)
+
+# Grid formatting
 ax.grid(True, linestyle="--", alpha=0.6)
 
-# Improved legend (white box, Times New Roman, larger font)
-legend = ax.legend(
-    fontsize=11,
-    frameon=True,
-    fancybox=True,
-    shadow=True,
-    loc="upper left"
-)
-legend.get_frame().set_facecolor("white")
-legend.get_frame().set_edgecolor("black")
+# Annotate CAGR + Final Values
+if buy_cagr > epf_cagr:
+    ax.text(years, buy_wealth[-1],
+            f"RM {buy_wealth[-1]:,.0f}\n({buy_cagr*100:.2f}% p.a.)",
+            fontsize=12, color="white", weight="bold",
+            ha="left", va="bottom",
+            bbox=dict(facecolor="blue", alpha=0.7, edgecolor="none"))
+    ax.text(years, epf_wealth[-1],
+            f"RM {epf_wealth[-1]:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
+            fontsize=10, color="green", ha="left", va="bottom")
+    subtitle = "👉 In this scenario, **Buying Property outperforms EPF**."
+else:
+    ax.text(years, epf_wealth[-1],
+            f"RM {epf_wealth[-1]:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
+            fontsize=12, color="white", weight="bold",
+            ha="left", va="bottom",
+            bbox=dict(facecolor="green", alpha=0.7, edgecolor="none"))
+    ax.text(years, buy_wealth[-1],
+            f"RM {buy_wealth[-1]:,.0f}\n({buy_cagr*100:.2f}% p.a.)",
+            fontsize=10, color="blue", ha="left", va="bottom")
+    subtitle = "👉 In this scenario, **EPF outperforms Buying Property**."
+
+# Subtitle under chart
+plt.figtext(0.5, -0.05, subtitle, wrap=True, ha="center", fontsize=12, fontweight="bold", fontname="Times New Roman")
+
 
 # --------------------------
 # Annotate final wealth
@@ -171,7 +221,26 @@ ax.annotate(
 # Streamlit Outputs
 # --------------------------
 st.pyplot(fig)
+
 st.subheader("📊 Projection Table")
+st.markdown(
+    """
+    <style>
+    table td, table th {
+        font-family: 'Times New Roman', serif;
+        font-size: 14px;
+    }
+    table th {
+        font-weight: bold !important;
+        text-align: center !important;
+        background-color: #f2f2f2;
+    }
+    table td {
+        text-align: center;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
 st.dataframe(df_fmt, use_container_width=True)
 
 # --------------------------
