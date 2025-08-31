@@ -13,8 +13,7 @@ st.title("📊 Expected Outcomes – Buy vs EPF Wealth")
 # --------------------------
 # Font Setup (Times New Roman)
 # --------------------------
-rcParams['font.family'] = 'Times New Roman'
-)
+rcParams['font.family'] = 'Times New Roman')
 
 # --------------------------
 # Link Between EDA & Expected Outcomes
