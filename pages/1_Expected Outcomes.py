@@ -10,6 +10,12 @@ st.set_page_config(page_title="Expected Outcomes – Buy vs EPF", layout="wide")
 st.title("📌 Expected Outcomes – Buy vs EPF Wealth")
 
 # --------------------------
+# Show Flowchart Infographic
+# --------------------------
+st.subheader("🔗 Link Between EDA & Expected Outcomes")
+st.image("A_flowchart_infographic_titled_Link_Between_EDA_&.png", use_column_width=True)
+
+# --------------------------
 # Baseline Assumptions
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
