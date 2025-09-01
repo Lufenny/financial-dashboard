@@ -1,34 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib
-import matplotlib.ticker as mticker
-
-# --------------------------
-# 1. Global Settings
-# --------------------------
-st.set_page_config(page_title='Expected Outcomes – Fair Comparison', layout='wide')
-
-# Times New Roman font for Streamlit
-st.markdown(
-    """
-    <style>
-    html, body, [class*="css"]  {
-        font-family: 'Times New Roman', serif !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Times New Roman for matplotlib
-matplotlib.rcParams['font.family'] = 'Times New Roman'
-
-st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
-
-import streamlit as st
-import pandas as pd
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
@@ -170,4 +141,3 @@ with tab2:
 
 with tab3:
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
-
