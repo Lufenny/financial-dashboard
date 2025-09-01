@@ -2,34 +2,14 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib
-import matplotlib.ticker as mticker
+
+st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
+st.title("📌 Expected Outcomes – Baseline Comparison")
 
 # --------------------------
-# 1. Global Settings
+# Helper Functions
 # --------------------------
-st.set_page_config(page_title='Expected Outcomes – Fair Comparison', layout='wide')
 
-# Times New Roman font for Streamlit
-st.markdown(
-    """
-    <style>
-    html, body, [class*="css"]  {
-        font-family: 'Times New Roman', serif !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Times New Roman for matplotlib
-matplotlib.rcParams['font.family'] = 'Times New Roman'
-
-st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
-
-# --------------------------
-# 2. Helper Functions
-# --------------------------
 def calculate_mortgage_payment(P, r, n):
     """Annual mortgage repayment (annuity formula)."""
     if r > 0:
@@ -85,11 +65,10 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         "Cumulative Rent (RM)": cum_rent
     })
 
-    # CAGR calculations
+    # CAGR calculations (only final row)
     buy_cagr = calculate_cagr(df["Buy Wealth (RM)"].iloc[1], df["Buy Wealth (RM)"].iloc[-1], years)
     epf_cagr = calculate_cagr(df["EPF Wealth (RM)"].iloc[1], df["EPF Wealth (RM)"].iloc[-1], years)
 
-    # Insert CAGR values only on last row
     df["Buy CAGR"] = [""] * (len(df) - 1) + [f"{buy_cagr*100:.2f}%"]
     df["EPF CAGR"] = [""] * (len(df) - 1) + [f"{epf_cagr*100:.2f}%"]
 
@@ -133,40 +112,47 @@ def generate_summary(df, years):
         f"👉 **{winner} leads by RM {diff:,.0f}.**"
     )
 
-
 # --------------------------
-# 3. Sidebar Inputs
+# Sidebar Inputs
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
-initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
-mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
-loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
-property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
-epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
-rent_yield = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005)
-projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
+
+initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300000, step=10000)
+mortgage_rate = st.sidebar.number_input("Mortgage Rate (%)", value=0.04)  # annual interest
+loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30)
+growth_rate = st.sidebar.number_input("Property Growth Rate (%)", value=0.03)
+epf_rate = st.sidebar.number_input("EPF Annual Return (%)", value=0.05)
+rent_yield = st.sidebar.number_input("Rent Yield (%)", value=0.04)
+projection_years = st.sidebar.slider("Projection Horizon (Years)", min_value=5, max_value=40, value=30)
 
 # --------------------------
-# 4. Projection
+# Run Projection
 # --------------------------
-df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, rent_yield, projection_years)
+df, buy_cagr, epf_cagr = project_outcomes(
+    P=initial_property_price,
+    r=mortgage_rate,
+    n=loan_term_years,
+    g=growth_rate,
+    epf_rate=epf_rate,
+    rent_yield=rent_yield,
+    years=projection_years
+)
 
-# --------------------------
-# 5. Tabs
-# --------------------------
-tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
+# Show Data
+st.subheader("📊 Projection Table")
+st.dataframe(df.style.format({
+    "Property (RM)": "{:,.0f}",
+    "Mortgage (RM)": "{:,.0f}",
+    "Buy Wealth (RM)": "{:,.0f}",
+    "EPF Wealth (RM)": "{:,.0f}",
+    "Annual Rent (RM)": "{:,.0f}",
+    "Cumulative Rent (RM)": "{:,.0f}"
+}))
 
-with tab1:
-    st.pyplot(plot_outcomes(df, projection_years))
+# Plot
+st.subheader("📈 Wealth Growth Over Time")
+st.pyplot(plot_outcomes(df, buy_cagr, epf_cagr, projection_years))
 
-with tab2:
-    st.dataframe(format_table(df), use_container_width=True)
-
-with tab3:
-    st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
-
-# --------------------------
-# 6. Download CSV
-# --------------------------
-csv = df.to_csv(index=False).encode('utf-8')
-st.download_button("📥 Download Projection Data (CSV)", csv, "projection.csv", "text/csv", key='download-csv')
+# Summary
+st.subheader("📝 Summary")
+st.write(generate_summary(df, projection_years))
