@@ -31,18 +31,34 @@ st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
 # 2. Helper Functions
 # --------------------------
 def calculate_mortgage_payment(P, r, n):
+    """Annual mortgage payment for a fully-amortizing loan (n years)."""
     return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
 
 def calculate_cagr(final_value, initial_value, years):
-    """Compound Annual Growth Rate"""
-    if initial_value <= 0 or years <= 0:
-        return 0
-    return (final_value / initial_value) ** (1 / years) - 1
+    """Compound Annual Growth Rate with safe guards for non-positive initial value."""
+    if years <= 0:
+        return 0.0
+    # Wealth starts at 0 in this model; use a tiny positive baseline to avoid /0
+    base = initial_value if initial_value and initial_value > 0 else 1.0
+    if final_value <= 0:
+        return 0.0
+    return (final_value / base) ** (1 / years) - 1
 
 def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
+    """
+    - Property value grows at g.
+    - Rent each year = property_value(t) * rent_yield (proxy via EDA)
+    - EPF invests the 'mortgage payment - rent' if positive (opportunity cost framing).
+    """
     PMT = calculate_mortgage_payment(P, r, n)
-    property_values, mortgage_balances = [P], [P]
-    buy_wealth, epf_wealth, rents, cumulative_rents = [0], [0], [P * rent_yield], [0]
+
+    # Year 0 (starting state)
+    property_values      = [P]
+    mortgage_balances    = [P]
+    buy_wealth           = [0.0]
+    epf_wealth           = [0.0]
+    annual_rents         = [0.0]     # No rent "paid" at t=0 snapshot
+    cumulative_rents     = [0.0]
 
     for t in range(1, years + 1):
         # Property growth
@@ -50,22 +66,22 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         property_values.append(new_property_value)
 
         # Mortgage repayment
-        interest_payment = mortgage_balances[-1] * r
-        principal_payment = PMT - interest_payment
-        new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
+        interest_payment     = mortgage_balances[-1] * r
+        principal_payment    = PMT - interest_payment
+        new_mortgage_balance = max(0.0, mortgage_balances[-1] - principal_payment)
         mortgage_balances.append(new_mortgage_balance)
 
         # Buy wealth = property value - mortgage
         new_buy_wealth = new_property_value - new_mortgage_balance
         buy_wealth.append(new_buy_wealth)
 
-        # Rent grows with property value
+        # Rent grows with property value (proxy via rent_yield)
         rent_payment = new_property_value * rent_yield
-        rents.append(rent_payment)
+        annual_rents.append(rent_payment)
         cumulative_rents.append(cumulative_rents[-1] + rent_payment)
 
-        # EPF wealth = invest mortgage payment - rent
-        investable = max(0, PMT - rent_payment)
+        # EPF wealth = invest mortgage payment minus rent (if positive)
+        investable = max(0.0, PMT - rent_payment)
         new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
         epf_wealth.append(new_epf_wealth)
 
@@ -75,37 +91,13 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         "Mortgage (RM)": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
         "EPF Wealth (RM)": epf_wealth,
+        "Rent (RM)": annual_rents,
         "Cumulative Rent (RM)": cumulative_rents
     })
 
-def generate_summary(df, years, initial_price):
+def plot_outcomes(df, years):
     buy_final = df["Buy Wealth (RM)"].iloc[-1]
     epf_final = df["EPF Wealth (RM)"].iloc[-1]
-    rent_final = df["Cumulative Rent (RM)"].iloc[-1]
-
-    # CAGR
-    buy_cagr = calculate_cagr(buy_final, initial_price, years)
-    epf_cagr = calculate_cagr(epf_final, 0.01 * initial_price, years)  # assume starting from ~1% of property
-
-    winner = "Buy Property" if buy_final > epf_final else "Rent+EPF"
-
-    summary = f"""
-    ### 📊 Expected Outcomes after {years} Years  
-
-    - **Buy Property Wealth**: RM {buy_final:,.0f}  
-      - CAGR: {buy_cagr:.2%} per year  
-
-    - **Rent+EPF Wealth**: RM {epf_final:,.0f}  
-      - CAGR: {epf_cagr:.2%} per year  
-
-    - **Cumulative Rent Paid**: RM {rent_final:,.0f}  
-
-    🏆 **Winner: {winner}**
-    """
-    return summary
-
-def plot_outcomes(df, years):
-    buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
     winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
     winner_name = "Buy Property" if winner_col == "Buy Wealth (RM)" else "Rent+EPF"
@@ -150,17 +142,13 @@ def plot_outcomes(df, years):
 
 def format_table(df):
     df_fmt = df.copy()
-
-    # Format all RM columns
-    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Cumulative Rent (RM)"]:
+    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Rent (RM)", "Cumulative Rent (RM)"]:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
-    # Determine winner at the final year
     buy_final = df["Buy Wealth (RM)"].iloc[-1]
     epf_final = df["EPF Wealth (RM)"].iloc[-1]
     winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
 
-    # Highlight final winning cell
     styled_df = df_fmt.style.set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
     styled_df = styled_df.apply(
         lambda x: [
@@ -171,19 +159,27 @@ def format_table(df):
     )
     return styled_df
 
-def generate_summary(df, years):
+def generate_summary(df, years, initial_price):
     buy_final = df["Buy Wealth (RM)"].iloc[-1]
     epf_final = df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
 
+    # CAGR: wealth starts at 0 in Year 0; use a tiny base to avoid divide-by-zero.
+    buy_cagr = calculate_cagr(buy_final, 1.0, years)
+    epf_cagr = calculate_cagr(epf_final, 1.0, years)
+
     winner = "Buy Property" if buy_final > epf_final else "Rent+EPF"
 
     summary = f"""
-    ### 📊 Expected Outcomes after {years} Years  
+    ### 📊 Expected Outcomes after {years} Years
 
     - **Buy Property Wealth**: RM {buy_final:,.0f}  
+      - CAGR: **{buy_cagr:.2%}** per year  
+
     - **Rent+EPF Wealth**: RM {epf_final:,.0f}  
-    - **Cumulative Rent Paid**: RM {rent_final:,.0f}  
+      - CAGR: **{epf_cagr:.2%}** per year  
+
+    - **Cumulative Rent Paid**: RM {rent_final:,.0f}
 
     🏆 **Winner: {winner}**
     """
@@ -194,17 +190,20 @@ def generate_summary(df, years):
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
-mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
-loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
-property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
-epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
-rent_yield = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005)
-projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
+mortgage_rate        = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01, format="%.3f")
+loan_term_years      = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
+property_growth      = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01, format="%.3f")
+epf_rate             = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01, format="%.3f")
+rent_yield           = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005, format="%.3f")
+projection_years     = st.sidebar.number_input("Projection Years", value=30, step=5)
 
 # --------------------------
 # 4. Projection
 # --------------------------
-df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, rent_yield, projection_years)
+df = project_outcomes(
+    initial_property_price, mortgage_rate, loan_term_years,
+    property_growth, epf_rate, rent_yield, projection_years
+)
 
 # --------------------------
 # 5. Tabs
