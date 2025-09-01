@@ -90,22 +90,54 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
     epf_cagr = calculate_cagr(df["EPF Wealth (RM)"].iloc[1], df["EPF Wealth (RM)"].iloc[-1], years)
 
     # Insert CAGR values only on last row
-    df["Buy CAGR"] = ["" for _ in range(len(df) - 1)] + [f"{buy_cagr*100:.2f}%"]
-    df["EPF CAGR"] = ["" for _ in range(len(df) - 1)] + [f"{epf_cagr*100:.2f}%"]
+    df["Buy CAGR"] = [""] * (len(df) - 1) + [f"{buy_cagr*100:.2f}%"]
+    df["EPF CAGR"] = [""] * (len(df) - 1) + [f"{epf_cagr*100:.2f}%"]
 
     return df, buy_cagr, epf_cagr
 
 def plot_outcomes(df, buy_cagr, epf_cagr, years):
     """Plot outcomes with CAGR shown in the legend."""
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(df["Year"], df["Buy Wealth (RM)"], 
-            label=f"🏠 Buy Wealth (CAGR {buy_cagr*100:.2f}%)", linewidth=2)
-    ax.plot(df["Year"], df["EPF Wealth (RM)"], 
-            label=f"📈 EPF Wealth (CAGR {epf_cagr*100:.2f}%)", linewidth=2, linestyle="--")
+    plt.figure(figsize=(10, 6))
     
-    ax.set_xlabel("Year", fontname="Times New Roman")
-    ax.set_ylabel("RM (Amount)", fontname="Times New Roman")
-    ax.set_title("Buy vs EPF Wealth Projection", fontname="Times New Roman", fontsize=14)
+    plt.plot(df["Year"], df["Buy Wealth (RM)"], 
+             label=f"🏠 Buy Wealth (CAGR {buy_cagr*100:.2f}%)", linewidth=2)
+    plt.plot(df["Year"], df["EPF Wealth (RM)"], 
+             label=f"📈 EPF Wealth (CAGR {epf_cagr*100:.2f}%)", linewidth=2, linestyle="--")
+    
+    plt.xlabel("Year", fontname="Times New Roman")
+    plt.ylabel("RM (Amount)", fontname="Times New Roman")
+    plt.title("Buy vs EPF Wealth Projection", fontname="Times New Roman", fontsize=14)
+    plt.legend()
+    plt.grid(True, linestyle="--", alpha=0.6)
+    plt.tight_layout()
+    return plt.gcf()
+
+    # Highlight area
+    if winner_name == "Buy Property":
+        ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], color="blue", alpha=0.1)
+    else:
+        ax.fill_between(df["Year"], df["EPF Wealth (RM)"], df["Buy Wealth (RM)"], color="green", alpha=0.1)
+
+    # Annotate final values
+    ax.text(years, buy_final, f"RM {buy_final:,.0f}",
+            color="white" if winner_name == "Buy Property" else "blue",
+            fontsize=12, weight="bold",
+            bbox=dict(facecolor="blue" if winner_name == "Buy Property" else "none", alpha=0.7, edgecolor="none"),
+            ha="left", va="bottom")
+
+    ax.text(years, epf_final, f"RM {epf_final:,.0f}",
+            color="white" if winner_name == "Rent+EPF" else "green",
+            fontsize=12, weight="bold",
+            bbox=dict(facecolor="green" if winner_name == "Rent+EPF" else "none", alpha=0.7, edgecolor="none"),
+            ha="left", va="bottom")
+
+    ax.text(years, rent_final, f"RM {rent_final:,.0f}",
+            color="red", fontsize=11, weight="bold", ha="left", va="bottom")
+
+    ax.set_title(f"Comparison Over {years} Years – Winner: {winner_name}", fontsize=14, weight="bold")
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Wealth / Rent (RM)")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
     ax.legend()
     ax.grid(True, linestyle="--", alpha=0.6)
     return fig
@@ -118,9 +150,10 @@ def format_table(df):
     for col in money_cols:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
+    # Keep CAGR text as is
     styled_df = df_fmt.style.set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
 
-    # Highlight winner in final row
+    # Highlight winner
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
     styled_df = styled_df.apply(
@@ -131,6 +164,11 @@ def format_table(df):
         axis=1
     )
     return styled_df
+
+def calculate_cagr(initial, final, years):
+    if initial <= 0 or final <= 0:
+        return 0
+    return (final / initial) ** (1 / years) - 1
 
 def generate_summary(df, years):
     """Generate a text summary of the outcomes."""
@@ -172,7 +210,7 @@ df, buy_cagr, epf_cagr = project_outcomes(
     P=initial_property_price,
     r=mortgage_rate,
     n=loan_term_years,
-    g=property_growth,
+    g=growth_rate,
     epf_rate=epf_rate,
     rent_yield=rent_yield,
     years=projection_years
@@ -215,7 +253,7 @@ st.write(generate_summary(df, projection_years))
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.pyplot(plot_outcomes(df, buy_cagr, epf_cagr, projection_years))
+    st.pyplot(plot_outcomes(df, projection_years))
 
 with tab2:
     st.dataframe(format_table(df), use_container_width=True)
