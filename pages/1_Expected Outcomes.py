@@ -76,12 +76,16 @@ def plot_outcomes(df, years):
     winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
     winner_name = "Buy Property" if winner_col=="Buy Wealth (RM)" else "Rent+EPF"
 
+    # Calculate cumulative rent
+    df["Cumulative Rent (RM)"] = df["Rent (RM)"].cumsum()
+
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Property", color="blue", linewidth=2)
     ax.plot(df["Year"], df["EPF Wealth (RM)"], label="Rent+EPF", color="green", linewidth=2)
     ax.plot(df["Year"], df["Rent (RM)"], label="Annual Rent", color="red", linestyle="--", linewidth=2)
+    ax.plot(df["Year"], df["Cumulative Rent (RM)"], label="Cumulative Rent", color="orange", linewidth=2)
 
-    # Highlight area
+     # Highlight area
     if winner_name=="Buy Property":
         ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], color="blue", alpha=0.1)
     else:
@@ -103,6 +107,9 @@ def plot_outcomes(df, years):
     ax.text(years, df["Rent (RM)"].iloc[-1],
             f"RM {df['Rent (RM)'].iloc[-1]:,.0f}",
             color="red", fontsize=11, weight="bold", ha="left", va="bottom")
+    ax.text(years, df["Cumulative Rent (RM)"].iloc[-1],
+            f"RM {df['Cumulative Rent (RM)'].iloc[-1]:,.0f}",
+            color="orange", fontsize=11, weight="bold", ha="left", va="bottom")
 
     ax.set_title(f"Comparison Over {years} Years – Winner: {winner_name}", fontsize=14, weight="bold")
     ax.set_xlabel("Year")
