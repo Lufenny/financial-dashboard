@@ -11,6 +11,21 @@ st.set_page_config(page_title="Expected Outcomes – Baseline", layout="wide")
 st.title("📌 Expected Outcomes – Baseline Comparison")
 
 # --------------------------
+# Apply Times New Roman to Streamlit UI
+# --------------------------
+st.markdown(
+    """
+    <style>
+    html, body, [class*="css"]  {
+        font-family: 'Times New Roman', serif !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# --------------------------
 # Link Between EDA & Expected Outcomes
 # --------------------------
 st.subheader("🔗 Link to EDA Insights")
