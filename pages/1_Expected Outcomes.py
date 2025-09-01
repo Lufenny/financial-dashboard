@@ -25,7 +25,7 @@ st.markdown(
 # Apply Times New Roman to matplotlib charts
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
-st.title("📌 Expected Outcomes – Baseline Comparison")
+st.title("📌 Expected Outcomes")
 
 # --------------------------
 # 2. Helper Functions
