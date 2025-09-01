@@ -107,7 +107,7 @@ if buy_cagr > epf_cagr:
     ax.text(years, epf_wealth[-1],
             f"RM {epf_wealth[-1]:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
             fontsize=10, color="green", ha="left", va="bottom")
-    subtitle = "👉 In this scenario, **Buying Property outperforms EPF**."
+    subtitle = " In this scenario, Buying Property outperforms EPF."
 else:
     ax.text(years, epf_wealth[-1],
             f"RM {epf_wealth[-1]:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
@@ -117,7 +117,7 @@ else:
     ax.text(years, buy_wealth[-1],
             f"RM {buy_wealth[-1]:,.0f}\n({buy_cagr*100:.2f}% p.a.)",
             fontsize=10, color="blue", ha="left", va="bottom")
-    subtitle = "👉 In this scenario, **EPF outperforms Buying Property**."
+    subtitle = " In this scenario, EPF outperforms Buying Property."
 
 plt.figtext(0.5, -0.05, subtitle, wrap=True, ha="center", fontsize=12, fontweight="bold", fontname="Times New Roman")
 
