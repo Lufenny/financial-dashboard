@@ -10,16 +10,19 @@ import matplotlib.ticker as mticker
 # --------------------------
 st.set_page_config(page_title='Expected Outcomes – Fair Comparison', layout='wide')
 
-# Times New Roman for Streamlit text
-st.markdown("""
-<style>
-html, body, [class*="css"]  {
-    font-family: 'Times New Roman', serif !important;
-}
-</style>
-""", unsafe_allow_html=True)
+# Times New Roman font for Streamlit
+st.markdown(
+    """
+    <style>
+    html, body, [class*="css"]  {
+        font-family: 'Times New Roman', serif !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-# Times New Roman for Matplotlib
+# Times New Roman for matplotlib
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
 st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
@@ -50,48 +53,50 @@ def project_outcomes(P, r, n, g, epf_rate, years):
         new_buy_wealth = new_property_value - new_mortgage_balance
         buy_wealth.append(new_buy_wealth)
 
-        # EPF wealth = invest PMT (opportunity cost)
+        # EPF wealth = invest same amount as mortgage payment (opportunity cost)
         new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + PMT
         epf_wealth.append(new_epf_wealth)
 
-    df = pd.DataFrame({
+    return pd.DataFrame({
         "Year": np.arange(0, years + 1),
         "Property (RM)": property_values,
         "Mortgage (RM)": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
         "EPF Wealth (RM)": epf_wealth
     })
-    return df
-
-def compute_cagr(df, years):
-    buy_cagr = (df["Buy Wealth (RM)"].iloc[-1] / df["Buy Wealth (RM)"].iloc[0])**(1/years) - 1
-    epf_cagr = (df["EPF Wealth (RM)"].iloc[-1] / df["EPF Wealth (RM)"].iloc[0])**(1/years) - 1
-    return buy_cagr, epf_cagr
 
 def plot_outcomes(df, years):
-    buy_cagr, epf_cagr = compute_cagr(df, years)
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
-    winner_name = "Buy Property" if buy_final > epf_final else "Rent+EPF"
+    winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
+    winner_name = "Buy Property" if winner_col=="Buy Wealth (RM)" else "Rent+EPF"
 
-    fig, ax = plt.subplots(figsize=(10,6))
+    fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Property", color="blue", linewidth=2)
     ax.plot(df["Year"], df["EPF Wealth (RM)"], label="Rent+EPF", color="green", linewidth=2)
 
-    # Highlight final values with CAGR
-    ax.text(years, buy_final, f"RM {buy_final:,.0f}\n({buy_cagr*100:.2f}% p.a.)",
+    # Highlight area
+    if winner_name=="Buy Property":
+        ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], color="blue", alpha=0.1)
+    else:
+        ax.fill_between(df["Year"], df["EPF Wealth (RM)"], df["Buy Wealth (RM)"], color="green", alpha=0.1)
+
+    # Annotate final values
+    ax.text(years, df["Buy Wealth (RM)"].iloc[-1],
+            f"RM {df['Buy Wealth (RM)'].iloc[-1]:,.0f}",
             color="white" if winner_name=="Buy Property" else "blue",
             fontsize=12, weight="bold",
             bbox=dict(facecolor="blue" if winner_name=="Buy Property" else "none", alpha=0.7, edgecolor="none"),
             ha="left", va="bottom")
-    ax.text(years, epf_final, f"RM {epf_final:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
+    ax.text(years, df["EPF Wealth (RM)"].iloc[-1],
+            f"RM {df['EPF Wealth (RM)'].iloc[-1]:,.0f}",
             color="white" if winner_name=="Rent+EPF" else "green",
             fontsize=12, weight="bold",
             bbox=dict(facecolor="green" if winner_name=="Rent+EPF" else "none", alpha=0.7, edgecolor="none"),
             ha="left", va="bottom")
 
+    ax.set_title(f"Comparison Over {years} Years – Winner: {winner_name}", fontsize=14, weight="bold")
     ax.set_xlabel("Year")
     ax.set_ylabel("Wealth (RM)")
-    ax.set_title(f"Comparison Over {years} Years – Winner: {winner_name}", fontsize=14, weight="bold")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
     ax.legend()
     ax.grid(True, linestyle="--", alpha=0.6)
@@ -114,24 +119,22 @@ def format_table(df):
 
 def generate_summary(df, years):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
-    buy_cagr, epf_cagr = compute_cagr(df, years)
-
     if buy_final > epf_final:
-        return f"📈 After {years} years, **Buying Property** leads with RM {buy_final:,.0f} ({buy_cagr*100:.2f}% p.a.), outperforming Rent+EPF (RM {epf_final:,.0f}, {epf_cagr*100:.2f}% p.a.)."
+        return f"📈 After {years} years, **Buying Property** leads with RM {buy_final:,.0f}, outperforming Rent+EPF (RM {epf_final:,.0f})."
     elif epf_final > buy_final:
-        return f"💰 After {years} years, **Rent+EPF** leads with RM {epf_final:,.0f} ({epf_cagr*100:.2f}% p.a.), outperforming Buying Property (RM {buy_final:,.0f}, {buy_cagr*100:.2f}% p.a.)."
+        return f"💰 After {years} years, **Rent+EPF** leads with RM {epf_final:,.0f}, outperforming Buying Property (RM {buy_final:,.0f})."
     else:
-        return f"⚖️ After {years} years, both strategies result in the same outcome of RM {buy_final:,.0f} ({buy_cagr*100:.2f}% p.a.)."
+        return f"⚖️ After {years} years, both strategies result in the same outcome of RM {buy_final:,.0f}."
 
 # --------------------------
 # 3. Sidebar Inputs
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
-mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual, e.g., 0.04)", value=0.04, step=0.01)
+mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
 loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
-property_growth = st.sidebar.number_input("Property Growth Rate (Annual, e.g., 0.05)", value=0.05, step=0.01)
-epf_rate = st.sidebar.number_input("EPF Return Rate (Annual, e.g., 0.06)", value=0.06, step=0.01)
+property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
+epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
 projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
 
 # --------------------------
