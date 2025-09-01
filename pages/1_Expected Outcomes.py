@@ -121,15 +121,23 @@ def plot_outcomes(df, years):
 
 def format_table(df):
     df_fmt = df.copy()
-    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Rent (RM)"]:
+
+    # Format all RM columns
+    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Cumulative Rent (RM)"]:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
-    buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
+    # Determine winner at the final year
+    buy_final = df["Buy Wealth (RM)"].iloc[-1]
+    epf_final = df["EPF Wealth (RM)"].iloc[-1]
     winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
 
+    # Highlight final winning cell
     styled_df = df_fmt.style.set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
     styled_df = styled_df.apply(
-        lambda x: ['background-color: lightgreen' if x.name==df.index[-1] and col==winner_col else '' for col in df_fmt.columns],
+        lambda x: [
+            'background-color: lightgreen' if x.name == df.index[-1] and col == winner_col else ''
+            for col in df_fmt.columns
+        ],
         axis=1
     )
     return styled_df
