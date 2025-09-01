@@ -1,18 +1,14 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
 import matplotlib
-matplotlib.rcParams['font.family'] = 'Times New Roman'
-
-# Page config
-st.set_page_config(page_title="Expected Outcomes – Baseline", layout="wide")
-st.title("📌 Expected Outcomes – Baseline Comparison")
 
 # --------------------------
-# Global Times New Roman Styling
+# 1. Global Settings
 # --------------------------
+st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
+
+# ✅ Apply Times New Roman everywhere
 st.markdown(
     """
     <style>
@@ -24,183 +20,109 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --------------------------
-# Link Between EDA & Expected Outcomes
-# --------------------------
-st.subheader("🔗 Link to EDA Insights")
+# ✅ Ensure matplotlib uses Times New Roman too
+matplotlib.rcParams['font.family'] = 'Times New Roman'
 
-st.write(
-    "The Expected Outcomes are directly shaped by insights from the Exploratory Data Analysis (EDA), "
-    "which provided the assumptions for property growth, EPF returns, and inflation trends."
-)
+st.title("📌 Expected Outcomes – Baseline Comparison")
 
-with st.expander("See how EDA informs Expected Outcomes"):
-    st.markdown(
-        "- **Property Price Growth**: Historical market appreciation rates were used as the assumption.  \n"
-        "- **EPF Returns**: Dividend trends informed the baseline and optimistic return scenarios.  \n"
-        "- **Inflation**: Past patterns guided the selection of realistic inflation ranges.  \n\n"
-        "These EDA-driven assumptions serve as the foundation for comparing long-term "
-        "wealth accumulation between **buying property** and **saving in EPF**."
-    )
 
 # --------------------------
-# Sidebar Inputs
+# 2. Helper Functions
+# --------------------------
+def calculate_mortgage_payment(P, r, n):
+    """Annual mortgage payment (PMT) based on property price, rate, and term."""
+    return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
+
+
+def project_outcomes(P, r, n, g, epf_rate, years):
+    """Generate yearly projection of Buy vs EPF wealth."""
+    PMT = calculate_mortgage_payment(P, r, n)
+    property_value, mortgage_balance, buy_wealth, epf_wealth = P, P, 0, 0
+
+    data = []
+    for t in range(1, years + 1):
+        property_value *= (1 + g)                # Property appreciation
+        mortgage_balance = mortgage_balance * (1 + r) - PMT if t <= n else 0
+        buy_wealth = property_value - mortgage_balance
+        epf_wealth = epf_wealth * (1 + epf_rate) + PMT
+        data.append([t, property_value, mortgage_balance, buy_wealth, epf_wealth])
+
+    return pd.DataFrame(data, columns=["Year", "Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"])
+
+
+def plot_outcomes(df, years, buy_wealth, epf_wealth):
+    """Line chart comparing Buy vs EPF outcomes."""
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Property", linewidth=2)
+    ax.plot(df["Year"], df["EPF Wealth (RM)"], label="EPF Savings", linewidth=2)
+
+    # Highlight final outcomes
+    winner = "Buy Property" if buy_wealth > epf_wealth else "EPF Savings"
+    ax.set_title(f"Comparison Over {years} Years – Winner: {winner}", fontsize=14, weight="bold")
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Wealth (RM)")
+    ax.legend()
+    ax.grid(True, linestyle="--", alpha=0.6)
+
+    return fig
+
+
+def format_table(df):
+    """Format RM values with commas and Times New Roman styling."""
+    df_fmt = df.copy()
+    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
+        df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
+
+    styled_df = df_fmt.style.set_properties(**{
+        'font-family': 'Times New Roman',
+        'font-size': '14px'
+    })
+    return styled_df
+
+
+def generate_summary(buy_wealth, epf_wealth, years):
+    """Textual explanation for examiner / reader."""
+    if buy_wealth > epf_wealth:
+        return f"📈 After {years} years, **Buying Property** leads with RM {buy_wealth:,.0f}, outperforming EPF (RM {epf_wealth:,.0f})."
+    elif epf_wealth > buy_wealth:
+        return f"💰 After {years} years, **EPF Savings** leads with RM {epf_wealth:,.0f}, outperforming Buying Property (RM {buy_wealth:,.0f})."
+    else:
+        return f"⚖️ After {years} years, both strategies result in the same outcome of RM {buy_wealth:,.0f}."
+
+
+# --------------------------
+# 3. Sidebar Inputs
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
 
-initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500000, step=10000)
-property_growth_rate = st.sidebar.number_input("Annual Property Growth Rate (%)", value=5.0, step=0.1) / 100
-mortgage_rate = st.sidebar.number_input("Mortgage Interest Rate (%)", value=4.0, step=0.1) / 100
-loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=20, step=1)
-annual_epf_contribution = st.sidebar.number_input("Annual EPF Contribution (RM)", value=20000, step=1000)
-epf_rate = st.sidebar.number_input("EPF Annual Growth Rate (%)", value=5.0, step=0.1) / 100
-years = st.sidebar.number_input("Projection Horizon (Years)", value=20, step=1)
+initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
+mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
+loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
+property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
+epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
+projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
+
 
 # --------------------------
-# Mortgage Calculation
+# 4. Main Outputs with Tabs
 # --------------------------
-P = initial_property_price
-r = mortgage_rate
-n = loan_term_years
+df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, projection_years)
+buy_wealth, epf_wealth = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
 
-if r > 0:
-    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)  # Annual repayment
-else:
-    PMT = P / n
+tab1, tab2, tab3 = st.tabs(["📈 Chart", "📊 Table", "📝 Summary"])
 
-# --------------------------
-# Projection Loop
-# --------------------------
-property_values = [P]
-mortgage_balances = [P]
-buy_wealth = [0]
-epf_wealth = [0]
+with tab1:
+    st.pyplot(plot_outcomes(df, projection_years, buy_wealth, epf_wealth))
 
-for t in range(1, years + 1):
-    # Property growth
-    new_property_value = property_values[-1] * (1 + property_growth_rate)
-    property_values.append(new_property_value)
+with tab2:
+    st.dataframe(format_table(df), use_container_width=True)
 
-    # Mortgage repayment
-    interest_payment = mortgage_balances[-1] * r
-    principal_payment = PMT - interest_payment
-    new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
-    mortgage_balances.append(new_mortgage_balance)
+with tab3:
+    st.write(generate_summary(buy_wealth, epf_wealth, projection_years))
 
-    # Wealth
-    new_buy_wealth = new_property_value - new_mortgage_balance
-    buy_wealth.append(new_buy_wealth)
-
-    new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + annual_epf_contribution
-    epf_wealth.append(new_epf_wealth)
 
 # --------------------------
-# DataFrame Results
+# 5. Download Option
 # --------------------------
-df = pd.DataFrame({
-    "Year": np.arange(0, years + 1),
-    "Property (RM)": property_values,
-    "Mortgage (RM)": mortgage_balances,
-    "Buy Wealth (RM)": buy_wealth,
-    "EPF Wealth (RM)": epf_wealth
-})
-
-# --------------------------
-# Chart
-# --------------------------
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Wealth", color="blue")
-ax.plot(df["Year"], df["EPF Wealth (RM)"], label="EPF Wealth", color="green")
-ax.set_xlabel("Year")
-ax.set_ylabel("Wealth (RM)")
-ax.set_title("Expected Outcomes – Buy Property vs. EPF")
-ax.legend()
-
-# ✅ Format Y-axis in RM
-ax.yaxis.set_major_formatter(mtick.StrMethodFormatter("RM {x:,.0f}"))
-
-# --------------------------
-# CAGR
-# --------------------------
-buy_cagr = (buy_wealth[-1] / buy_wealth[0])**(1/years) - 1 if buy_wealth[0] > 0 else (buy_wealth[-1] / 1e3)**(1/years) - 1
-epf_cagr = (epf_wealth[-1] / epf_wealth[0])**(1/years) - 1 if epf_wealth[0] > 0 else (epf_wealth[-1] / 1e3)**(1/years) - 1
-
-# Annotate CAGR + Final Values
-if buy_cagr > epf_cagr:
-    ax.text(years - 1, buy_wealth[-1],
-            f"RM {buy_wealth[-1]:,.0f}\n({buy_cagr*100:.2f}% p.a.)",
-            fontsize=12, color="white", weight="bold",
-            ha="left", va="bottom",
-            bbox=dict(facecolor="blue", alpha=0.7, edgecolor="none"))
-    ax.text(years - 1, epf_wealth[-1],
-            f"RM {epf_wealth[-1]:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
-            fontsize=10, color="green", ha="left", va="bottom")
-    subtitle = "In this scenario, Buying Property outperforms EPF."
-else:
-    ax.text(years - 1, epf_wealth[-1],
-            f"RM {epf_wealth[-1]:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
-            fontsize=12, color="white", weight="bold",
-            ha="left", va="bottom",
-            bbox=dict(facecolor="green", alpha=0.7, edgecolor="none"))
-    ax.text(years - 1, buy_wealth[-1],
-            f"RM {buy_wealth[-1]:,.0f}\n({buy_cagr*100:.2f}% p.a.)",
-            fontsize=10, color="blue", ha="left", va="bottom")
-    subtitle = "In this scenario, EPF outperforms Buying Property."
-
-plt.figtext(0.5, -0.05, subtitle, wrap=True, ha="center", fontsize=12, fontweight="bold", fontname="Times New Roman")
-
-st.pyplot(fig)
-
-# --------------------------
-# Projection Table
-# --------------------------
-df_fmt = df.copy()
-for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
-    df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
-
-st.subheader("📊 Projection Table")
-
-# ✅ Force Times New Roman in table using Pandas Styler
-styled_df = df_fmt.style.set_properties(**{
-    'font-family': 'Times New Roman',
-    'font-size': '14px'
-})
-
-st.dataframe(styled_df, use_container_width=True)
-
-# --------------------------
-# Download CSV
-# --------------------------
-csv = df.to_csv(index=False).encode("utf-8")
-st.download_button(
-    "⬇️ Download Projection Results (CSV)",
-    data=csv,
-    file_name="expected_outcomes.csv",
-    mime="text/csv"
-)
-
-# --------------------------
-# Summary Box
-# --------------------------
-final_buy = buy_wealth[-1]
-final_epf = epf_wealth[-1]
-
-st.subheader("📌 Summary")
-if final_buy > final_epf:
-    st.success(
-        f"After **{years} years**, buying a house results in higher wealth:\n\n"
-        f"- 🏡 Buy Wealth: **RM {final_buy:,.0f}**\n"
-        f"- 💰 EPF Wealth: **RM {final_epf:,.0f}**"
-    )
-elif final_epf > final_buy:
-    st.info(
-        f"After **{years} years**, saving in EPF results in higher wealth:\n\n"
-        f"- 💰 EPF Wealth: **RM {final_epf:,.0f}**\n"
-        f"- 🏡 Buy Wealth: **RM {final_buy:,.0f}**"
-    )
-else:
-    st.warning(
-        f"After **{years} years**, both strategies result in about the same wealth:\n\n"
-        f"- 🏡 Buy Wealth: **RM {final_buy:,.0f}**\n"
-        f"- 💰 EPF Wealth: **RM {final_epf:,.0f}**"
-    )
+csv = df.to_csv(index=False).encode('utf-8')
+st.download_button("📥 Download Projection Data (CSV)", csv, "projection.csv", "text/csv", key='download-csv')
