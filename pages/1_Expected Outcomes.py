@@ -1,172 +1,122 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib
-import matplotlib.ticker as mticker
+
+st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
+st.title("📌 Expected Outcomes – Baseline Comparison")
 
 # --------------------------
-# 1. Global Settings
+# 1. Baseline Assumptions (Sidebar)
 # --------------------------
-st.set_page_config(page_title='Expected Outcomes – Fair Comparison', layout='wide')
-
-# Times New Roman font for Streamlit
-st.markdown(
-    """
-    <style>
-    html, body, [class*="css"]  {
-        font-family: 'Times New Roman', serif !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Times New Roman for matplotlib
-matplotlib.rcParams['font.family'] = 'Times New Roman'
-
-st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
+st.sidebar.header("⚙️ Baseline Assumptions")
+initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500000, step=10000)
+mortgage_rate = st.sidebar.number_input("Mortgage Rate (%)", value=4.0, step=0.1) / 100
+loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=1)
+property_growth = st.sidebar.number_input("Property Growth Rate (%)", value=3.0, step=0.1) / 100
+epf_rate = st.sidebar.number_input("EPF Annual Return (%)", value=5.0, step=0.1) / 100
+rent_yield = st.sidebar.number_input("Rent Yield (%)", value=4.0, step=0.1) / 100
+projection_years = st.sidebar.slider("Projection Period (Years)", min_value=5, max_value=40, value=30)
 
 # --------------------------
 # 2. Helper Functions
 # --------------------------
 def calculate_mortgage_payment(P, r, n):
-    """Annual mortgage repayment (annuity formula)."""
+    """Annual mortgage repayment (PMT formula)."""
     if r > 0:
-        return P * (r * (1 + r) ** n) / ((1 + r) ** n - 1)
+        return P * (r * (1 + r)**n) / ((1 + r)**n - 1)
     else:
         return P / n
 
-def calculate_cagr(begin_value, end_value, years):
-    """Compound Annual Growth Rate (CAGR)."""
-    if begin_value <= 0 or end_value <= 0 or years <= 0:
+def calculate_cagr(final_value, initial_value, years):
+    """Compound Annual Growth Rate."""
+    if final_value <= 0 or initial_value <= 0:
         return 0
-    return (end_value / begin_value) ** (1 / years) - 1
+    return (final_value / initial_value) ** (1 / years) - 1
 
+# --------------------------
+# 3. Projection Function
+# --------------------------
 def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
-    """Simulate buy vs EPF outcomes including rent impact."""
-    PMT = calculate_mortgage_payment(P, r, n)
-    property_values, mortgage_balances = [P], [P]
-    buy_wealth, epf_wealth, rents, cum_rent = [0], [0], [P * rent_yield], [P * rent_yield]
-    
-    for t in range(1, years + 1):
-        # Property appreciation
-        new_property_value = property_values[-1] * (1 + g)
-        property_values.append(new_property_value)
+    mortgage_payment = calculate_mortgage_payment(P, r, n)
+    annual_rent = P * rent_yield
 
-        # Mortgage repayment
-        interest_payment = mortgage_balances[-1] * r
-        principal_payment = PMT - interest_payment
-        new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
-        mortgage_balances.append(new_mortgage_balance)
+    buy_wealth, epf_wealth = [], []
+    cumulative_rent = []
 
-        # Buy wealth = property value - mortgage
-        new_buy_wealth = new_property_value - new_mortgage_balance
-        buy_wealth.append(new_buy_wealth)
+    total_buy, total_epf, total_rent = 0, 0, 0
 
-        # Rent grows with property value
-        rent_payment = new_property_value * rent_yield
-        rents.append(rent_payment)
-        cum_rent.append(cum_rent[-1] + rent_payment)
+    for year in range(1, years + 1):
+        # Property wealth (buy case)
+        property_value = P * (1 + g) ** year
+        equity = max(property_value - (mortgage_payment * min(year, n)), 0)
+        buy_wealth.append(equity)
 
-        # EPF wealth = invest mortgage - rent
-        investable = max(0, PMT - rent_payment)
-        new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
-        epf_wealth.append(new_epf_wealth)
+        # EPF wealth (invest instead of mortgage)
+        total_epf = total_epf * (1 + epf_rate) + mortgage_payment
+        epf_wealth.append(total_epf)
 
-    # Build dataframe
+        # Rent accumulation
+        total_rent += annual_rent
+        cumulative_rent.append(total_rent)
+
     df = pd.DataFrame({
-        "Year": np.arange(0, years + 1),
-        "Property (RM)": property_values,
-        "Mortgage (RM)": mortgage_balances,
+        "Year": range(1, years + 1),
         "Buy Wealth (RM)": buy_wealth,
         "EPF Wealth (RM)": epf_wealth,
-        "Annual Rent (RM)": rents,
-        "Cumulative Rent (RM)": cum_rent
+        "Cumulative Rent (RM)": cumulative_rent
     })
 
-    # CAGR calculations
-    buy_cagr = calculate_cagr(df["Buy Wealth (RM)"].iloc[1], df["Buy Wealth (RM)"].iloc[-1], years)
-    epf_cagr = calculate_cagr(df["EPF Wealth (RM)"].iloc[1], df["EPF Wealth (RM)"].iloc[-1], years)
-
-    # Insert CAGR values only on last row
-    df["Buy CAGR"] = ["" for _ in range(len(df) - 1)] + [f"{buy_cagr*100:.2f}%"]
-    df["EPF CAGR"] = ["" for _ in range(len(df) - 1)] + [f"{epf_cagr*100:.2f}%"]
+    buy_cagr = calculate_cagr(df["Buy Wealth (RM)"].iloc[-1], P, years)
+    epf_cagr = calculate_cagr(df["EPF Wealth (RM)"].iloc[-1], mortgage_payment, years)
 
     return df, buy_cagr, epf_cagr
 
+# --------------------------
+# 4. Visualization
+# --------------------------
 def plot_outcomes(df, buy_cagr, epf_cagr, years):
-    """Plot outcomes with CAGR shown in the legend."""
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(df["Year"], df["Buy Wealth (RM)"], 
-            label=f"🏠 Buy Wealth (CAGR {buy_cagr*100:.2f}%)", linewidth=2)
-    ax.plot(df["Year"], df["EPF Wealth (RM)"], 
-            label=f"📈 EPF Wealth (CAGR {epf_cagr*100:.2f}%)", linewidth=2, linestyle="--")
-    
-    ax.set_xlabel("Year", fontname="Times New Roman")
-    ax.set_ylabel("RM (Amount)", fontname="Times New Roman")
-    ax.set_title("Buy vs EPF Wealth Projection", fontname="Times New Roman", fontsize=14)
-    ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.6)
-    return fig
+    plt.figure(figsize=(10, 6))
+    plt.plot(df["Year"], df["Buy Wealth (RM)"], label=f"Buy Wealth (CAGR {buy_cagr:.2%})")
+    plt.plot(df["Year"], df["EPF Wealth (RM)"], label=f"EPF Wealth (CAGR {epf_cagr:.2%})")
+    plt.plot(df["Year"], df["Cumulative Rent (RM)"], label="Cumulative Rent")
 
+    plt.title(f"Expected Outcomes Over {years} Years", fontsize=14)
+    plt.xlabel("Year", fontsize=12)
+    plt.ylabel("RM Amount", fontsize=12)
+    plt.legend()
+    plt.grid(True, linestyle="--", alpha=0.6)
+    plt.tight_layout()
+    return plt
+
+# --------------------------
+# 5. Table Formatting
+# --------------------------
 def format_table(df):
-    df_fmt = df.copy()
-    money_cols = ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", 
-                  "EPF Wealth (RM)", "Annual Rent (RM)", "Cumulative Rent (RM)"]
+    return df.style.format({
+        "Buy Wealth (RM)": "RM {:,.0f}",
+        "EPF Wealth (RM)": "RM {:,.0f}",
+        "Cumulative Rent (RM)": "RM {:,.0f}"
+    })
 
-    for col in money_cols:
-        df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
-
-    styled_df = df_fmt.style.set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
-
-    # Highlight winner in final row
-    buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
-    winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
-    styled_df = styled_df.apply(
-        lambda x: [
-            'background-color: lightgreen' if x.name == df.index[-1] and col == winner_col else ''
-            for col in df_fmt.columns
-        ],
-        axis=1
-    )
-    return styled_df
-
+# --------------------------
+# 6. Summary Generator
+# --------------------------
 def generate_summary(df, years):
-    """Generate a text summary of the outcomes."""
     buy_final = df["Buy Wealth (RM)"].iloc[-1]
     epf_final = df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
-    
-    if buy_final > epf_final:
-        winner = "Buying property"
-        diff = buy_final - epf_final
-    else:
-        winner = "Investing in EPF"
-        diff = epf_final - buy_final
-    
-    return (
-        f"After {years} years:\n"
-        f"- Buy Wealth: RM {buy_final:,.0f}\n"
-        f"- EPF Wealth: RM {epf_final:,.0f}\n"
-        f"- Total Rent Paid: RM {rent_final:,.0f}\n\n"
-        f"👉 **{winner} leads by RM {diff:,.0f}.**"
-    )
+
+    return f"""
+    ### 📝 Key Summary (After {years} Years)
+    - **Final Buy Wealth:** RM {buy_final:,.0f}  
+    - **Final EPF Wealth:** RM {epf_final:,.0f}  
+    - **Total Rent Paid:** RM {rent_final:,.0f}  
+
+    ✅ This gives a clear comparison between *buying* vs *investing in EPF while renting*.
+    """
 
 # --------------------------
-# 3. Sidebar Inputs
-# --------------------------
-st.sidebar.header("⚙️ Baseline Assumptions")
-initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
-mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
-loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
-property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
-epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
-rent_yield = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005)
-projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
-
-# --------------------------
-# 4. Projection
+# 7. Run Projection
 # --------------------------
 df, buy_cagr, epf_cagr = project_outcomes(
     P=initial_property_price,
@@ -178,41 +128,10 @@ df, buy_cagr, epf_cagr = project_outcomes(
     years=projection_years
 )
 
-# Highlight CAGR winner
-def highlight_cagr(val, col_name):
-    if isinstance(val, str) and "%" in val:
-        val_num = float(val.strip("%"))
-        if col_name == "Buy CAGR":
-            return "color: green; font-weight: bold;" if val_num > epf_cagr*100 else "color: red;"
-        elif col_name == "EPF CAGR":
-            return "color: green; font-weight: bold;" if val_num > buy_cagr*100 else "color: red;"
-    return ""
-
-# Show Data
-st.subheader("📊 Projection Table")
-styled_df = df.style.format({
-    "Property (RM)": "{:,.0f}",
-    "Mortgage (RM)": "{:,.0f}",
-    "Buy Wealth (RM)": "{:,.0f}",
-    "EPF Wealth (RM)": "{:,.0f}",
-    "Annual Rent (RM)": "{:,.0f}",
-    "Cumulative Rent (RM)": "{:,.0f}"
-}).applymap(lambda v: highlight_cagr(v, "Buy CAGR"), subset=["Buy CAGR"]) \
-  .applymap(lambda v: highlight_cagr(v, "EPF CAGR"), subset=["EPF CAGR"])
-st.dataframe(styled_df)
-
-# Plot
-st.subheader("📈 Wealth Growth Over Time")
-st.pyplot(plot_outcomes(df, buy_cagr, epf_cagr, projection_years))
-
-# Summary
-st.subheader("📝 Summary")
-st.write(generate_summary(df, projection_years))
-
 # --------------------------
-# 5. Tabs
+# 8. Tabs
 # --------------------------
-tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
+tab1, tab2, tab3 = st.tabs(["📈 Chart", "📊 Table", "📝 Summary"])
 
 with tab1:
     st.pyplot(plot_outcomes(df, buy_cagr, epf_cagr, projection_years))
@@ -222,9 +141,3 @@ with tab2:
 
 with tab3:
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
-
-# --------------------------
-# 6. Download CSV
-# --------------------------
-csv = df.to_csv(index=False).encode('utf-8')
-st.download_button("📥 Download Projection Data (CSV)", csv, "projection.csv", "text/csv", key='download-csv')
