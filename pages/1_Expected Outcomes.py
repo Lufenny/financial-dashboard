@@ -138,19 +138,59 @@ def generate_summary(df, years):
 # 3. Sidebar Inputs
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
-initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
-mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
-loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
-property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
-epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
-rent_yield = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005)
-projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
+
+initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300000, step=10000)
+mortgage_rate = st.sidebar.number_input("Mortgage Rate (%)", value=0.04)
+loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30)
+growth_rate = st.sidebar.number_input("Property Growth Rate (%)", value=0.03)
+epf_rate = st.sidebar.number_input("EPF Annual Return (%)", value=0.05)
+rent_yield = st.sidebar.number_input("Rent Yield (%)", value=0.04)
+projection_years = st.sidebar.slider("Projection Horizon (Years)", min_value=5, max_value=40, value=30)
+
 
 # --------------------------
 # 4. Projection
 # --------------------------
-df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, rent_yield, projection_years)
+df, buy_cagr, epf_cagr = project_outcomes(
+    P=initial_property_price,
+    r=mortgage_rate,
+    n=loan_term_years,
+    g=growth_rate,
+    epf_rate=epf_rate,
+    rent_yield=rent_yield,
+    years=projection_years
+)
 
+# Highlight CAGR winner
+def highlight_cagr(val, col_name):
+    if isinstance(val, str) and "%" in val:
+        val_num = float(val.strip("%"))
+        if col_name == "Buy CAGR":
+            return "color: green; font-weight: bold;" if val_num > epf_cagr*100 else "color: red;"
+        elif col_name == "EPF CAGR":
+            return "color: green; font-weight: bold;" if val_num > buy_cagr*100 else "color: red;"
+    return ""
+
+# Show Data
+st.subheader("📊 Projection Table")
+styled_df = df.style.format({
+    "Property (RM)": "{:,.0f}",
+    "Mortgage (RM)": "{:,.0f}",
+    "Buy Wealth (RM)": "{:,.0f}",
+    "EPF Wealth (RM)": "{:,.0f}",
+    "Annual Rent (RM)": "{:,.0f}",
+    "Cumulative Rent (RM)": "{:,.0f}"
+}).applymap(lambda v: highlight_cagr(v, "Buy CAGR"), subset=["Buy CAGR"]) \
+  .applymap(lambda v: highlight_cagr(v, "EPF CAGR"), subset=["EPF CAGR"])
+st.dataframe(styled_df)
+
+# Plot
+st.subheader("📈 Wealth Growth Over Time")
+st.pyplot(plot_outcomes(df, buy_cagr, epf_cagr, projection_years))
+
+# Summary
+st.subheader("📝 Summary")
+st.write(generate_summary(df, projection_years))
 # --------------------------
 # 5. Tabs
 # --------------------------
