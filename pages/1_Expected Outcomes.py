@@ -210,7 +210,7 @@ df, buy_cagr, epf_cagr = project_outcomes(
     P=initial_property_price,
     r=mortgage_rate,
     n=loan_term_years,
-    g=growth_rate,
+    g=property_growth,   # ✅ fixed
     epf_rate=epf_rate,
     rent_yield=rent_yield,
     years=projection_years
@@ -253,7 +253,7 @@ st.write(generate_summary(df, projection_years))
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.pyplot(plot_outcomes(df, projection_years))
+    st.pyplot(plot_outcomes(df, buy_cagr, epf_cagr, projection_years))  # ✅ fixed
 
 with tab2:
     st.dataframe(format_table(df), use_container_width=True)
