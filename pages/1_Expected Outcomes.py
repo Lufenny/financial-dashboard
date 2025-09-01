@@ -33,10 +33,16 @@ st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
 def calculate_mortgage_payment(P, r, n):
     return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
 
+def calculate_cagr(final_value, initial_value, years):
+    """Compound Annual Growth Rate"""
+    if initial_value <= 0 or years <= 0:
+        return 0
+    return (final_value / initial_value) ** (1 / years) - 1
+
 def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
     PMT = calculate_mortgage_payment(P, r, n)
     property_values, mortgage_balances = [P], [P]
-    buy_wealth, epf_wealth, rents, cumulative_rents = [0], [0], [P * rent_yield], [P * rent_yield]
+    buy_wealth, epf_wealth, rents, cumulative_rents = [0], [0], [P * rent_yield], [0]
 
     for t in range(1, years + 1):
         # Property growth
@@ -69,9 +75,34 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         "Mortgage (RM)": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
         "EPF Wealth (RM)": epf_wealth,
-        "Rent (RM)": rents,
         "Cumulative Rent (RM)": cumulative_rents
     })
+
+def generate_summary(df, years, initial_price):
+    buy_final = df["Buy Wealth (RM)"].iloc[-1]
+    epf_final = df["EPF Wealth (RM)"].iloc[-1]
+    rent_final = df["Cumulative Rent (RM)"].iloc[-1]
+
+    # CAGR
+    buy_cagr = calculate_cagr(buy_final, initial_price, years)
+    epf_cagr = calculate_cagr(epf_final, 0.01 * initial_price, years)  # assume starting from ~1% of property
+
+    winner = "Buy Property" if buy_final > epf_final else "Rent+EPF"
+
+    summary = f"""
+    ### 📊 Expected Outcomes after {years} Years  
+
+    - **Buy Property Wealth**: RM {buy_final:,.0f}  
+      - CAGR: {buy_cagr:.2%} per year  
+
+    - **Rent+EPF Wealth**: RM {epf_final:,.0f}  
+      - CAGR: {epf_cagr:.2%} per year  
+
+    - **Cumulative Rent Paid**: RM {rent_final:,.0f}  
+
+    🏆 **Winner: {winner}**
+    """
+    return summary
 
 def plot_outcomes(df, years):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
@@ -187,7 +218,7 @@ with tab2:
     st.dataframe(format_table(df), use_container_width=True)
 
 with tab3:
-    st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
+    st.markdown(generate_summary(df, projection_years, initial_property_price), unsafe_allow_html=True)
 
 # --------------------------
 # 6. Download CSV
