@@ -79,6 +79,7 @@ def plot_outcomes(df, years):
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Property", color="blue", linewidth=2)
     ax.plot(df["Year"], df["EPF Wealth (RM)"], label="Rent+EPF", color="green", linewidth=2)
+    ax.plot(df["Year"], df["Rent (RM)"], label="Annual Rent", color="red", linestyle="--", linewidth=2)
 
     # Highlight area
     if winner_name=="Buy Property":
@@ -99,10 +100,13 @@ def plot_outcomes(df, years):
             fontsize=12, weight="bold",
             bbox=dict(facecolor="green" if winner_name=="Rent+EPF" else "none", alpha=0.7, edgecolor="none"),
             ha="left", va="bottom")
+    ax.text(years, df["Rent (RM)"].iloc[-1],
+            f"RM {df['Rent (RM)'].iloc[-1]:,.0f}",
+            color="red", fontsize=11, weight="bold", ha="left", va="bottom")
 
     ax.set_title(f"Comparison Over {years} Years – Winner: {winner_name}", fontsize=14, weight="bold")
     ax.set_xlabel("Year")
-    ax.set_ylabel("Wealth (RM)")
+    ax.set_ylabel("Wealth / Rent (RM)")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
     ax.legend()
     ax.grid(True, linestyle="--", alpha=0.6)
