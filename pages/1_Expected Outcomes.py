@@ -36,7 +36,7 @@ def calculate_mortgage_payment(P, r, n):
 def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
     PMT = calculate_mortgage_payment(P, r, n)
     property_values, mortgage_balances = [P], [P]
-    buy_wealth, epf_wealth, rents = [0], [0], [P * rent_yield]
+    buy_wealth, epf_wealth, rents, cumulative_rents = [0], [0], [P * rent_yield], [P * rent_yield]
 
     for t in range(1, years + 1):
         # Property growth
@@ -49,7 +49,7 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
         mortgage_balances.append(new_mortgage_balance)
 
-        # Buy wealth = property value - mortgage
+        # Buy wealth
         new_buy_wealth = new_property_value - new_mortgage_balance
         buy_wealth.append(new_buy_wealth)
 
@@ -57,7 +57,10 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         rent_payment = new_property_value * rent_yield
         rents.append(rent_payment)
 
-        # EPF wealth = invest mortgage payment - rent
+        # Cumulative rent
+        cumulative_rents.append(cumulative_rents[-1] + rent_payment)
+
+        # EPF wealth
         investable = max(0, PMT - rent_payment)
         new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
         epf_wealth.append(new_epf_wealth)
@@ -68,7 +71,8 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         "Mortgage (RM)": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
         "EPF Wealth (RM)": epf_wealth,
-        "Rent (RM)": rents
+        "Rent (RM)": rents,
+        "Cumulative Rent (RM)": cumulative_rents
     })
 
 def plot_outcomes(df, years):
