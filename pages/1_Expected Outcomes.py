@@ -33,12 +33,13 @@ st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
 def calculate_mortgage_payment(P, r, n):
     return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
 
-def project_outcomes(P, r, n, g, epf_rate, years, annual_rent, rent_inflation):
-    PMT = calculate_mortgage_payment(P, r, n)   # Annual mortgage payment
+def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
+    PMT = calculate_mortgage_payment(P, r, n)
     property_values, mortgage_balances = [P], [P]
-    buy_wealth, epf_wealth, rents_paid, epf_contributions = [0], [0], [annual_rent], [0]
+    buy_wealth, epf_wealth = [0], [0]
 
-    current_rent = annual_rent
+    # baseline rent from rent yield
+    annual_rent = P * rent_yield
 
     for t in range(1, years + 1):
         # Property growth
@@ -55,26 +56,20 @@ def project_outcomes(P, r, n, g, epf_rate, years, annual_rent, rent_inflation):
         new_buy_wealth = new_property_value - new_mortgage_balance
         buy_wealth.append(new_buy_wealth)
 
-        # EPF wealth = invest leftover money (PMT - rent)
-        epf_contribution = max(0, PMT - current_rent)
-        new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + epf_contribution
+        # Rent cost (can grow if property grows, but here linked to P × yield)
+        rent_payment = annual_rent * ((1 + g) ** (t - 1))  
+
+        # EPF wealth = invest mortgage payment - rent
+        investable = max(0, PMT - rent_payment)  
+        new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
         epf_wealth.append(new_epf_wealth)
-        epf_contributions.append(epf_contribution)
-
-        # Record rent
-        rents_paid.append(current_rent)
-
-        # Increase rent for next year
-        current_rent *= (1 + rent_inflation)
 
     return pd.DataFrame({
         "Year": np.arange(0, years + 1),
         "Property (RM)": property_values,
         "Mortgage (RM)": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
-        "EPF Wealth (RM)": epf_wealth,
-        "Annual Rent (RM)": rents_paid,
-        "EPF Contribution (RM)": epf_contributions
+        "EPF Wealth (RM)": epf_wealth
     })
 
 def plot_outcomes(df, years):
@@ -114,22 +109,9 @@ def plot_outcomes(df, years):
     ax.grid(True, linestyle="--", alpha=0.6)
     return fig
 
-def plot_rent(df):
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(df["Year"], df["Annual Rent (RM)"], label="Annual Rent", color="red", linewidth=2)
-    ax.plot(df["Year"], df["EPF Contribution (RM)"], label="EPF Contribution", color="purple", linewidth=2)
-
-    ax.set_title("Rent vs EPF Contributions Over Time", fontsize=14, weight="bold")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("RM Value")
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
-    ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.6)
-    return fig
-
 def format_table(df):
     df_fmt = df.copy()
-    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Annual Rent (RM)", "EPF Contribution (RM)"]:
+    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
@@ -160,32 +142,26 @@ mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, st
 loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
 property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
 epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
+rent_yield = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005)
 projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
-annual_rent = st.sidebar.number_input("Starting Annual Rent (RM)", value=12_000, step=1_000)
-rent_inflation = st.sidebar.number_input("Rent Inflation Rate (Annual)", value=0.03, step=0.01)
 
 # --------------------------
 # 4. Projection
 # --------------------------
-df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years,
-                      property_growth, epf_rate, projection_years,
-                      annual_rent, rent_inflation)
+df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, rent_yield, projection_years)
 
 # --------------------------
 # 5. Tabs
 # --------------------------
-tab1, tab2, tab3, tab4 = st.tabs(["📈 Wealth Chart","🏠 Rent Chart","📊 Table","📝 Summary"])
+tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
     st.pyplot(plot_outcomes(df, projection_years))
 
 with tab2:
-    st.pyplot(plot_rent(df))
-
-with tab3:
     st.dataframe(format_table(df), use_container_width=True)
 
-with tab4:
+with tab3:
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
 
 # --------------------------
@@ -193,3 +169,4 @@ with tab4:
 # --------------------------
 csv = df.to_csv(index=False).encode('utf-8')
 st.download_button("📥 Download Projection Data (CSV)", csv, "projection.csv", "text/csv", key='download-csv')
+
