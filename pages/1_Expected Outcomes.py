@@ -13,13 +13,11 @@ st.title("📌 Expected Outcomes – Baseline Comparison")
 # --------------------------
 st.subheader("🔗 Link to EDA Insights")
 
-# Short visible summary
 st.write(
     "The Expected Outcomes are directly shaped by insights from the Exploratory Data Analysis (EDA), "
     "which provided the assumptions for property growth, EPF returns, and inflation trends."
 )
 
-# Expander for more detail
 with st.expander("See how EDA informs Expected Outcomes"):
     st.markdown(
         "- **Property Price Growth**: Historical market appreciation rates were used as the assumption.  \n"
@@ -80,65 +78,6 @@ for t in range(1, years + 1):
     new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + annual_epf_contribution
     epf_wealth.append(new_epf_wealth)
 
-
-# --------------------------
-# Chart
-# --------------------------
-fig, ax = plt.subplots()
-ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Wealth", color="blue")
-ax.plot(df["Year"], df["EPF Wealth (RM)"], label="EPF Wealth", color="green")
-ax.set_xlabel("Year")
-ax.set_ylabel("Wealth (RM)")
-ax.set_title("Expected Outcomes – Buy Property vs. EPF")
-ax.legend()
-
-# ✅ Format Y-axis in RM
-ax.yaxis.set_major_formatter(mtick.StrMethodFormatter("RM {x:,.0f}"))
-
-st.pyplot(fig)
-
-# --------------------------
-# Projection Table
-# --------------------------
-df_fmt = df.copy()
-for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
-    df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
-
-st.subheader("📊 Projection Table")
-st.dataframe(df_fmt, use_container_width=True)
-
-# --------------------------
-# CAGR
-# --------------------------
-buy_cagr = (buy_wealth[-1] / buy_wealth[0])**(1/years) - 1 if buy_wealth[0] > 0 else (buy_wealth[-1] / 1e3)**(1/years) - 1
-epf_cagr = (epf_wealth[-1] / epf_wealth[0])**(1/years) - 1 if epf_wealth[0] > 0 else (epf_wealth[-1] / 1e3)**(1/years) - 1
-
-# Annotate CAGR + Final Values
-if buy_cagr > epf_cagr:
-    ax.text(years, buy_wealth[-1],
-            f"RM {buy_wealth[-1]:,.0f}\n({buy_cagr*100:.2f}% p.a.)",
-            fontsize=12, color="white", weight="bold",
-            ha="left", va="bottom",
-            bbox=dict(facecolor="blue", alpha=0.7, edgecolor="none"))
-    ax.text(years, epf_wealth[-1],
-            f"RM {epf_wealth[-1]:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
-            fontsize=10, color="green", ha="left", va="bottom")
-    subtitle = " In this scenario, Buying Property outperforms EPF."
-else:
-    ax.text(years, epf_wealth[-1],
-            f"RM {epf_wealth[-1]:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
-            fontsize=12, color="white", weight="bold",
-            ha="left", va="bottom",
-            bbox=dict(facecolor="green", alpha=0.7, edgecolor="none"))
-    ax.text(years, buy_wealth[-1],
-            f"RM {buy_wealth[-1]:,.0f}\n({buy_cagr*100:.2f}% p.a.)",
-            fontsize=10, color="blue", ha="left", va="bottom")
-    subtitle = " In this scenario, EPF outperforms Buying Property."
-
-plt.figtext(0.5, -0.05, subtitle, wrap=True, ha="center", fontsize=12, fontweight="bold", fontname="Times New Roman")
-
-st.pyplot(fig)
-
 # --------------------------
 # DataFrame Results
 # --------------------------
@@ -150,7 +89,63 @@ df = pd.DataFrame({
     "EPF Wealth (RM)": epf_wealth
 })
 
-# Format copy for table
+# --------------------------
+# Chart 1 – Wealth Comparison
+# --------------------------
+fig1, ax1 = plt.subplots(figsize=(10, 6))
+ax1.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Wealth", color="blue")
+ax1.plot(df["Year"], df["EPF Wealth (RM)"], label="EPF Wealth", color="green")
+ax1.set_xlabel("Year")
+ax1.set_ylabel("Wealth (RM)")
+ax1.set_title("Expected Outcomes – Buy Property vs. EPF")
+ax1.legend()
+ax1.yaxis.set_major_formatter(mtick.StrMethodFormatter("RM {x:,.0f}"))
+
+# CAGR calculations
+buy_cagr = (buy_wealth[-1] / buy_wealth[0])**(1/years) - 1 if buy_wealth[0] > 0 else (buy_wealth[-1] / 1e3)**(1/years) - 1
+epf_cagr = (epf_wealth[-1] / epf_wealth[0])**(1/years) - 1 if epf_wealth[0] > 0 else (epf_wealth[-1] / 1e3)**(1/years) - 1
+
+# Annotate CAGR + Final Values
+if buy_cagr > epf_cagr:
+    ax1.text(years - 1, buy_wealth[-1],
+             f"RM {buy_wealth[-1]:,.0f}\n({buy_cagr*100:.2f}% p.a.)",
+             fontsize=12, color="white", weight="bold",
+             ha="left", va="bottom",
+             bbox=dict(facecolor="blue", alpha=0.7, edgecolor="none"))
+    ax1.text(years - 1, epf_wealth[-1],
+             f"RM {epf_wealth[-1]:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
+             fontsize=10, color="green", ha="left", va="bottom")
+    subtitle = "In this scenario, Buying Property outperforms EPF."
+else:
+    ax1.text(years - 1, epf_wealth[-1],
+             f"RM {epf_wealth[-1]:,.0f}\n({epf_cagr*100:.2f}% p.a.)",
+             fontsize=12, color="white", weight="bold",
+             ha="left", va="bottom",
+             bbox=dict(facecolor="green", alpha=0.7, edgecolor="none"))
+    ax1.text(years - 1, buy_wealth[-1],
+             f"RM {buy_wealth[-1]:,.0f}\n({buy_cagr*100:.2f}% p.a.)",
+             fontsize=10, color="blue", ha="left", va="bottom")
+    subtitle = "In this scenario, EPF outperforms Buying Property."
+
+plt.figtext(0.5, -0.05, subtitle, wrap=True, ha="center", fontsize=12, fontweight="bold", fontname="Times New Roman")
+st.pyplot(fig1)
+
+# --------------------------
+# Chart 2 – Property Value vs. Mortgage Balance
+# --------------------------
+fig2, ax2 = plt.subplots(figsize=(10, 6))
+ax2.plot(df["Year"], df["Property (RM)"], label="Property Value", color="orange")
+ax2.plot(df["Year"], df["Mortgage (RM)"], label="Mortgage Balance", color="red")
+ax2.set_xlabel("Year")
+ax2.set_ylabel("RM")
+ax2.set_title("Property Value vs. Mortgage Balance")
+ax2.legend()
+ax2.yaxis.set_major_formatter(mtick.StrMethodFormatter("RM {x:,.0f}"))
+st.pyplot(fig2)
+
+# --------------------------
+# Projection Table
+# --------------------------
 df_fmt = df.copy()
 for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
     df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
