@@ -31,17 +31,6 @@ with st.expander("See how EDA informs Expected Outcomes"):
     )
 
 # --------------------------
-# Imports
-# --------------------------
-import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-
-st.set_page_config(page_title='Expected Outcomes – Buy vs EPF', layout='wide')
-st.title("📌 Expected Outcomes – Buy vs EPF Wealth Projection")
-
-# --------------------------
 # Baseline Assumptions (Sidebar)
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
