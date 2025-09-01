@@ -160,7 +160,14 @@ for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM
     df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
 st.subheader("📊 Projection Table")
-st.dataframe(df_fmt, use_container_width=True)
+
+# ✅ Force Times New Roman in table using Pandas Styler
+styled_df = df_fmt.style.set_properties(**{
+    'font-family': 'Times New Roman',
+    'font-size': '14px'
+})
+
+st.dataframe(styled_df, use_container_width=True)
 
 # --------------------------
 # Download CSV
