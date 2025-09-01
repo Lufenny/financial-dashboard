@@ -2,18 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import rcParams
 
 # --------------------------
-# Page Config
+# Page Setup
 # --------------------------
-st.set_page_config(page_title="Expected Outcomes – Baseline", layout="wide")
-st.title("📊 Expected Outcomes – Buy vs EPF Wealth")
-
-# --------------------------
-# Font Setup (Times New Roman)
-# --------------------------
-rcParams['font.family'] = 'Times New Roman'
+st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
+st.title("📌 Expected Outcomes – Baseline Comparison")
 
 # --------------------------
 # Link Between EDA & Expected Outcomes
@@ -37,16 +31,27 @@ with st.expander("See how EDA informs Expected Outcomes"):
     )
 
 # --------------------------
-# Baseline Assumptions
+# Imports
+# --------------------------
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+st.set_page_config(page_title='Expected Outcomes – Buy vs EPF', layout='wide')
+st.title("📌 Expected Outcomes – Buy vs EPF Wealth Projection")
+
+# --------------------------
+# Baseline Assumptions (Sidebar)
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
-initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=300000, step=10000)
-property_growth_rate = st.sidebar.slider("Annual Property Growth Rate (%)", 0.0, 10.0, 5.0) / 100
-mortgage_rate = st.sidebar.slider("Mortgage Interest Rate (%)", 0.0, 10.0, 4.0) / 100
-loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=20, step=1)
-epf_rate = st.sidebar.slider("Annual EPF Dividend Rate (%)", 0.0, 10.0, 5.0) / 100
-annual_epf_contribution = st.sidebar.number_input("Annual EPF Contribution (RM)", value=12000, step=1000)
-years = st.sidebar.number_input("Projection Horizon (Years)", value=30, step=1)
+initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500000, step=10000)
+mortgage_rate = st.sidebar.number_input("Mortgage Rate (%)", value=4.0, step=0.1) / 100
+loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=1)
+years = st.sidebar.number_input("Projection Period (Years)", value=30, step=1)
+property_growth_rate = st.sidebar.number_input("Property Growth Rate (%)", value=3.0, step=0.1) / 100
+epf_rate = st.sidebar.number_input("EPF Annual Return (%)", value=5.0, step=0.1) / 100
+annual_epf_contribution = st.sidebar.number_input("Annual EPF Contribution (RM)", value=20000, step=1000)
 
 # --------------------------
 # Mortgage Calculation
