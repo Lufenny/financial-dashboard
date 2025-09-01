@@ -140,14 +140,16 @@ df, buy_cagr, epf_cagr = project_outcomes(
 
 # Show Data
 st.subheader("📊 Projection Table")
-st.dataframe(df.style.format({
+styled_df = df.style.format({
     "Property (RM)": "{:,.0f}",
     "Mortgage (RM)": "{:,.0f}",
     "Buy Wealth (RM)": "{:,.0f}",
     "EPF Wealth (RM)": "{:,.0f}",
     "Annual Rent (RM)": "{:,.0f}",
     "Cumulative Rent (RM)": "{:,.0f}"
-}))
+}).applymap(lambda v: highlight_cagr(v, "Buy CAGR"), subset=["Buy CAGR"]) \
+  .applymap(lambda v: highlight_cagr(v, "EPF CAGR"), subset=["EPF CAGR"])
+st.dataframe(styled_df)
 
 # Plot
 st.subheader("📈 Wealth Growth Over Time")
