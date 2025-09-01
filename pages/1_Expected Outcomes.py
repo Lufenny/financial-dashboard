@@ -122,6 +122,31 @@ with tab1:
 with tab2:
     st.dataframe(format_table(df), use_container_width=True)
 
+    # Add Result Box below the table
+    buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
+    if buy_final > epf_final:
+        winner, loser = "Buy Property", "EPF Savings"
+        diff = buy_final - epf_final
+    elif epf_final > buy_final:
+        winner, loser = "EPF Savings", "Buy Property"
+        diff = epf_final - buy_final
+    else:
+        winner, loser, diff = "Tie", "Tie", 0
+
+    st.markdown(
+        f"""
+        <div style="padding:15px; border-radius:10px; background-color:#f0f9f0; border:1px solid #b6e2b6;">
+            <h4 style="margin:0; font-family:'Times New Roman';">🏆 Result Summary</h4>
+            <p style="margin:5px 0; font-family:'Times New Roman'; font-size:16px;">
+                <b>Winner:</b> {winner}<br>
+                <b>Loser:</b> {loser}<br>
+                <b>Difference:</b> RM {diff:,.0f}
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 with tab3:
     st.write(generate_summary(buy_wealth, epf_wealth, projection_years))
 
