@@ -63,7 +63,7 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
         epf_wealth.append(new_epf_wealth)
 
-    return pd.DataFrame({
+     df = pd.DataFrame({
         "Year": np.arange(0, years + 1),
         "Property (RM)": property_values,
         "Mortgage (RM)": mortgage_balances,
@@ -72,6 +72,14 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         "Annual Rent (RM)": rents,
         "Cumulative Rent (RM)": cum_rent
     })
+
+# Add CAGR at the final row only
+    buy_cagr = calculate_cagr(df["Buy Wealth (RM)"].iloc[1], df["Buy Wealth (RM)"].iloc[-1], years)
+    epf_cagr = calculate_cagr(df["EPF Wealth (RM)"].iloc[1], df["EPF Wealth (RM)"].iloc[-1], years)
+    df["Buy CAGR"] = [""] * (len(df) - 1) + [f"{buy_cagr*100:.2f}%"]
+    df["EPF CAGR"] = [""] * (len(df) - 1) + [f"{epf_cagr*100:.2f}%"]
+
+    return df
 
 def plot_outcomes(df, years):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
@@ -116,13 +124,18 @@ def plot_outcomes(df, years):
 
 def format_table(df):
     df_fmt = df.copy()
-    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Annual Rent (RM)", "Cumulative Rent (RM)"]:
+    money_cols = ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", 
+                  "EPF Wealth (RM)", "Annual Rent (RM)", "Cumulative Rent (RM)"]
+
+    for col in money_cols:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
-    # Highlight final winner
+    # Keep CAGR text as is
+    styled_df = df_fmt.style.set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
+
+    # Highlight winner
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
-    styled_df = df_fmt.style.set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
     styled_df = styled_df.apply(
         lambda x: [
             'background-color: lightgreen' if x.name == df.index[-1] and col == winner_col else ''
