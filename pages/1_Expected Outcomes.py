@@ -36,10 +36,7 @@ def calculate_mortgage_payment(P, r, n):
 def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
     PMT = calculate_mortgage_payment(P, r, n)
     property_values, mortgage_balances = [P], [P]
-    buy_wealth, epf_wealth = [0], [0]
-
-    # baseline rent from rent yield
-    annual_rent = P * rent_yield
+    buy_wealth, epf_wealth, rents = [0], [0], [P * rent_yield]
 
     for t in range(1, years + 1):
         # Property growth
@@ -56,11 +53,12 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         new_buy_wealth = new_property_value - new_mortgage_balance
         buy_wealth.append(new_buy_wealth)
 
-        # Rent cost (can grow if property grows, but here linked to P × yield)
-        rent_payment = annual_rent * ((1 + g) ** (t - 1))  
+        # Rent grows with property value
+        rent_payment = new_property_value * rent_yield
+        rents.append(rent_payment)
 
         # EPF wealth = invest mortgage payment - rent
-        investable = max(0, PMT - rent_payment)  
+        investable = max(0, PMT - rent_payment)
         new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
         epf_wealth.append(new_epf_wealth)
 
@@ -69,7 +67,8 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         "Property (RM)": property_values,
         "Mortgage (RM)": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
-        "EPF Wealth (RM)": epf_wealth
+        "EPF Wealth (RM)": epf_wealth,
+        "Rent (RM)": rents
     })
 
 def plot_outcomes(df, years):
@@ -111,7 +110,7 @@ def plot_outcomes(df, years):
 
 def format_table(df):
     df_fmt = df.copy()
-    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
+    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Rent (RM)"]:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
