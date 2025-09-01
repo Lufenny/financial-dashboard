@@ -91,13 +91,16 @@ def format_table(df):
     for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
-    # Highlight winning strategy
+    # Determine winner column based on final year
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
-    styled_df = df_fmt.style.set_properties(**{
-        'font-family': 'Times New Roman',
-        'font-size': '14px'
-    }).highlight_max(subset=[winner_col], color='lightgreen')
+
+    # Highlight only the last row of the winning column
+    styled_df = df_fmt.style.set_properties(**{'font-family': 'Times New Roman', 'font-size': '14px'})
+    styled_df = styled_df.apply(
+        lambda x: ['background-color: lightgreen' if x.name == df.index[-1] and col == winner_col else '' for col in df_fmt.columns],
+        axis=1
+    )
     return styled_df
 
 def generate_summary(df, years):
