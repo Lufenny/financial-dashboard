@@ -63,7 +63,7 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
         epf_wealth.append(new_epf_wealth)
 
-    return pd.DataFrame({
+    df = pd.DataFrame({
         "Year": np.arange(0, years + 1),
         "Property (RM)": property_values,
         "Mortgage (RM)": mortgage_balances,
@@ -72,7 +72,7 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         "Annual Rent (RM)": rents,
         "Cumulative Rent (RM)": cum_rent
     })
-
+    
 def plot_outcomes(df, years):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
@@ -142,23 +142,36 @@ def generate_summary(df, years):
     epf_final = df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
 
-    # CAGR
-    buy_cagr = calculate_cagr(df["Buy Wealth (RM)"].iloc[1], buy_final, years)
-    epf_cagr = calculate_cagr(df["EPF Wealth (RM)"].iloc[1], epf_final, years)
+        # Add CAGR at the final row only
+    buy_cagr = calculate_cagr(df["Buy Wealth (RM)"].iloc[1], df["Buy Wealth (RM)"].iloc[-1], years)
+    epf_cagr = calculate_cagr(df["EPF Wealth (RM)"].iloc[1], df["EPF Wealth (RM)"].iloc[-1], years)
+    df["Buy CAGR"] = [""] * (len(df) - 1) + [f"{buy_cagr*100:.2f}%"]
+    df["EPF CAGR"] = [""] * (len(df) - 1) + [f"{epf_cagr*100:.2f}%"]
 
-    winner = "Buy Property" if buy_final > epf_final else "Rent+EPF"
+    return df
 
-    summary = f"""
-    ### 📊 Expected Outcomes after {years} Years  
+def format_table(df):
+    df_fmt = df.copy()
+    money_cols = ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", 
+                  "EPF Wealth (RM)", "Annual Rent (RM)", "Cumulative Rent (RM)"]
 
-    - **Buy Property Wealth**: RM {buy_final:,.0f}  (CAGR: {buy_cagr*100:.2f}%)  
-    - **Rent+EPF Wealth**: RM {epf_final:,.0f}  (CAGR: {epf_cagr*100:.2f}%)  
-    - **Cumulative Rent Paid**: RM {rent_final:,.0f}  
+    for col in money_cols:
+        df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
-    🏆 **Winner: {winner}**
-    """
-    return summary
+    # Keep CAGR text as is
+    styled_df = df_fmt.style.set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
 
+    # Highlight winner
+    buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
+    winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
+    styled_df = styled_df.apply(
+        lambda x: [
+            'background-color: lightgreen' if x.name == df.index[-1] and col == winner_col else ''
+            for col in df_fmt.columns
+        ],
+        axis=1
+    )
+    return styled_df
 
 # --------------------------
 # 3. Sidebar Inputs
