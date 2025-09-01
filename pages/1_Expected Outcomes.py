@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+import matplotlib
+matplotlib.rcParams['font.family'] = 'Times New Roman'
 
 # Page config
 st.set_page_config(page_title="Expected Outcomes – Baseline", layout="wide")
