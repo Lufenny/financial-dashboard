@@ -33,10 +33,16 @@ st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
 def calculate_mortgage_payment(P, r, n):
     return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
 
+def calculate_cagr(final_value, initial_value, years):
+    """Compound Annual Growth Rate"""
+    if initial_value <= 0 or years <= 0:
+        return 0
+    return (final_value / initial_value) ** (1 / years) - 1
+
 def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
     PMT = calculate_mortgage_payment(P, r, n)
     property_values, mortgage_balances = [P], [P]
-    buy_wealth, epf_wealth, rents, cumulative_rents = [0], [0], [P * rent_yield], [P * rent_yield]
+    buy_wealth, epf_wealth, rents, cumulative_rents = [0], [0], [P * rent_yield], [0]
 
     for t in range(1, years + 1):
         # Property growth
@@ -69,81 +75,17 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         "Mortgage (RM)": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
         "EPF Wealth (RM)": epf_wealth,
-        "Rent (RM)": rents,
         "Cumulative Rent (RM)": cumulative_rents
     })
 
-def plot_outcomes(df, years):
-    buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
-    rent_final = df["Cumulative Rent (RM)"].iloc[-1]
-    winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
-    winner_name = "Buy Property" if winner_col == "Buy Wealth (RM)" else "Rent+EPF"
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Property", color="blue", linewidth=2)
-    ax.plot(df["Year"], df["EPF Wealth (RM)"], label="Rent+EPF", color="green", linewidth=2)
-    ax.plot(df["Year"], df["Cumulative Rent (RM)"], label="Cumulative Rent", color="red", linestyle="--", linewidth=2)
-
-    # Highlight area
-    if winner_name == "Buy Property":
-        ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], color="blue", alpha=0.1)
-    else:
-        ax.fill_between(df["Year"], df["EPF Wealth (RM)"], df["Buy Wealth (RM)"], color="green", alpha=0.1)
-
-    # Annotate final values
-    ax.text(years, buy_final,
-            f"RM {buy_final:,.0f}",
-            color="white" if winner_name == "Buy Property" else "blue",
-            fontsize=12, weight="bold",
-            bbox=dict(facecolor="blue" if winner_name == "Buy Property" else "none", alpha=0.7, edgecolor="none"),
-            ha="left", va="bottom")
-
-    ax.text(years, epf_final,
-            f"RM {epf_final:,.0f}",
-            color="white" if winner_name == "Rent+EPF" else "green",
-            fontsize=12, weight="bold",
-            bbox=dict(facecolor="green" if winner_name == "Rent+EPF" else "none", alpha=0.7, edgecolor="none"),
-            ha="left", va="bottom")
-
-    ax.text(years, rent_final,
-            f"RM {rent_final:,.0f}",
-            color="red", fontsize=11, weight="bold", ha="left", va="bottom")
-
-    ax.set_title(f"Comparison Over {years} Years – Winner: {winner_name}", fontsize=14, weight="bold")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Wealth / Rent (RM)")
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
-    ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.6)
-    return fig
-
-def format_table(df):
-    df_fmt = df.copy()
-
-    # Format all RM columns
-    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Cumulative Rent (RM)"]:
-        df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
-
-    # Determine winner at the final year
-    buy_final = df["Buy Wealth (RM)"].iloc[-1]
-    epf_final = df["EPF Wealth (RM)"].iloc[-1]
-    winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
-
-    # Highlight final winning cell
-    styled_df = df_fmt.style.set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
-    styled_df = styled_df.apply(
-        lambda x: [
-            'background-color: lightgreen' if x.name == df.index[-1] and col == winner_col else ''
-            for col in df_fmt.columns
-        ],
-        axis=1
-    )
-    return styled_df
-
-def generate_summary(df, years):
+def generate_summary(df, years, initial_price):
     buy_final = df["Buy Wealth (RM)"].iloc[-1]
     epf_final = df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
+
+    # CAGR
+    buy_cagr = calculate_cagr(buy_final, initial_price, years)
+    epf_cagr = calculate_cagr(epf_final, 0.01 * initial_price, years)  # assume starting from ~1% of property
 
     winner = "Buy Property" if buy_final > epf_final else "Rent+EPF"
 
@@ -151,7 +93,11 @@ def generate_summary(df, years):
     ### 📊 Expected Outcomes after {years} Years  
 
     - **Buy Property Wealth**: RM {buy_final:,.0f}  
+      - CAGR: {buy_cagr:.2%} per year  
+
     - **Rent+EPF Wealth**: RM {epf_final:,.0f}  
+      - CAGR: {epf_cagr:.2%} per year  
+
     - **Cumulative Rent Paid**: RM {rent_final:,.0f}  
 
     🏆 **Winner: {winner}**
@@ -188,7 +134,7 @@ with tab2:
     st.dataframe(format_table(df), use_container_width=True)
 
 with tab3:
-    st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
+    st.markdown(generate_summary(df, projection_years, initial_property_price), unsafe_allow_html=True)
 
 # --------------------------
 # 6. Download CSV
