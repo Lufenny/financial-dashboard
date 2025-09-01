@@ -49,18 +49,16 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
         mortgage_balances.append(new_mortgage_balance)
 
-        # Buy wealth
+        # Buy wealth = property value - mortgage
         new_buy_wealth = new_property_value - new_mortgage_balance
         buy_wealth.append(new_buy_wealth)
 
         # Rent grows with property value
         rent_payment = new_property_value * rent_yield
         rents.append(rent_payment)
-
-        # Cumulative rent
         cumulative_rents.append(cumulative_rents[-1] + rent_payment)
 
-        # EPF wealth
+        # EPF wealth = invest mortgage payment - rent
         investable = max(0, PMT - rent_payment)
         new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
         epf_wealth.append(new_epf_wealth)
