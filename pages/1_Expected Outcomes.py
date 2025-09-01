@@ -68,6 +68,13 @@ def compute_cagr(df, years):
     epf_cagr = (df["EPF Wealth (RM)"].iloc[-1] / df["EPF Wealth (RM)"].iloc[0])**(1/years) - 1
     return buy_cagr, epf_cagr
 
+def compute_cagr_over_time(df):
+    years = df["Year"].values
+    buy_cagr = ((df["Buy Wealth (RM)"].values / df["Buy Wealth (RM)"].iloc[0])**(1/years) - 1)
+    epf_cagr = ((df["EPF Wealth (RM)"].values / df["EPF Wealth (RM)"].iloc[0])**(1/years) - 1)
+    buy_cagr[0], epf_cagr[0] = 0, 0  # handle year 0
+    return years, buy_cagr, epf_cagr
+
 def plot_outcomes(df, years):
     buy_cagr, epf_cagr = compute_cagr(df, years)
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
@@ -93,6 +100,18 @@ def plot_outcomes(df, years):
     ax.set_ylabel("Wealth (RM)")
     ax.set_title(f"Comparison Over {years} Years – Winner: {winner_name}", fontsize=14, weight="bold")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
+    ax.legend()
+    ax.grid(True, linestyle="--", alpha=0.6)
+    return fig
+
+def plot_cagr_chart(df):
+    years, buy_cagr, epf_cagr = compute_cagr_over_time(df)
+    fig, ax = plt.subplots(figsize=(10,6))
+    ax.plot(years, buy_cagr*100, label="Buy Property CAGR", color="blue", linewidth=2)
+    ax.plot(years, epf_cagr*100, label="Rent+EPF CAGR", color="green", linewidth=2)
+    ax.set_title("CAGR Over Time", fontsize=14, weight="bold")
+    ax.set_xlabel("Year")
+    ax.set_ylabel("CAGR (% p.a.)")
     ax.legend()
     ax.grid(True, linestyle="--", alpha=0.6)
     return fig
@@ -142,7 +161,7 @@ df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, pr
 # --------------------------
 # 5. Tabs
 # --------------------------
-tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
+tab1, tab2, tab3, tab4 = st.tabs(["📈 Wealth Chart","📊 Projection Table","📝 Summary","📊 CAGR Chart"])
 
 with tab1:
     st.pyplot(plot_outcomes(df, projection_years))
@@ -152,6 +171,9 @@ with tab2:
 
 with tab3:
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
+
+with tab4:
+    st.pyplot(plot_cagr_chart(df))
 
 # --------------------------
 # 6. Download CSV
