@@ -3,10 +3,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-# --------------------------
-# Page Setup
-# --------------------------
-st.set_page_config(page_title='Expected Outcomes – Baseline', layout='wide')
+# Page config
+st.set_page_config(page_title="Expected Outcomes – Baseline", layout="wide")
 st.title("📌 Expected Outcomes – Baseline Comparison")
 
 # --------------------------
@@ -31,16 +29,17 @@ with st.expander("See how EDA informs Expected Outcomes"):
     )
 
 # --------------------------
-# Baseline Assumptions (Sidebar)
+# Sidebar Inputs
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
+
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500000, step=10000)
-mortgage_rate = st.sidebar.number_input("Mortgage Rate (%)", value=4.0, step=0.1) / 100
-loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=1)
-years = st.sidebar.number_input("Projection Period (Years)", value=30, step=1)
-property_growth_rate = st.sidebar.number_input("Property Growth Rate (%)", value=3.0, step=0.1) / 100
-epf_rate = st.sidebar.number_input("EPF Annual Return (%)", value=5.0, step=0.1) / 100
+property_growth_rate = st.sidebar.number_input("Annual Property Growth Rate (%)", value=5.0, step=0.1) / 100
+mortgage_rate = st.sidebar.number_input("Mortgage Interest Rate (%)", value=4.0, step=0.1) / 100
+loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=20, step=1)
 annual_epf_contribution = st.sidebar.number_input("Annual EPF Contribution (RM)", value=20000, step=1000)
+epf_rate = st.sidebar.number_input("EPF Annual Growth Rate (%)", value=5.0, step=0.1) / 100
+years = st.sidebar.number_input("Projection Horizon (Years)", value=20, step=1)
 
 # --------------------------
 # Mortgage Calculation
@@ -48,8 +47,9 @@ annual_epf_contribution = st.sidebar.number_input("Annual EPF Contribution (RM)"
 P = initial_property_price
 r = mortgage_rate
 n = loan_term_years
+
 if r > 0:
-    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)  # Annualized repayment
+    PMT = P * (r * (1 + r)**n) / ((1 + r)**n - 1)  # Annual repayment
 else:
     PMT = P / n
 
@@ -72,73 +72,30 @@ for t in range(1, years + 1):
     new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
     mortgage_balances.append(new_mortgage_balance)
 
-    # Buy Wealth = Property Value - Mortgage Balance
+    # Wealth
     new_buy_wealth = new_property_value - new_mortgage_balance
     buy_wealth.append(new_buy_wealth)
 
-    # EPF Wealth = previous * (1+rate) + contribution
     new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + annual_epf_contribution
     epf_wealth.append(new_epf_wealth)
 
 # --------------------------
-# DataFrame Results
-# --------------------------
-df = pd.DataFrame({
-    "Year": np.arange(0, years + 1),
-    "Property (RM)": property_values,
-    "Mortgage (RM)": mortgage_balances,
-    "Buy Wealth (RM)": buy_wealth,
-    "EPF Wealth (RM)": epf_wealth
-})
-
-# Format numbers
-df_fmt = df.copy()
-for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
-    df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
-
-# --------------------------
-# Styled Table Output
-# --------------------------
-st.subheader("📊 Projection Table")
-st.markdown(
-    """
-    <style>
-    table td, table th {
-        font-family: 'Times New Roman', serif;
-        font-size: 14px;
-    }
-    table th {
-        font-weight: bold !important;
-        text-align: center !important;
-        background-color: #f2f2f2;
-    }
-    table td {
-        text-align: center;
-    }
-    </style>
-    """, unsafe_allow_html=True
-)
-st.dataframe(df_fmt, use_container_width=True)
-
-# --------------------------
-# CAGR Calculation
+# CAGR
 # --------------------------
 buy_cagr = (buy_wealth[-1] / buy_wealth[0])**(1/years) - 1 if buy_wealth[0] > 0 else (buy_wealth[-1] / 1e3)**(1/years) - 1
 epf_cagr = (epf_wealth[-1] / epf_wealth[0])**(1/years) - 1 if epf_wealth[0] > 0 else (epf_wealth[-1] / 1e3)**(1/years) - 1
 
 # --------------------------
-# Plot
+# Chart
 # --------------------------
 fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(range(years + 1), buy_wealth, label="Buy Property", color="blue")
+ax.plot(range(years + 1), epf_wealth, label="EPF Savings", color="green")
 
-line1, = ax.plot(df["Year"], df["Buy Wealth (RM)"], label="🏡 Buy Wealth (Property Equity)", linewidth=2, color="blue")
-line2, = ax.plot(df["Year"], df["EPF Wealth (RM)"], label="💰 EPF Wealth", linewidth=2, color="green")
-
-ax.set_xlabel("Year", fontsize=12)
-ax.set_ylabel("Wealth (RM)", fontsize=12)
-ax.set_title("Buy vs EPF Wealth Projection", fontsize=14, fontweight="bold")
-ax.legend(handles=[line1, line2], loc="upper left", frameon=False, fontsize=11)
-ax.grid(True, linestyle="--", alpha=0.6)
+ax.set_xlabel("Year")
+ax.set_ylabel("Wealth (RM)")
+ax.set_title("Expected Outcomes: Buy Property vs EPF")
+ax.legend()
 
 # Annotate CAGR + Final Values
 if buy_cagr > epf_cagr:
@@ -164,19 +121,35 @@ else:
 
 plt.figtext(0.5, -0.05, subtitle, wrap=True, ha="center", fontsize=12, fontweight="bold", fontname="Times New Roman")
 
-# --------------------------
-# Streamlit Outputs
-# --------------------------
 st.pyplot(fig)
+
+# --------------------------
+# DataFrame Results
+# --------------------------
+df = pd.DataFrame({
+    "Year": np.arange(0, years + 1),
+    "Property (RM)": property_values,
+    "Mortgage (RM)": mortgage_balances,
+    "Buy Wealth (RM)": buy_wealth,
+    "EPF Wealth (RM)": epf_wealth
+})
+
+# Format copy for table
+df_fmt = df.copy()
+for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
+    df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
+
+st.subheader("📊 Projection Table")
+st.dataframe(df_fmt, use_container_width=True)
 
 # --------------------------
 # Download CSV
 # --------------------------
 csv = df.to_csv(index=False).encode("utf-8")
 st.download_button(
-    "⬇️ Download Results (CSV)",
+    "⬇️ Download Projection Results (CSV)",
     data=csv,
-    file_name="expected_outcomes_buy_vs_epf.csv",
+    file_name="expected_outcomes.csv",
     mime="text/csv"
 )
 
