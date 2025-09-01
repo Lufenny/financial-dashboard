@@ -135,13 +135,22 @@ def format_table(df):
     return styled_df
 
 def generate_summary(df, years):
-    buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
-    if buy_final > epf_final:
-        return f"📈 After {years} years, **Buying Property** leads with RM {buy_final:,.0f}, outperforming Rent+EPF (RM {epf_final:,.0f})."
-    elif epf_final > buy_final:
-        return f"💰 After {years} years, **Rent+EPF** leads with RM {epf_final:,.0f}, outperforming Buying Property (RM {buy_final:,.0f})."
-    else:
-        return f"⚖️ After {years} years, both strategies result in the same outcome of RM {buy_final:,.0f}."
+    buy_final = df["Buy Wealth (RM)"].iloc[-1]
+    epf_final = df["EPF Wealth (RM)"].iloc[-1]
+    rent_final = df["Cumulative Rent (RM)"].iloc[-1]
+
+    winner = "Buy Property" if buy_final > epf_final else "Rent+EPF"
+
+    summary = f"""
+    ### 📊 Expected Outcomes after {years} Years  
+
+    - **Buy Property Wealth**: RM {buy_final:,.0f}  
+    - **Rent+EPF Wealth**: RM {epf_final:,.0f}  
+    - **Cumulative Rent Paid**: RM {rent_final:,.0f}  
+
+    🏆 **Winner: {winner}**
+    """
+    return summary
 
 # --------------------------
 # 3. Sidebar Inputs
