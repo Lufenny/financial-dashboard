@@ -37,7 +37,7 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
     PMT = calculate_mortgage_payment(P, r, n)
     property_values, mortgage_balances = [P], [P]
     buy_wealth, epf_wealth, rents, cum_rent = [0], [0], [P * rent_yield], [P * rent_yield]
-
+    
     for t in range(1, years + 1):
         # Property growth
         new_property_value = property_values[-1] * (1 + g)
@@ -72,6 +72,22 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         "Annual Rent (RM)": rents,
         "Cumulative Rent (RM)": cum_rent
     })
+
+# Add CAGR at the final row only
+    buy_cagr = calculate_cagr(df["Buy Wealth (RM)"].iloc[1], df["Buy Wealth (RM)"].iloc[-1], years)
+    epf_cagr = calculate_cagr(df["EPF Wealth (RM)"].iloc[1], df["EPF Wealth (RM)"].iloc[-1], years)
+    df["Buy CAGR"] = [""] * (len(df) - 1) + [f"{buy_cagr*100:.2f}%"]
+    df["EPF CAGR"] = [""] * (len(df) - 1) + [f"{epf_cagr*100:.2f}%"]
+
+    return df
+
+# Add CAGR at the final row only
+    buy_cagr = calculate_cagr(df["Buy Wealth (RM)"].iloc[1], df["Buy Wealth (RM)"].iloc[-1], years)
+    epf_cagr = calculate_cagr(df["EPF Wealth (RM)"].iloc[1], df["EPF Wealth (RM)"].iloc[-1], years)
+    df["Buy CAGR"] = [""] * (len(df) - 1) + [f"{buy_cagr*100:.2f}%"]
+    df["EPF CAGR"] = [""] * (len(df) - 1) + [f"{epf_cagr*100:.2f}%"]
+
+    return df
 
 def plot_outcomes(df, years):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
