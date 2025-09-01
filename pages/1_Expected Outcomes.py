@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
+import matplotlib.ticker as mticker
 
 # --------------------------
 # 1. Global Settings
@@ -51,7 +52,7 @@ def project_outcomes(P, r, n, g, epf_rate, years):
 
 
 def plot_outcomes(df, years, buy_wealth, epf_wealth):
-    """Line chart comparing Buy vs EPF outcomes."""
+    """Line chart comparing Buy vs EPF outcomes with RM formatting."""
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Property", linewidth=2)
     ax.plot(df["Year"], df["EPF Wealth (RM)"], label="EPF Savings", linewidth=2)
@@ -61,6 +62,10 @@ def plot_outcomes(df, years, buy_wealth, epf_wealth):
     ax.set_title(f"Comparison Over {years} Years – Winner: {winner}", fontsize=14, weight="bold")
     ax.set_xlabel("Year")
     ax.set_ylabel("Wealth (RM)")
+
+    # ✅ Format y-axis to show RM with commas
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
+
     ax.legend()
     ax.grid(True, linestyle="--", alpha=0.6)
 
