@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
 
 # Page config
 st.set_page_config(page_title="Expected Outcomes – Baseline", layout="wide")
@@ -79,23 +80,38 @@ for t in range(1, years + 1):
     new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + annual_epf_contribution
     epf_wealth.append(new_epf_wealth)
 
+
+# --------------------------
+# Chart
+# --------------------------
+fig, ax = plt.subplots()
+ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Wealth", color="blue")
+ax.plot(df["Year"], df["EPF Wealth (RM)"], label="EPF Wealth", color="green")
+ax.set_xlabel("Year")
+ax.set_ylabel("Wealth (RM)")
+ax.set_title("Expected Outcomes – Buy Property vs. EPF")
+ax.legend()
+
+# ✅ Format Y-axis in RM
+ax.yaxis.set_major_formatter(mtick.StrMethodFormatter("RM {x:,.0f}"))
+
+st.pyplot(fig)
+
+# --------------------------
+# Projection Table
+# --------------------------
+df_fmt = df.copy()
+for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)"]:
+    df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
+
+st.subheader("📊 Projection Table")
+st.dataframe(df_fmt, use_container_width=True)
+
 # --------------------------
 # CAGR
 # --------------------------
 buy_cagr = (buy_wealth[-1] / buy_wealth[0])**(1/years) - 1 if buy_wealth[0] > 0 else (buy_wealth[-1] / 1e3)**(1/years) - 1
 epf_cagr = (epf_wealth[-1] / epf_wealth[0])**(1/years) - 1 if epf_wealth[0] > 0 else (epf_wealth[-1] / 1e3)**(1/years) - 1
-
-# --------------------------
-# Chart
-# --------------------------
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.plot(range(years + 1), buy_wealth, label="Buy Property", color="blue")
-ax.plot(range(years + 1), epf_wealth, label="EPF Savings", color="green")
-
-ax.set_xlabel("Year")
-ax.set_ylabel("Wealth (RM)")
-ax.set_title("Expected Outcomes: Buy Property vs EPF")
-ax.legend()
 
 # Annotate CAGR + Final Values
 if buy_cagr > epf_cagr:
