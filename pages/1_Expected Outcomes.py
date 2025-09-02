@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 import matplotlib.ticker as mticker
+import plotly.graph_objects as go
 
 # --------------------------
 # 1. Global Settings
@@ -124,53 +125,121 @@ def generate_summary(df, years):
     summary += f"\n🏆 **Winner: {winner}**"
     return summary
 
-def plot_outcomes(df, years):
+def plot_outcomes_interactive(df, years):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
-    rent_final = df["Cumulative Rent (RM)"].iloc[-1]
+    winner_name = "Buy Property" if buy_final > epf_final else "Rent+EPF"
 
-    if buy_final > epf_final:
-        winner_name = "Buy Property"
-        fill_color = "blue"
-    elif epf_final > buy_final:
-        winner_name = "Rent+EPF"
-        fill_color = "green"
-    else:
-        winner_name = "Tie"
-        fill_color = "gray"
+    fig = go.Figure()
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Property", color="blue", linewidth=2)
-    ax.plot(df["Year"], df["EPF Wealth (RM)"], label="Rent+EPF", color="green", linewidth=2)
-    ax.plot(df["Year"], df["Cumulative Rent (RM)"], label="Cumulative Rent", color="red", linestyle="--", linewidth=2)
+    buy_values = df["Buy Wealth (RM)"].values
+    epf_values = df["EPF Wealth (RM)"].values
 
-    if winner_name != "Tie":
-        ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], 
-                        where=(df["Buy Wealth (RM)"] >= df["EPF Wealth (RM)"]) if winner_name=="Buy Property" else 
-                              (df["EPF Wealth (RM)"] >= df["Buy Wealth (RM)"]),
-                        color=fill_color, alpha=0.1)
+    # Dynamic shading with annotations
+    segments = []
+    start_idx = 0
+    current_top = buy_values[0] >= epf_values[0]
 
-    offset = 0.3
-    ax.text(years + offset, buy_final, f"RM {buy_final:,.0f}", color="blue", fontsize=12, weight="bold", ha="left", va="bottom")
-    ax.text(years + offset, epf_final, f"RM {epf_final:,.0f}", color="green", fontsize=12, weight="bold", ha="left", va="bottom")
-    ax.text(years + offset, rent_final, f"RM {rent_final:,.0f}", color="red", fontsize=11, weight="bold", ha="left", va="bottom")
+    for i in range(1, len(df)):
+        top = buy_values[i] >= epf_values[i]
+        if top != current_top:
+            segments.append((start_idx, i, current_top))
+            start_idx = i
+            current_top = top
+    segments.append((start_idx, len(df)-1, current_top))
 
-    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy > epf), None)
-    if break_even_year is not None:
-        ax.axvline(x=break_even_year, color="orange", linestyle="--", linewidth=1.5, alpha=0.8)
-        ax.text(break_even_year, max(buy_final, epf_final)*0.05,
-                f"Break-even: Year {break_even_year}", color="orange", fontsize=11, weight="bold",
-                ha="center", va="bottom", bbox=dict(facecolor="white", alpha=0.6, edgecolor="orange"))
+    for start, end, buy_on_top in segments:
+        # Invisible line for tonexty fill
+        fig.add_trace(go.Scatter(
+            x=df["Year"].iloc[start:end+1],
+            y=np.maximum(buy_values[start:end+1], epf_values[start:end+1]),
+            mode='lines',
+            line=dict(color='rgba(0,0,0,0)'),
+            showlegend=False
+        ))
+        fig.add_trace(go.Scatter(
+            x=df["Year"].iloc[start:end+1],
+            y=np.minimum(buy_values[start:end+1], epf_values[start:end+1]),
+            fill='tonexty',
+            fillcolor='rgba(0, 0, 255, 0.1)' if buy_on_top else 'rgba(0, 128, 0, 0.1)',
+            line=dict(color='rgba(0,0,0,0)'),
+            hoverinfo='skip',
+            showlegend=False
+        ))
 
-    ax.set_title(f"Comparison Over {years} Years – Winner: {winner_name}", fontsize=14, weight="bold")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Wealth / Rent (RM)")
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
-    ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.6)
-    ax.set_axisbelow(True)
-    plt.tight_layout()
+        # Add annotation in the middle of the segment
+        mid_idx = (start + end) // 2
+        fig.add_annotation(
+            x=df["Year"].iloc[mid_idx],
+            y=max(buy_values[mid_idx], epf_values[mid_idx]) * 0.95,
+            text="Buy Property" if buy_on_top else "Rent+EPF",
+            showarrow=False,
+            font=dict(color='blue' if buy_on_top else 'green', size=12, family="Times New Roman"),
+            bgcolor='rgba(255,255,255,0.7)',
+            bordercolor='rgba(0,0,0,0)',
+            align="center"
+        )
+
+    # Buy Property line
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=buy_values,
+        mode='lines+markers', name='Buy Property',
+        line=dict(color='blue', width=2),
+        hovertemplate='Year %{x}<br>Buy Wealth: RM %{y:,.0f}<extra></extra>'
+    ))
+
+    # Rent+EPF line
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=epf_values,
+        mode='lines+markers', name='Rent+EPF',
+        line=dict(color='green', width=2),
+        hovertemplate='Year %{x}<br>Rent+EPF Wealth: RM %{y:,.0f}<extra></extra>'
+    ))
+
+    # Cumulative Rent line
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=df["Cumulative Rent (RM)"],
+        mode='lines', name='Cumulative Rent',
+        line=dict(color='red', width=2, dash='dash'),
+        hovertemplate='Year %{x}<br>Cumulative Rent: RM %{y:,.0f}<extra></extra>'
+    ))
+
+    # Break-even year
+    break_even_year = next((year for year, buy, epf in zip(df["Year"], buy_values, epf_values) if buy > epf), None)
+    if break_even_year:
+        idx = df.index[df["Year"] == break_even_year][0]
+        break_y = max(buy_values[idx], epf_values[idx])
+        fig.add_vline(x=break_even_year, line=dict(color="orange", dash="dash", width=2))
+        # Arrow pointing to break-even point
+        fig.add_annotation(
+            x=break_even_year, 
+            y=break_y,
+            ax=break_even_year, 
+            ay=break_y*0.5,  # arrow pointing from below
+            xref="x", yref="y", axref="x", ayref="y",
+            text="Break-even Point",
+            showarrow=True,
+            arrowhead=3,
+            arrowsize=1,
+            arrowwidth=2,
+            arrowcolor="orange",
+            font=dict(color="orange", size=12, family="Times New Roman"),
+            bgcolor='rgba(255,255,255,0.7)'
+        )
+
+    # Layout
+    fig.update_layout(
+        title=f"Comparison Over {years} Years – Winner: {winner_name}",
+        xaxis_title="Year",
+        yaxis_title="Wealth / Rent (RM)",
+        yaxis_tickprefix="RM ",
+        template="plotly_white",
+        legend=dict(title="Legend"),
+        hovermode="x unified"
+    )
+
     return fig
 
+    
 # --------------------------
 # 3. Sidebar Inputs
 # --------------------------
@@ -248,7 +317,7 @@ df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, pr
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.pyplot(plot_outcomes(df, projection_years))
+    st.plotly_chart(plot_outcomes_interactive(df, projection_years), use_container_width=True)
 
 with tab2:
     st.dataframe(format_table(df), use_container_width=True)
