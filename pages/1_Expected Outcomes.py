@@ -215,22 +215,29 @@ if use_custom_rent:
     custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000)
 
 # --------------------------
-# Link Between EDA & Expected Outcomes
+# Link Between EDA & Expected Outcomes (Enhanced)
 # --------------------------
 st.subheader("🔗 Link to EDA Insights")
 
-st.write(
-    "The Expected Outcomes are directly shaped by insights from the Exploratory Data Analysis (EDA), "
+st.markdown(
+    "The Expected Outcomes are directly shaped by insights from the **Exploratory Data Analysis (EDA)**, "
     "which provided the assumptions for property growth, EPF returns, and inflation trends."
 )
 
-with st.expander("See how EDA informs Expected Outcomes"):
+with st.expander("📊 How EDA Informs Expected Outcomes"):
     st.markdown(
-        "- **Property Price Growth**: Historical market appreciation rates were used as the assumption.  \n"
-        "- **EPF Returns**: Dividend trends informed the baseline and optimistic return scenarios.  \n"
-        "- **Inflation**: Past patterns guided the selection of realistic inflation ranges.  \n\n"
-        "These EDA-driven assumptions serve as the foundation for comparing long-term "
-        "wealth accumulation between **buying property** and **saving in EPF**."
+        """
+        <ul>
+            <li>🏠 <b>Property Price Growth:</b> Historical market appreciation rates were used as the assumption.</li>
+            <li>💰 <b>EPF Returns:</b> Dividend trends informed the baseline and optimistic return scenarios.</li>
+            <li>📈 <b>Inflation:</b> Past patterns guided the selection of realistic inflation ranges.</li>
+        </ul>
+        <p style="color: gray; font-size: 14px;">
+        These EDA-driven assumptions serve as the foundation for comparing long-term 
+        wealth accumulation between <b>buying property</b> and <b>saving in EPF</b>.
+        </p>
+        """,
+        unsafe_allow_html=True
     )
 
 # --------------------------
@@ -238,16 +245,67 @@ with st.expander("See how EDA informs Expected Outcomes"):
 # --------------------------
 st.subheader("📌 Baseline Assumptions")
 
-st.markdown("""
-| Parameter | Baseline Value | Justification / Source |
-|-----------|---------------|----------------------|
-| Initial Property Price | RM 500,000 | Typical property price in target area |
-| Annual Property Growth Rate | 5% | Based on historical market appreciation (past 10–20 years) |
-| Mortgage Rate | 4% | Current average bank home loan rate |
-| Loan Term | 30 years | Standard mortgage duration |
-| EPF Annual Growth Rate | 6% | Historical EPF dividend trends |
-| Projection Years | 30 | Long-term wealth accumulation horizon |
-""")
+st.markdown(
+    """
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px;
+            text-align: left;
+            font-family: 'Times New Roman', serif;
+        }
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            font-family: 'Times New Roman', serif;
+        }
+        tr:nth-child(even) {background-color: #f9f9f9;}
+    </style>
+    <table>
+        <tr>
+            <th>Parameter</th>
+            <th>Baseline Value</th>
+            <th>Justification / Source</th>
+        </tr>
+        <tr>
+            <td>Initial Property Price</td>
+            <td>RM 500,000</td>
+            <td>Typical property price in target area</td>
+        </tr>
+        <tr>
+            <td>Annual Property Growth Rate</td>
+            <td>5%</td>
+            <td>Based on historical market appreciation (past 10–20 years)</td>
+        </tr>
+        <tr>
+            <td>Mortgage Rate</td>
+            <td>4%</td>
+            <td>Current average bank home loan rate</td>
+        </tr>
+        <tr>
+            <td>Loan Term</td>
+            <td>30 years</td>
+            <td>Standard mortgage duration</td>
+        </tr>
+        <tr>
+            <td>EPF Annual Growth Rate</td>
+            <td>6%</td>
+            <td>Historical EPF dividend trends</td>
+        </tr>
+        <tr>
+            <td>Projection Years</td>
+            <td>30</td>
+            <td>Long-term wealth accumulation horizon</td>
+        </tr>
+    </table>
+    """,
+    unsafe_allow_html=True
+)
 
 # --------------------------
 # 4. Projection
