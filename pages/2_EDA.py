@@ -8,6 +8,7 @@ import nltk
 from nltk.corpus import stopwords
 import os
 import re
+import io
 
 # ----------------------------
 # NLTK Setup
@@ -26,7 +27,7 @@ st.sidebar.title("🔍 Navigation")
 page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
 
 # ----------------------------
-# Load dataset
+# Load dataset helper
 # ----------------------------
 @st.cache_data
 def load_csv(path):
@@ -61,7 +62,6 @@ if page == "📊 EDA":
 
     # Dataset Info
     st.subheader("ℹ️ Dataset Info")
-    import io
     buffer = io.StringIO()
     df.info(buf=buffer)
     s = buffer.getvalue()
@@ -81,9 +81,7 @@ if page == "📊 EDA":
         st.subheader("📋 Categorical Columns Summary")
         st.write(df[categorical_cols].describe())
 
-    # ----------------------------
     # Numeric distributions
-    # ----------------------------
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     if numeric_cols:
         st.subheader("📈 Numeric Distributions")
@@ -100,9 +98,7 @@ if page == "📊 EDA":
             ax.set_title(f"Boxplot of {col}")
             st.pyplot(fig)
 
-    # ----------------------------
     # Categorical analysis
-    # ----------------------------
     if categorical_cols:
         st.subheader("📊 Categorical Columns Analysis")
         for col in categorical_cols:
@@ -111,9 +107,7 @@ if page == "📊 EDA":
             ax.set_title(f"Counts of {col}")
             st.pyplot(fig)
 
-    # ----------------------------
     # Trends over years (if Year exists)
-    # ----------------------------
     if "Year" in df.columns:
         st.subheader("📈 Trends Over Years")
         df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
@@ -136,9 +130,7 @@ if page == "📊 EDA":
             ax.grid(alpha=0.2)
             st.pyplot(fig)
 
-    # ----------------------------
     # Correlation Heatmap
-    # ----------------------------
     if numeric_cols:
         st.subheader("🧩 Correlation Matrix")
         corr = df[numeric_cols].corr()
@@ -149,10 +141,8 @@ if page == "📊 EDA":
         fig.colorbar(cax)
         st.pyplot(fig)
 
-    # ----------------------------
-    # Download filtered/exported data
-    # ----------------------------
-    st.subheader("⬇️ Download Data")
+    # Download dataset
+    st.subheader("⬇️ Download Dataset")
     csv_bytes = df.to_csv(index=False).encode("utf-8")
     st.download_button("Download Dataset (CSV)", data=csv_bytes, file_name="EDA_data.csv", mime="text/csv")
 
