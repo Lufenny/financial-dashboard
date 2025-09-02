@@ -138,8 +138,9 @@ df = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_t
 
 # Break-even
 break_even_year = next((row.Year for i,row in df.iterrows() if row["Buy Wealth (RM)"]>row["EPF Wealth (RM)"]), None)
+
 # --------------------------
-# 7. Tabs: Chart / Table / Summary
+# 7. Tabs: Chart / Table / Summary (Fair Comparison)
 # --------------------------
 tab1, tab2, tab3 = st.tabs(["📈 Chart", "📊 Table", "📝 Summary"])
 
@@ -175,7 +176,7 @@ with tab1:
             font=dict(color="orange", size=12)
         )
 
-    # Annotation at Year 0 to show starting wealth (down payment)
+    # Annotations for Year 0 starting wealth
     fig.add_annotation(
         x=0, y=df["Buy Wealth (RM)"].iloc[0],
         text=f"🏡 Start: RM {df['Buy Wealth (RM)'].iloc[0]:,.0f}", showarrow=True, arrowhead=2, ay=-40, font=dict(color="blue")
@@ -197,15 +198,13 @@ with tab1:
 # ----- Tab 2: Table -----
 with tab2:
     st.subheader("📊 Key Metrics Table")
-
     metrics = pd.DataFrame({
         "Scenario": ["🏡 Buy Property", "💰 Rent+EPF"],
         "Starting Wealth (RM)": [df["Buy Wealth (RM)"].iloc[0], df["EPF Wealth (RM)"].iloc[0]],
         "Final Value (RM)": [df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]],
         "CAGR (%)": [df["Buy CAGR"].iloc[-1]*100, df["EPF CAGR"].iloc[-1]*100]
     })
-    
-    # Format RM values
+
     metrics["Starting Wealth (RM)"] = metrics["Starting Wealth (RM)"].map("RM {:,.0f}".format)
     metrics["Final Value (RM)"] = metrics["Final Value (RM)"].map("RM {:,.0f}".format)
     metrics["CAGR (%)"] = metrics["CAGR (%)"].round(2)
