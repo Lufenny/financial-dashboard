@@ -277,7 +277,22 @@ with tab1:
                     use_container_width=True)
 
 with tab2:
+    st.subheader("Projection Results Table")
     st.dataframe(format_table(df), use_container_width=True)
+
+    st.subheader("📌 Baseline Assumptions (from Sidebar)")
+    assumptions = {
+        "Initial Property Price": f"RM {initial_property_price:,.0f}",
+        "Annual Price Growth": f"{property_growth_pct*100:.1f}%",
+        "Mortgage Rate": f"{mortgage_rate_pct*100:.1f}%",
+        "Loan Term (Years)": loan_term_years,
+        "Annual Rent Yield": f"{rent_yield_pct*100:.1f}%",
+        "EPF Return Rate": f"{epf_rate_pct*100:.1f}%",
+        "Projection Years": projection_years,
+    }
+    if custom_rent:
+        assumptions["Custom Starting Rent"] = f"RM {custom_rent:,.0f} (annual)"
+    st.table(pd.DataFrame(assumptions.items(), columns=["Assumption", "Value"]))
 
 with tab3:
     break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
