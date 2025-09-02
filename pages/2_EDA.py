@@ -22,7 +22,7 @@ except LookupError:
 # ----------------------------
 # App config
 # ----------------------------
-st.set_page_config(page_title="Full EDA Dashboard", layout="wide")
+st.set_page_config(page_title="Interactive EDA Dashboard", layout="wide")
 st.sidebar.title("🔍 Navigation")
 page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
 
@@ -71,44 +71,63 @@ if page == "📊 EDA":
     st.subheader("❗ Missing Values Summary")
     st.write(df.isna().sum())
 
-    # Numeric Descriptive Statistics
-    st.subheader("📊 Numeric Descriptive Statistics")
-    st.write(df.describe(include=[np.number]))
-
-    # Categorical Descriptive Statistics
-    categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
-    if categorical_cols:
-        st.subheader("📋 Categorical Columns Summary")
-        st.write(df[categorical_cols].describe())
-
-    # Numeric distributions
+    # Numeric & categorical columns
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-    if numeric_cols:
-        st.subheader("📈 Numeric Distributions")
-        for col in numeric_cols:
-            fig, ax = plt.subplots()
-            ax.hist(df[col].dropna(), bins=15, color="skyblue", edgecolor="black")
-            ax.set_title(f"Distribution of {col}")
-            st.pyplot(fig)
+    categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
-        st.subheader("📦 Boxplots (Outliers)")
-        for col in numeric_cols:
-            fig, ax = plt.subplots()
-            ax.boxplot(df[col].dropna(), vert=True)
-            ax.set_title(f"Boxplot of {col}")
-            st.pyplot(fig)
+    # ----------------------------
+    # Numeric column selection
+    # ----------------------------
+    st.subheader("📊 Numeric Columns Selection")
+    selected_numeric = st.multiselect("Select numeric columns for analysis", numeric_cols, default=numeric_cols)
 
-    # Categorical analysis
+    if selected_numeric:
+        # Descriptive statistics
+        st.subheader("📈 Numeric Descriptive Statistics")
+        st.write(df[selected_numeric].describe())
+
+        # Histograms
+        st.subheader("📊 Histograms")
+        col_to_plot = st.selectbox("Select column for histogram", selected_numeric)
+        bins = st.slider("Number of bins", min_value=5, max_value=50, value=15)
+        fig, ax = plt.subplots()
+        ax.hist(df[col_to_plot].dropna(), bins=bins, color="skyblue", edgecolor="black")
+        ax.set_title(f"Histogram of {col_to_plot}")
+        st.pyplot(fig)
+
+        # Boxplots
+        st.subheader("📦 Boxplot (Outliers)")
+        col_box = st.selectbox("Select column for boxplot", selected_numeric)
+        fig, ax = plt.subplots()
+        ax.boxplot(df[col_box].dropna(), vert=True)
+        ax.set_title(f"Boxplot of {col_box}")
+        st.pyplot(fig)
+
+        # Correlation heatmap
+        st.subheader("🧩 Correlation Heatmap")
+        corr = df[selected_numeric].corr()
+        fig, ax = plt.subplots(figsize=(8, 6))
+        cax = ax.matshow(corr, cmap="coolwarm")
+        plt.xticks(range(len(selected_numeric)), selected_numeric, rotation=45)
+        plt.yticks(range(len(selected_numeric)), selected_numeric)
+        fig.colorbar(cax)
+        st.pyplot(fig)
+
+    # ----------------------------
+    # Categorical columns analysis
+    # ----------------------------
     if categorical_cols:
         st.subheader("📊 Categorical Columns Analysis")
-        for col in categorical_cols:
-            fig, ax = plt.subplots()
-            df[col].value_counts().plot(kind="bar", ax=ax, color="lightgreen")
-            ax.set_title(f"Counts of {col}")
-            st.pyplot(fig)
+        cat_col = st.selectbox("Select categorical column to view counts", categorical_cols)
+        fig, ax = plt.subplots()
+        df[cat_col].value_counts().plot(kind="bar", ax=ax, color="lightgreen")
+        ax.set_title(f"Counts of {cat_col}")
+        st.pyplot(fig)
 
-    # Trends over years (if Year exists)
-    if "Year" in df.columns:
+    # ----------------------------
+    # Trends over years
+    # ----------------------------
+    if "Year" in df.columns and selected_numeric:
         st.subheader("📈 Trends Over Years")
         df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
         df = df.dropna(subset=["Year"])
@@ -119,9 +138,8 @@ if page == "📊 EDA":
 
         df_year = df[(df["Year"] >= y0) & (df["Year"] <= y1)]
 
-        # Line charts for numeric columns
-        chart_cols = st.multiselect("Select numeric columns to plot trends", numeric_cols, default=numeric_cols)
-        for col in chart_cols:
+        trend_cols = st.multiselect("Select numeric columns to plot trends", selected_numeric, default=selected_numeric)
+        for col in trend_cols:
             fig, ax = plt.subplots()
             ax.plot(df_year["Year"], df_year[col], marker="o", linewidth=1)
             ax.set_xlabel("Year")
@@ -130,18 +148,9 @@ if page == "📊 EDA":
             ax.grid(alpha=0.2)
             st.pyplot(fig)
 
-    # Correlation Heatmap
-    if numeric_cols:
-        st.subheader("🧩 Correlation Matrix")
-        corr = df[numeric_cols].corr()
-        fig, ax = plt.subplots(figsize=(8, 6))
-        cax = ax.matshow(corr, cmap="coolwarm")
-        plt.xticks(range(len(numeric_cols)), numeric_cols, rotation=45)
-        plt.yticks(range(len(numeric_cols)), numeric_cols)
-        fig.colorbar(cax)
-        st.pyplot(fig)
-
+    # ----------------------------
     # Download dataset
+    # ----------------------------
     st.subheader("⬇️ Download Dataset")
     csv_bytes = df.to_csv(index=False).encode("utf-8")
     st.download_button("Download Dataset (CSV)", data=csv_bytes, file_name="EDA_data.csv", mime="text/csv")
