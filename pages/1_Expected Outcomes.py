@@ -29,7 +29,87 @@ matplotlib.rcParams['font.family'] = 'Times New Roman'
 st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
 
 # --------------------------
-# 2. Helper Functions
+# 2. Link Between EDA & Expected Outcomes
+# --------------------------
+st.subheader("🔗 Link to EDA Insights")
+
+st.markdown(
+    "The Expected Outcomes are directly shaped by insights from the **Exploratory Data Analysis (EDA)**, "
+    "which provided the assumptions for property growth, EPF returns, and inflation trends."
+)
+
+with st.expander("📊 How EDA Informs Expected Outcomes"):
+    st.markdown(
+        """
+        <ul>
+            <li>🏠 <b>Property Price Growth:</b> Historical market appreciation rates were used as the assumption.</li>
+            <li>💰 <b>EPF Returns:</b> Dividend trends informed the baseline and optimistic return scenarios.</li>
+            <li>📈 <b>Inflation:</b> Past patterns guided the selection of realistic inflation ranges.</li>
+        </ul>
+        <p style="color: gray; font-size: 14px;">
+        These EDA-driven assumptions serve as the foundation for comparing long-term 
+        wealth accumulation between <b>buying property</b> and <b>saving in EPF</b>.
+        </p>
+        """,
+        unsafe_allow_html=True
+    )
+
+# --------------------------
+# 3. Baseline Assumptions Box
+# --------------------------
+st.subheader("📌 Baseline Assumptions")
+
+st.markdown(
+    """
+    <style>
+        table {border-collapse: collapse; width: 100%;}
+        th {background-color: #4CAF50; color: white; padding: 8px; text-align: left; font-family: 'Times New Roman', serif;}
+        td {border: 1px solid #ddd; padding: 8px; font-family: 'Times New Roman', serif;}
+        tr:nth-child(even) {background-color: #f9f9f9;}
+    </style>
+    <table>
+        <tr>
+            <th>Parameter</th>
+            <th>Baseline Value</th>
+            <th>Justification / Source</th>
+        </tr>
+        <tr>
+            <td>Initial Property Price</td>
+            <td>RM 500,000</td>
+            <td>Typical property price in target area</td>
+        </tr>
+        <tr>
+            <td>Annual Property Growth Rate</td>
+            <td>5%</td>
+            <td>Based on historical market appreciation (past 10–20 years)</td>
+        </tr>
+        <tr>
+            <td>Mortgage Rate</td>
+            <td>4%</td>
+            <td>Current average bank home loan rate</td>
+        </tr>
+        <tr>
+            <td>Loan Term</td>
+            <td>30 years</td>
+            <td>Standard mortgage duration</td>
+        </tr>
+        <tr>
+            <td>EPF Annual Growth Rate</td>
+            <td>6%</td>
+            <td>Historical EPF dividend trends</td>
+        </tr>
+        <tr>
+            <td>Projection Years</td>
+            <td>30</td>
+            <td>Long-term wealth accumulation horizon</td>
+        </tr>
+    </table>
+    """,
+    unsafe_allow_html=True
+)
+
+# --------------------------
+# 4. Helper Functions
 # --------------------------
 def calculate_mortgage_payment(P, r, n):
     return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
@@ -75,20 +155,10 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
 
 def plot_outcomes(df, years):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
-    rent_final = df["Cumulative Rent (RM)"].iloc[-1]
-    winner_name = "Buy Property" if buy_final > epf_final else "Rent+EPF"
-
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10,6))
     ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Property", color="blue", linewidth=2)
     ax.plot(df["Year"], df["EPF Wealth (RM)"], label="Rent+EPF", color="green", linewidth=2)
     ax.plot(df["Year"], df["Cumulative Rent (RM)"], label="Cumulative Rent", color="red", linestyle="--", linewidth=2)
-
-    # Highlight winner area
-    if winner_name == "Buy Property":
-        ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], color="blue", alpha=0.1)
-    else:
-        ax.fill_between(df["Year"], df["EPF Wealth (RM)"], df["Buy Wealth (RM)"], color="green", alpha=0.1)
-
     ax.set_xlabel("Year")
     ax.set_ylabel("Wealth / Rent (RM)")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
@@ -115,12 +185,7 @@ def generate_summary(df, years):
     epf_cagr = calculate_cagr(epf_initial, epf_final, years)
     winner = "Buy Property" if buy_final > epf_final else "Rent+EPF"
     ratio = buy_final / epf_final if epf_final > 0 else float('inf')
-
-    break_even_year = None
-    for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]):
-        if buy > epf:
-            break_even_year = year
-            break
+    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy > epf), None)
 
     summary = f"""
     ### 📊 Expected Outcomes after {years} Years  
@@ -129,15 +194,15 @@ def generate_summary(df, years):
     - **Cumulative Rent Paid**: RM {rent_final:,.0f}  
     - **Wealth Ratio (Buy ÷ Rent+EPF)**: {ratio:.2f}x  
     """
-    if break_even_year is not None:
-        summary += f"- **Break-even Year**: Year {break_even_year} (Buy Property surpasses Rent+EPF)\n"
+    if break_even_year:
+        summary += f"- **Break-even Year**: Year {break_even_year}\n"
     summary += f"\n🏆 **Winner: {winner}**"
     return summary
 
 # --------------------------
 # 2b. Plotly Animated Chart
 # --------------------------
-def plot_outcomes_animated_bounce_flash(df):
+def plot_outcomes_animated(df):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines+markers', name='Buy Property', line=dict(color='blue')))
     fig.add_trace(go.Scatter(x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines+markers', name='Rent+EPF', line=dict(color='green')))
@@ -146,7 +211,7 @@ def plot_outcomes_animated_bounce_flash(df):
     return fig
 
 # --------------------------
-# 3. Sidebar Inputs
+# 5. Sidebar Inputs
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
@@ -160,18 +225,18 @@ use_custom_rent = st.sidebar.checkbox("Use Custom Starting Rent?")
 custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000) if use_custom_rent else None
 
 # --------------------------
-# 4. Projection
+# 6. Projection
 # --------------------------
 df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, rent_yield, projection_years, custom_rent)
 
 # --------------------------
-# 5. Tabs
+# 7. Tabs
 # --------------------------
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
     st.pyplot(plot_outcomes(df, projection_years))
-    st.plotly_chart(plot_outcomes_animated_bounce_flash(df), use_container_width=True)
+    st.plotly_chart(plot_outcomes_animated(df), use_container_width=True)
 
 with tab2:
     st.dataframe(format_table(df), use_container_width=True)
@@ -186,7 +251,7 @@ with tab3:
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
 
 # --------------------------
-# 6. Download CSV
+# 8. Download CSV
 # --------------------------
 csv = df.to_csv(index=False).encode('utf-8')
 st.download_button("📥 Download Projection Data (CSV)", csv, "projection.csv", "text/csv", key='download-csv')
