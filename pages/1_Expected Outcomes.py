@@ -257,7 +257,32 @@ It examines how variations in mortgage rates, property growth, rental yield, and
 """)
 
 # --------------------------
-# 9. Download CSV
+# 9. Download CSV (with Year 0 Starting Wealth)
 # --------------------------
-csv = df.to_csv(index=False).encode('utf-8')
-st.download_button("📥 Download Projection Data (CSV)", csv, "projection.csv", "text/csv", key='download-csv')
+# Prepare CSV
+csv_export = df.copy()
+
+# Optional: reorder columns for clarity
+csv_export = csv_export[[
+    "Year",
+    "Buy Wealth (RM)",
+    "EPF Wealth (RM)",
+    "Buy CAGR",
+    "EPF CAGR",
+    "Annual Rent",
+    "Cumulative Rent",
+    "Property Value",
+    "Mortgage Balance"
+]]
+
+# Encode CSV
+csv_bytes = csv_export.to_csv(index=False).encode('utf-8')
+
+# Download button
+st.download_button(
+    label="📥 Download Projection Data (CSV)",
+    data=csv_bytes,
+    file_name="projection_fair_comparison.csv",
+    mime="text/csv",
+    key='download-csv'
+)
