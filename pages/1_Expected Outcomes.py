@@ -246,17 +246,41 @@ def plot_outcomes_interactive(df, years, PMT):
 # 6. Sidebar Inputs
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
-initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
-mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
-loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
-property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
-epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
-rent_yield = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005)
-projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
+
+initial_property_price = st.sidebar.number_input(
+    "Initial Property Price (RM)", value=500_000, step=50_000
+)
+
+mortgage_rate_pct = st.sidebar.number_input(
+    "Mortgage Rate (Annual, %)", value=4.0, step=0.1
+) / 100  # convert % → decimal
+
+loan_term_years = st.sidebar.number_input(
+    "Loan Term (Years)", value=30, step=5
+)
+
+property_growth_pct = st.sidebar.number_input(
+    "Property Growth Rate (Annual, %)", value=5.0, step=0.1
+) / 100
+
+epf_rate_pct = st.sidebar.number_input(
+    "EPF Return Rate (Annual, %)", value=6.0, step=0.1
+) / 100
+
+rent_yield_pct = st.sidebar.number_input(
+    "Rent Yield (from EDA, %)", value=4.0, step=0.1
+) / 100
+
+projection_years = st.sidebar.number_input(
+    "Projection Years", value=30, step=5
+)
+
 use_custom_rent = st.sidebar.checkbox("Use Custom Starting Rent?")
 custom_rent = None
 if use_custom_rent:
-    custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000)
+    custom_rent = st.sidebar.number_input(
+        "Custom Starting Annual Rent (RM)", value=20000, step=1000
+    )
 
 # --------------------------
 # 7. Link EDA Insights
@@ -288,8 +312,16 @@ st.markdown("""
 # --------------------------
 # 9. Projection
 # --------------------------
-df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years,
-                      property_growth, epf_rate, rent_yield, projection_years, custom_rent)
+df = project_outcomes(
+    initial_property_price,
+    mortgage_rate_pct,
+    loan_term_years,
+    property_growth_pct,
+    epf_rate_pct,
+    rent_yield_pct,
+    projection_years,
+    custom_rent
+)
 
 # --------------------------
 # 10. Tabs: Chart / Table / Summary
@@ -298,8 +330,7 @@ tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
     st.plotly_chart(plot_outcomes_interactive(df, projection_years,
-                                              calculate_mortgage_payment(initial_property_price, mortgage_rate, loan_term_years)),
-                    use_container_width=True)
+                                              calculate_mortgage_payment(initial_property_price, mortgage_rate_pct, loan_term_years)
 
 with tab2:
     st.dataframe(format_table(df), use_container_width=True)
