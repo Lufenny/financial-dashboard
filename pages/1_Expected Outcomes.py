@@ -338,7 +338,20 @@ with tab1:
     )
 
 with tab2:
-    st.dataframe(format_table(df), use_container_width=True)
+    st.subheader("Baseline Assumptions")
+    assumptions = {
+        "Property Price (RM)": f"RM{initial_property_price:,.0f}",
+        "Annual Price Growth": f"{price_growth_pct}%",
+        "Mortgage Rate": f"{mortgage_rate_pct}%",
+        "Loan Term (years)": loan_term_years,
+        "Monthly Rent": f"RM{monthly_rent:,.0f}",
+        "Annual Rent Yield Growth": f"{rent_growth_pct}%",
+        "Investment Return Rate": f"{investment_return_pct}%",
+        "EPF Dividend Rate": f"{epf_dividend_pct}%",
+        "Projection Years": projection_years,
+    }
+    st.table(pd.DataFrame(assumptions.items(), columns=["Assumption", "Value"]))
+
 
 with tab3:
     break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
