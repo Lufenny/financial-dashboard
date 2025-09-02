@@ -254,3 +254,89 @@ st.download_button(
     mime="text/csv",
     key='download-csv'
 )
+
+# --------------------------
+# 10. Interactive Sensitivity Tornado with Adjustable Range
+# --------------------------
+st.subheader("🌪️ Interactive Sensitivity Analysis – Tornado Chart")
+
+# Sidebar slider for sensitivity range
+sensitivity_pct = st.sidebar.slider(
+    "Sensitivity Range (%)", min_value=5, max_value=50, value=20, step=5
+) / 100  # convert to decimal
+
+params = {
+    "Mortgage Rate": mortgage_rate,
+    "Property Growth": property_growth,
+    "Rent Yield": rent_yield,
+    "EPF Return": epf_rate
+}
+
+results = []
+
+for key, baseline in params.items():
+    low = baseline * (1 - sensitivity_pct)
+    high = baseline * (1 + sensitivity_pct)
+    
+    # Helper function to generate outcome based on key parameter
+    def scenario_value(val):
+        if key == "Mortgage Rate":
+            df_s = project_outcomes(initial_property_price, loan_amount, val, loan_term_years,
+                                    property_growth, epf_rate, rent_yield, projection_years, down_payment, custom_rent)
+        elif key == "Property Growth":
+            df_s = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
+                                    val, epf_rate, rent_yield, projection_years, down_payment, custom_rent)
+        elif key == "Rent Yield":
+            df_s = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
+                                    property_growth, epf_rate, val, projection_years, down_payment, custom_rent)
+        elif key == "EPF Return":
+            df_s = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
+                                    property_growth, val, rent_yield, projection_years, down_payment, custom_rent)
+        return df_s["Buy Wealth (RM)"].iloc[-1], df_s["EPF Wealth (RM)"].iloc[-1]
+
+    buy_low, epf_low = scenario_value(low)
+    buy_high, epf_high = scenario_value(high)
+
+    results.append({
+        "Parameter": key,
+        "Buy Low": buy_low,
+        "Buy High": buy_high,
+        "EPF Low": epf_low,
+        "EPF High": epf_high
+    })
+
+sens_df = pd.DataFrame(results)
+
+# Tornado chart
+fig_tornado = go.Figure()
+
+for i, row in sens_df.iterrows():
+    # Buy bars
+    fig_tornado.add_trace(go.Bar(
+        y=[row["Parameter"]],
+        x=[row["Buy High"] - row["Buy Low"]],
+        base=row["Buy Low"],
+        orientation='h',
+        name='🏡 Buy Property',
+        marker_color='blue'
+    ))
+    # EPF bars
+    fig_tornado.add_trace(go.Bar(
+        y=[row["Parameter"]],
+        x=[row["EPF High"] - row["EPF Low"]],
+        base=row["EPF Low"],
+        orientation='h',
+        name='💰 Rent+EPF',
+        marker_color='green'
+    ))
+
+fig_tornado.update_layout(
+    title=f"Tornado Chart: ±{int(sensitivity_pct*100)}% Variation Around Current Assumptions",
+    barmode='overlay',
+    xaxis_title="Final Wealth (RM)",
+    yaxis_title="Parameter",
+    template="simple_white",
+    legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center")
+)
+
+st.plotly_chart(fig_tornado, use_container_width=True)
