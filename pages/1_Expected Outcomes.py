@@ -14,8 +14,8 @@ st.set_page_config(page_title='Expected Outcomes – Fair Comparison', layout='w
 st.markdown(
     """
     <style>
-    html, body, [class*="css"]  {
-        font-family: 'Times New Roman', serif !important;
+    .streamlit-expanderContent, .css-1d391kg p, h1, h2, h3, h4, h5, h6 {
+        font-family: 'Times New Roman', serif;
     }
     </style>
     """,
