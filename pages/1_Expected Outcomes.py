@@ -173,13 +173,7 @@ with tab2:
     metrics["Final Value (RM)"] = metrics["Final Value (RM)"].map("RM {:,.0f}".format)
     metrics["CAGR (%)"] = metrics["CAGR (%)"].round(2)
 
-    # Dynamic highlighting
-    def highlight_winner(row):
-        color_final = "background-color: blue; color: white;" if row["Final Value (RM)"] == metrics["Final Value (RM)"].max() else ""
-        color_cagr = "background-color: green; color: white;" if row["CAGR (%)"] == metrics["CAGR (%)"].max() else ""
-        return [color_final if col=="Final Value (RM)" else color_cagr if col=="CAGR (%)" else "" for col in metrics.columns]
-
-    st.dataframe(metrics.style.apply(highlight_winner, axis=1), use_container_width=True)
+    st.dataframe(metrics, use_container_width=True)
 
 # ----- Tab 3: Summary -----
 with tab3:
