@@ -76,14 +76,12 @@ def project_outcomes(P, dp_pct, r, n, g, epf_rate, rent_yield, years, custom_ren
         epf_wealth.append(new_epf_wealth)
 
     return pd.DataFrame({
-        "Year": np.arange(0, years + 1),
-        "Property (RM)": property_values,
-        "Mortgage (RM)": mortgage_balances,
-        "Buy Wealth (RM)": buy_wealth,
-        "EPF Wealth (RM)": epf_wealth,
-        "Annual Rent (RM)": rents + [0],
-        "Cumulative Rent (RM)": cum_rent + [cum_rent[-1]]
-    })
+    "Year": np.arange(0, years + 1),
+    "Property Value (RM)": property_values,
+    "Mortgage Balance (RM)": mortgage_balances,
+    "EPF Balance (RM)": epf_balances,
+    "Cumulative Rent (RM)": cum_rent
+})
 
 def calculate_cagr(initial, final, years):
     if years <=0 or final<=0 or initial<=0:
