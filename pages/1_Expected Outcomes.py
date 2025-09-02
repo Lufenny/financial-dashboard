@@ -23,43 +23,54 @@ st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF (Fair Comparison)"
 # --------------------------
 # 2. Helper Functions
 # --------------------------
-def calculate_mortgage_payment(P, r, n):
+def calculate_monthly_mortgage(P, annual_rate, years):
+    r = annual_rate / 12
+    n = years * 12
     return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
 
-def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
-    PMT = calculate_mortgage_payment(P, r, n)
-    property_values, mortgage_balances = [P], [P]
-    buy_wealth, epf_wealth, rents, cum_rent = [0], [0], [], []
+def project_outcomes(P, loan_amount, annual_mortgage_rate, loan_years, property_growth,
+                     epf_rate, rent_yield, years, down_payment, custom_rent=None):
+    monthly_PMT = calculate_monthly_mortgage(loan_amount, annual_mortgage_rate, loan_years)
+    property_values = [P]
+    mortgage_balances = [loan_amount]
+    buy_wealth = [down_payment]  # Year 0
+    epf_wealth = [down_payment]  # Year 0
+    rents = []
+    cum_rent = []
 
-    initial_rent = custom_rent if custom_rent is not None else P * rent_yield
-    rents.append(initial_rent)
-    cum_rent.append(initial_rent)
+    # Initial rent
+    annual_rent = custom_rent if custom_rent is not None else P * rent_yield
+    rents.append(annual_rent)
+    cum_rent.append(annual_rent)
 
     for t in range(1, years + 1):
-        # Property and mortgage
-        new_property_value = property_values[-1] * (1 + g)
+        # Property growth
+        new_property_value = property_values[-1] * (1 + property_growth)
         property_values.append(new_property_value)
 
-        interest_payment = mortgage_balances[-1] * r
-        principal_payment = PMT - interest_payment
+        # Mortgage (monthly compounding)
+        interest_payment = mortgage_balances[-1] * annual_mortgage_rate
+        principal_payment = monthly_PMT*12 - interest_payment
         new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
         mortgage_balances.append(new_mortgage_balance)
 
+        # Buy wealth
         new_buy_wealth = new_property_value - new_mortgage_balance
         buy_wealth.append(new_buy_wealth)
 
-        # Rent and EPF
-        rent_payment = custom_rent if custom_rent is not None else new_property_value * rent_yield
-        rents.append(rent_payment)
-        cum_rent.append(cum_rent[-1] + rent_payment)
+        # Rent
+        annual_rent = custom_rent if custom_rent is not None else new_property_value * rent_yield
+        rents.append(annual_rent)
+        cum_rent.append(cum_rent[-1] + annual_rent)
 
-        investable = max(0, PMT - rent_payment)
-        new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
+        # EPF wealth: leftover goes to EPF with monthly compounding
+        investable = max(0, monthly_PMT*12 - annual_rent)
+        new_epf_wealth = epf_wealth[-1]*(1 + epf_rate/12)**12 + investable
         epf_wealth.append(new_epf_wealth)
 
-    # Compute CAGR
-    buy_cagr = [( (buy_wealth[i]/buy_wealth[1])**(1/i)-1 if i>0 else 0) for i in range(len(buy_wealth))]
-    epf_cagr = [( (epf_wealth[i]/epf_wealth[1])**(1/i)-1 if i>0 else 0) for i in range(len(epf_wealth))]
+    # CAGR calculation
+    buy_cagr = [( (buy_wealth[i]/buy_wealth[0])**(1/i) - 1 if i>0 else 0) for i in range(len(buy_wealth))]
+    epf_cagr = [( (epf_wealth[i]/epf_wealth[0])**(1/i) - 1 if i>0 else 0) for i in range(len(epf_wealth))]
 
     return pd.DataFrame({
         "Year": np.arange(0, years + 1),
@@ -72,7 +83,7 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
         "Buy CAGR": buy_cagr,
         "EPF CAGR": epf_cagr
     })
-
+                         
 # --------------------------
 # 3. Sidebar Inputs
 # --------------------------
