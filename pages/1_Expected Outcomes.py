@@ -89,14 +89,19 @@ def project_outcomes(P, loan_amount, annual_mortgage_rate, loan_years, property_
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
+down_payment = st.sidebar.number_input("Down Payment (RM)", value=100_000, step=10_000)
+loan_amount = initial_property_price - down_payment
 mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
 loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
 property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
 epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
-rent_yield = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005)
+rent_yield = st.sidebar.number_input("Rent Yield", value=0.04, step=0.005)
 projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
 use_custom_rent = st.sidebar.checkbox("Use Custom Starting Rent?")
 custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000) if use_custom_rent else None
+
+if custom_rent and custom_rent > calculate_monthly_mortgage(loan_amount, mortgage_rate, loan_term_years)*12:
+    st.warning("⚠️ Custom rent exceeds annual mortgage payment. EPF investable cash will be zero.")
 
 # --------------------------
 # 4. Link to EDA Insights
@@ -128,12 +133,11 @@ st.markdown("""
 # --------------------------
 # 6. Projection
 # --------------------------
-df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years,
-                      property_growth, epf_rate, rent_yield, projection_years, custom_rent)
+df = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
+                      property_growth, epf_rate, rent_yield, projection_years, down_payment, custom_rent)
 
-# Break-even year
+# Break-even
 break_even_year = next((row.Year for i,row in df.iterrows() if row["Buy Wealth (RM)"]>row["EPF Wealth (RM)"]), None)
-
 # --------------------------
 # 7. Tabs: Chart / Table / Summary
 # --------------------------
