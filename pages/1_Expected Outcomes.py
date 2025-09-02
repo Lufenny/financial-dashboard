@@ -32,56 +32,61 @@ def calculate_mortgage_payment(P, r, n):
     """Monthly mortgage payment given principal P, monthly rate r, and total months n"""
     return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
 
-def project_outcomes(P, dp_pct, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
-    down_payment = P * dp_pct
-    loan_amount = P - down_payment
-    PMT = calculate_mortgage_payment(loan_amount, r/12, n*12) * 12  # annual PMT
-
-    property_values = [P]
+def project_outcomes(price, down_payment_pct, mortgage_rate, loan_term, growth, epf_rate, rent_yield, years, custom_rent=None):
+    # Initial values
+    down_payment = price * down_payment_pct
+    loan_amount = price - down_payment
+    monthly_rate = mortgage_rate / 12
+    n_payments = loan_term * 12
+    
+    # Monthly mortgage payment
+    mortgage_payment = np.pmt(monthly_rate, n_payments, -loan_amount)
+    
+    # Rent (fixed or % of property price)
+    if custom_rent:
+        monthly_rent = custom_rent
+    else:
+        monthly_rent = price * rent_yield / 12
+    
+    # Tracking lists
+    property_values = [price]
     mortgage_balances = [loan_amount]
-    buy_wealth = [down_payment]  # equity = down payment initially
-    epf_wealth = [down_payment]  # renter invests down payment initially
-    rents, cum_rent = [], []
-
-    initial_rent = custom_rent if custom_rent is not None else P * rent_yield
-    rents.append(initial_rent)
-    cum_rent.append(initial_rent)
-
-    for t in range(1, years + 1):
-        # property value growth
-        new_property_value = property_values[-1] * (1 + g)
-        property_values.append(new_property_value)
-
-        # mortgage amortization (annual step)
-        monthly_rate = r / 12
+    epf_balances = [down_payment]   # ✅ EPF starts at down payment
+    cum_rent = [0]
+    
+    # Simulations
+    for year in range(1, years + 1):
+        # Property value growth
+        new_value = property_values[-1] * (1 + growth)
+        property_values.append(new_value)
+        
+        # Mortgage amortization (approximate: reduce by annual payments)
+        balance = mortgage_balances[-1]
         for _ in range(12):
-            interest_payment = mortgage_balances[-1] * monthly_rate
-            principal_payment = PMT/12 - interest_payment
-            new_balance = max(0, mortgage_balances[-1] - principal_payment)
-            mortgage_balances.append(new_balance)
-        mortgage_balances = mortgage_balances[:years+1]  # trim to years
-
-        # new equity
-        new_buy_wealth = new_property_value - mortgage_balances[-1]
-        buy_wealth.append(new_buy_wealth)
-
-        # rent
-        rent_payment = custom_rent if custom_rent is not None else new_property_value * rent_yield
-        rents.append(rent_payment)
-        cum_rent.append(cum_rent[-1] + rent_payment)
-
-        # EPF growth
-        investable = max(0, PMT - rent_payment)
-        new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
-        epf_wealth.append(new_epf_wealth)
-
+            interest = balance * monthly_rate
+            principal = mortgage_payment - interest
+            balance -= principal
+        mortgage_balances.append(max(balance, 0))
+        
+        # EPF balance grows
+        epf = epf_balances[-1] * (1 + epf_rate)
+        
+        # Extra savings (mortgage - rent), invested in EPF
+        annual_savings = max((mortgage_payment - monthly_rent) * 12, 0)
+        epf += annual_savings
+        epf_balances.append(epf)
+        
+        # Rent cost accumulation
+        cum_rent.append(cum_rent[-1] + monthly_rent * 12)
+    
+    # Return DataFrame
     return pd.DataFrame({
-    "Year": np.arange(0, years + 1),
-    "Property Value (RM)": property_values,
-    "Mortgage Balance (RM)": mortgage_balances,
-    "EPF Balance (RM)": epf_balances,
-    "Cumulative Rent (RM)": cum_rent
-})
+        "Year": np.arange(0, years + 1),
+        "Property Value (RM)": property_values,
+        "Mortgage Balance (RM)": mortgage_balances,
+        "EPF Balance (RM)": epf_balances,
+        "Cumulative Rent (RM)": cum_rent
+    })
 
 def calculate_cagr(initial, final, years):
     if years <=0 or final<=0 or initial<=0:
