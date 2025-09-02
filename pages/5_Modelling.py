@@ -183,3 +183,42 @@ most_sensitive_epf = df_sensitivity.loc[df_sensitivity["EPF Impact"].idxmax()]
 
 st.markdown(f"**Most sensitive factor for Buy Wealth:** {most_sensitive_buy['Parameter']} (Impact: RM {most_sensitive_buy['Buy Impact']:,.0f})")
 st.markdown(f"**Most sensitive factor for EPF Wealth:** {most_sensitive_epf['Parameter']} (Impact: RM {most_sensitive_epf['EPF Impact']:,.0f})")
+
+# --------------------------
+# 7. Tornado Charts for Sensitivity Analysis
+# --------------------------
+st.subheader("🌪️ Tornado Charts - Sensitivity Impact")
+
+import plotly.express as px
+
+# Buy Wealth Tornado
+df_buy = df_sensitivity[['Parameter', 'Buy Low', 'Buy High']].copy()
+df_buy['Impact'] = df_buy['Buy High'] - df_buy['Buy Low']
+df_buy = df_buy.sort_values('Impact', ascending=True)
+
+fig_buy = go.Figure()
+fig_buy.add_trace(go.Bar(
+    x=df_buy['Impact'],
+    y=df_buy['Parameter'],
+    orientation='h',
+    name='Impact on Buy Wealth',
+    marker_color='teal'
+))
+fig_buy.update_layout(title='Buy Wealth Sensitivity (±10%)', xaxis_title='Impact (RM)', yaxis_title='')
+st.plotly_chart(fig_buy, use_container_width=True)
+
+# EPF Wealth Tornado
+df_epf = df_sensitivity[['Parameter', 'EPF Low', 'EPF High']].copy()
+df_epf['Impact'] = df_epf['EPF High'] - df_epf['EPF Low']
+df_epf = df_epf.sort_values('Impact', ascending=True)
+
+fig_epf = go.Figure()
+fig_epf.add_trace(go.Bar(
+    x=df_epf['Impact'],
+    y=df_epf['Parameter'],
+    orientation='h',
+    name='Impact on EPF Wealth',
+    marker_color='orange'
+))
+fig_epf.update_layout(title='EPF Wealth Sensitivity (±10%)', xaxis_title='Impact (RM)', yaxis_title='')
+st.plotly_chart(fig_epf, use_container_width=True)
