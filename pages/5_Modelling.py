@@ -240,3 +240,79 @@ print(f"\nMost sensitive factor for Buy Wealth: {most_sensitive_buy['Parameter']
 print(f"Most sensitive factor for EPF Wealth: {most_sensitive_epf['Parameter']} "
       f"(Impact: RM {most_sensitive_epf['EPF Impact']:,.0f})")
 
+# --------------------------
+# 7. Sensitivity Analysis
+# --------------------------
+"""
+Purpose:
+- Test how changes in key parameters affect the final wealth outcome.
+- Parameters considered: Mortgage Rate, Property Growth, EPF Rate, Rent Yield.
+"""
+
+# Define ranges for sensitivity (±10% of baseline)
+sensitivity_pct = 0.10  # 10%
+
+# Key parameters with their low/high bounds
+params = {
+    "Mortgage Rate": (mortgage_rate * (1 - sensitivity_pct), mortgage_rate * (1 + sensitivity_pct)),
+    "Property Growth": (property_growth * (1 - sensitivity_pct), property_growth * (1 + sensitivity_pct)),
+    "EPF Rate": (epf_rate * (1 - sensitivity_pct), epf_rate * (1 + sensitivity_pct)),
+    "Rent Yield": (rent_yield * (1 - sensitivity_pct), rent_yield * (1 + sensitivity_pct))
+}
+
+# Storage for results
+sensitivity_results = []
+
+for param_name, (low, high) in params.items():
+    # Low scenario
+    kwargs_low = {
+        "P": purchase_price,
+        "loan_amount": loan_amount,
+        "mortgage_rate": mortgage_rate,
+        "mortgage_term": mortgage_term,
+        "property_growth": property_growth,
+        "epf_rate": epf_rate,
+        "rent_yield": rent_yield,
+        "years": projection_years,
+        "down_payment": down_payment
+    }
+    kwargs_low[param_name.replace(" ", "_").lower()] = low  # dynamically set low value
+    df_low = project_buy_rent(**kwargs_low)
+    final_buy_low = df_low["Buy Wealth (RM)"].iloc[-1]
+    final_epf_low = df_low["EPF Wealth (RM)"].iloc[-1]
+
+    # High scenario
+    kwargs_high = kwargs_low.copy()
+    kwargs_high[param_name.replace(" ", "_").lower()] = high
+    df_high = project_buy_rent(**kwargs_high)
+    final_buy_high = df_high["Buy Wealth (RM)"].iloc[-1]
+    final_epf_high = df_high["EPF Wealth (RM)"].iloc[-1]
+
+    # Store results
+    sensitivity_results.append({
+        "Parameter": param_name,
+        "Buy Low": final_buy_low,
+        "Buy High": final_buy_high,
+        "Buy Impact": final_buy_high - final_buy_low,
+        "EPF Low": final_epf_low,
+        "EPF High": final_epf_high,
+        "EPF Impact": final_epf_high - final_epf_low
+    })
+
+# Convert to DataFrame for easy viewing
+df_sensitivity = pd.DataFrame(sensitivity_results)
+
+# Display
+print("\n=== Sensitivity Analysis (±10%) ===")
+print(df_sensitivity)
+
+# Identify most sensitive factor
+most_sensitive_buy = df_sensitivity.loc[df_sensitivity["Buy Impact"].idxmax()]
+most_sensitive_epf = df_sensitivity.loc[df_sensitivity["EPF Impact"].idxmax()]
+
+print(f"\nMost sensitive factor for Buy Wealth: {most_sensitive_buy['Parameter']} "
+      f"(Impact: RM {most_sensitive_buy['Buy Impact']:,.0f})")
+print(f"Most sensitive factor for EPF Wealth: {most_sensitive_epf['Parameter']} "
+      f"(Impact: RM {most_sensitive_epf['EPF Impact']:,.0f})")
+
+
