@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 import matplotlib.ticker as mticker
+import plotly.graph_objects as go
+
 
 # --------------------------
 # 1. Global Settings
@@ -72,36 +74,35 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
         "Cumulative Rent (RM)": cum_rent
     })
 
-def plot_outcomes(df, years):
+def plot_outcomes_interactive(df, years):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
-    rent_final = df["Cumulative Rent (RM)"].iloc[-1]
     winner_name = "Buy Property" if buy_final > epf_final else "Rent+EPF"
 
-    fig, ax = plt.subplots(figsize=(10,6))
-    ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Property", color="blue", linewidth=2)
-    ax.plot(df["Year"], df["EPF Wealth (RM)"], label="Rent+EPF", color="green", linewidth=2)
-    ax.plot(df["Year"], df["Cumulative Rent (RM)"], label="Cumulative Rent", color="red", linestyle="--", linewidth=2)
+    fig = go.Figure()
 
-    # Highlight winner area
-    if winner_name == "Buy Property":
-        ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], color="blue", alpha=0.1)
-    else:
-        ax.fill_between(df["Year"], df["EPF Wealth (RM)"], df["Buy Wealth (RM)"], color="green", alpha=0.1)
+    # Buy Property
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=df["Buy Wealth (RM)"],
+        mode='lines+markers',
+        name='Buy Property',
+        line=dict(color='blue', width=3)
+    ))
 
-    offset = 0.3
-    ax.text(years + offset, buy_final, f"RM {buy_final:,.0f}",
-            color="white" if winner_name=="Buy Property" else "blue",
-            fontsize=12, weight="bold",
-            bbox=dict(facecolor="blue" if winner_name=="Buy Property" else "none", alpha=0.7, edgecolor="none"),
-            ha="left", va="bottom")
+    # Rent+EPF
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=df["EPF Wealth (RM)"],
+        mode='lines+markers',
+        name='Rent+EPF',
+        line=dict(color='green', width=3)
+    ))
 
-    ax.text(years + offset, epf_final, f"RM {epf_final:,.0f}",
-            color="white" if winner_name=="Rent+EPF" else "green",
-            fontsize=12, weight="bold",
-            bbox=dict(facecolor="green" if winner_name=="Rent+EPF" else "none", alpha=0.7, edgecolor="none"),
-            ha="left", va="bottom")
-
-    ax.text(years + offset, rent_final, f"RM {rent_final:,.0f}", color="red", fontsize=11, weight="bold", ha="left", va="bottom")
+    # Cumulative Rent
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=df["Cumulative Rent (RM)"],
+        mode='lines+markers',
+        name='Cumulative Rent',
+        line=dict(color='red', width=2, dash='dash')
+    ))
 
     # Break-even year
     break_even_year = None
@@ -109,19 +110,25 @@ def plot_outcomes(df, years):
         if buy > epf:
             break_even_year = year
             break
-    if break_even_year is not None:
-        ax.axvline(x=break_even_year, color="orange", linestyle="--", linewidth=1.5, alpha=0.8)
-        ax.text(break_even_year, max(buy_final, epf_final)*0.05,
-                f"Break-even: Year {break_even_year}", color="orange", fontsize=11, weight="bold",
-                ha="center", va="bottom", bbox=dict(facecolor="white", alpha=0.6, edgecolor="orange"))
 
-    ax.set_title(f"Comparison Over {years} Years – Winner: {winner_name}", fontsize=14, weight="bold")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Wealth / Rent (RM)")
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x,_: f"RM {x:,.0f}"))
-    ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.6)
-    ax.set_axisbelow(True)
+    if break_even_year is not None:
+        fig.add_vline(
+            x=break_even_year,
+            line=dict(color='orange', dash='dash', width=2),
+            annotation_text=f"Break-even: Year {break_even_year}",
+            annotation_position="top right",
+            annotation_font=dict(color='orange', size=12)
+        )
+
+    fig.update_layout(
+        title=f"Comparison Over {years} Years – Winner: {winner_name}",
+        xaxis_title="Year",
+        yaxis_title="Wealth / Rent (RM)",
+        yaxis_tickprefix="RM ",
+        template="plotly_white",
+        legend=dict(x=0.01, y=0.99)
+    )
+
     return fig
 
 def format_table(df):
@@ -252,7 +259,7 @@ df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, pr
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.pyplot(plot_outcomes(df, projection_years))
+    st.plotly_chart(plot_outcomes_interactive(df, projection_years), use_container_width=True)
 
 with tab2:
     st.dataframe(format_table(df), use_container_width=True)
