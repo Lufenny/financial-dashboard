@@ -170,7 +170,18 @@ def format_table(df):
     df_fmt = df.copy()
     for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Annual Rent (RM)", "Cumulative Rent (RM)"]:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
-    return df_fmt
+
+    # Identify winner
+    buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
+    winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
+
+    def highlight_winner(row):
+        if row.name == df.index[-1]:
+            return ['background-color: lightgreen' if col == winner_col else '' for col in df_fmt.columns]
+        return ['' for _ in df_fmt.columns]
+
+    styled_df = df_fmt.style.apply(highlight_winner, axis=1).set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
+    return styled_df
 
 def calculate_cagr(initial, final, years):
     return (final / initial) ** (1 / years) - 1 if initial > 0 and years > 0 else 0
