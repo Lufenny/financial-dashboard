@@ -264,13 +264,46 @@ if use_custom_rent:
     custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000)
 
 # --------------------------
-# 4. Projection
+# 4. Link EDA Insights
+# --------------------------
+st.subheader("🔗 Link to EDA Insights")
+st.markdown(
+    "The Expected Outcomes are shaped by insights from the **EDA**, providing assumptions for property growth, EPF returns, and inflation trends."
+)
+with st.expander("📊 How EDA Informs Expected Outcomes"):
+    st.markdown(
+        """
+        - 🏠 **Property Price Growth:** Historical market appreciation rates.
+        - 💰 **EPF Returns:** Dividend trends inform baseline and optimistic scenarios.
+        - 📈 **Inflation:** Guides realistic inflation ranges.
+        """
+    )
+
+# --------------------------
+# 5. Baseline Assumptions Table
+# --------------------------
+st.subheader("📌 Baseline Assumptions")
+st.markdown(
+    """
+    | Parameter | Baseline Value | Justification / Source |
+    |-----------|----------------|----------------------|
+    | Initial Property Price | RM 500,000 | Typical property price in target area |
+    | Annual Property Growth Rate | 5% | Historical market appreciation (10–20 yrs) |
+    | Mortgage Rate | 4% | Current average bank home loan rate |
+    | Loan Term | 30 years | Standard mortgage duration |
+    | EPF Annual Growth Rate | 6% | Historical EPF dividend trends |
+    | Projection Years | 30 | Long-term wealth accumulation horizon |
+    """
+)
+
+# --------------------------
+# 6. Projection
 # --------------------------
 df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, rent_yield, projection_years, custom_rent)
 PMT = calculate_mortgage_payment(initial_property_price, mortgage_rate, loan_term_years)
 
 # --------------------------
-# 5. Tabs
+# 7. Tabs
 # --------------------------
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
@@ -290,7 +323,7 @@ with tab3:
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
 
 # --------------------------
-# 6. Download CSV
+# 8. Download CSV
 # --------------------------
 csv = df.to_csv(index=False).encode('utf-8')
 st.download_button("📥 Download Projection Data (CSV)", csv, "projection.csv", "text/csv", key='download-csv')
