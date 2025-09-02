@@ -354,13 +354,17 @@ with tab2:
 
 
 with tab3:
-    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Buy Property Wealth", f"RM {df['Buy Wealth (RM)'].iloc[-1]:,.0f}")
-    col2.metric("Rent+EPF Wealth", f"RM {df['EPF Wealth (RM)'].iloc[-1]:,.0f}")
-    col3.metric("Cumulative Rent Paid", f"RM {df['Cumulative Rent (RM)'].iloc[-1]:,.0f}")
-    col4.metric("Break-even Year", f"Year {break_even_year}" if break_even_year else "N/A")
-    st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
+    st.subheader("📊 Baseline Assumptions Table")
+    st.table({
+        "Parameter": ["Property Price", "Mortgage Rate", "Investment Return", "Inflation Rate"],
+        "Baseline": ["RM500,000", "5%", "4%", "3%"]
+    })
+    st.markdown(
+        """
+        ✅ **Note:** Baseline assumptions are derived from EDA trend analysis.  
+        Use the **sidebar inputs** to test alternative scenarios and compare against this baseline.
+        """
+    )
 
 # --------------------------
 # Sensitivity Analysis Mention with Link
