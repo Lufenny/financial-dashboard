@@ -48,7 +48,7 @@ def project_outcomes(P, loan_amount, annual_mortgage_rate, loan_years, property_
         new_property_value = property_values[-1] * (1 + property_growth)
         property_values.append(new_property_value)
 
-        # Mortgage (monthly compounding)
+        # Mortgage (annualized from monthly PMT)
         interest_payment = mortgage_balances[-1] * annual_mortgage_rate
         principal_payment = monthly_PMT*12 - interest_payment
         new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
@@ -83,7 +83,7 @@ def project_outcomes(P, loan_amount, annual_mortgage_rate, loan_years, property_
         "Buy CAGR": buy_cagr,
         "EPF CAGR": epf_cagr
     })
-                         
+
 # --------------------------
 # 3. Sidebar Inputs
 # --------------------------
@@ -140,81 +140,63 @@ df = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_t
 break_even_year = next((row.Year for i,row in df.iterrows() if row["Buy Wealth (RM)"]>row["EPF Wealth (RM)"]), None)
 
 # --------------------------
-# 7. Tabs: Chart / Table / Summary (Fair Comparison)
+# 7. Tabs: Chart / Table / Summary
 # --------------------------
 tab1, tab2, tab3 = st.tabs(["📈 Chart", "📊 Table", "📝 Summary"])
 
 # ----- Tab 1: Chart -----
 with tab1:
-    st.subheader("📈 Scenario Comparison")
-    fig = go.Figure()
-    
-    # Buy Property line
-    fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines+markers',
-        name='🏡 Buy Property', line=dict(color='blue', width=3)
-    ))
-    
-    # Rent+EPF line
-    fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines+markers',
-        name='💰 Rent+EPF', line=dict(color='green', width=3)
-    ))
-    
-    # Cumulative Rent line
-    fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["Cumulative Rent"], mode='lines', 
-        name='💸 Cumulative Rent', line=dict(color='red', width=2, dash='dash')
-    ))
-
-    # Break-even line
+    st.subheader("📈 Scenario Comparison – Wealth Accumulation")
+    fig_wealth = go.Figure()
+    fig_wealth.add_trace(go.Scatter(x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines+markers',
+                                    name='🏡 Buy Property', line=dict(color='blue', width=3)))
+    fig_wealth.add_trace(go.Scatter(x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines+markers',
+                                    name='💰 Rent+EPF', line=dict(color='green', width=3)))
+    fig_wealth.add_trace(go.Scatter(x=df["Year"], y=df["Cumulative Rent"], mode='lines',
+                                    name='💸 Cumulative Rent', line=dict(color='red', width=2, dash='dash')))
     if break_even_year:
-        fig.add_vline(x=break_even_year, line=dict(color='orange', dash='dash', width=2))
-        fig.add_annotation(
+        fig_wealth.add_vline(x=break_even_year, line=dict(color='orange', dash='dash', width=2))
+        fig_wealth.add_annotation(
             x=break_even_year, y=max(df["Buy Wealth (RM)"].max(), df["EPF Wealth (RM)"].max()),
             text=f"📍 Break-even: Year {break_even_year}", showarrow=False, yanchor="bottom",
             font=dict(color="orange", size=12)
         )
+    fig_wealth.update_layout(title=f"Comparison Over {projection_years} Years",
+                             xaxis_title="Year", yaxis_title="Wealth / Rent (RM)",
+                             template="simple_white", legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"))
+    st.plotly_chart(fig_wealth, use_container_width=True)
 
-    # Annotations for Year 0 starting wealth
-    fig.add_annotation(
-        x=0, y=df["Buy Wealth (RM)"].iloc[0],
-        text=f"🏡 Start: RM {df['Buy Wealth (RM)'].iloc[0]:,.0f}", showarrow=True, arrowhead=2, ay=-40, font=dict(color="blue")
-    )
-    fig.add_annotation(
-        x=0, y=df["EPF Wealth (RM)"].iloc[0],
-        text=f"💰 Start: RM {df['EPF Wealth (RM)'].iloc[0]:,.0f}", showarrow=True, arrowhead=2, ay=-40, font=dict(color="green")
-    )
-
-    fig.update_layout(
-        title=f"Comparison Over {projection_years} Years",
-        xaxis_title="Year", yaxis_title="Wealth / Rent (RM)",
-        template="simple_white",
-        legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center")
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
+    # --------------------------
+    # Flow Chart: Yearly Cash Flows
+    # --------------------------
+    st.subheader("🔹 Yearly Cash Flow – Buy vs Rent+EPF (Break-even Highlighted)")
+    fig_flow = go.Figure()
+    mortgage_paid = (df["Mortgage Balance"].shift(1).fillna(loan_amount) - df["Mortgage Balance"]).clip(lower=0)
+    fig_flow.add_trace(go.Bar(x=df["Year"], y=mortgage_paid, name="🏦 Mortgage Paid (Buy)", marker_color='lightblue'))
+    fig_flow.add_trace(go.Scatter(x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines+markers',
+                                  name="🏡 Buy Wealth", line=dict(color='blue', width=3)))
+    fig_flow.add_trace(go.Bar(x=df["Year"], y=df["Annual Rent"], name="💸 Rent Paid (Rent+EPF)", marker_color='lightgreen'))
+    fig_flow.add_trace(go.Scatter(x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines+markers',
+                                  name="💰 EPF Wealth", line=dict(color='green', width=3)))
+    st.plotly_chart(fig_flow, use_container_width=True)
 
 # ----- Tab 2: Table -----
 with tab2:
-    st.subheader("📊 Key Metrics Table")
+    st.subheader("📊 Key Metrics Table (Fair Comparison)")
     metrics = pd.DataFrame({
         "Scenario": ["🏡 Buy Property", "💰 Rent+EPF"],
         "Starting Wealth (RM)": [df["Buy Wealth (RM)"].iloc[0], df["EPF Wealth (RM)"].iloc[0]],
         "Final Value (RM)": [df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]],
         "CAGR (%)": [df["Buy CAGR"].iloc[-1]*100, df["EPF CAGR"].iloc[-1]*100]
     })
-
     metrics["Starting Wealth (RM)"] = metrics["Starting Wealth (RM)"].map("RM {:,.0f}".format)
     metrics["Final Value (RM)"] = metrics["Final Value (RM)"].map("RM {:,.0f}".format)
     metrics["CAGR (%)"] = metrics["CAGR (%)"].round(2)
-
     st.dataframe(metrics, use_container_width=True)
 
 # ----- Tab 3: Summary -----
 with tab3:
-    st.subheader("📝 Interpretation")
-
+    st.subheader("📝 Interpretation – Fair Comparison")
     start_buy = df["Buy Wealth (RM)"].iloc[0]
     start_epf = df["EPF Wealth (RM)"].iloc[0]
     final_buy = df["Buy Wealth (RM)"].iloc[-1]
@@ -246,7 +228,6 @@ with tab3:
 - Consider personal factors: risk tolerance, liquidity, housing preference.
 """, unsafe_allow_html=True)
 
-
 # --------------------------
 # 8. Sensitivity Analysis Note
 # --------------------------
@@ -257,28 +238,15 @@ It examines how variations in mortgage rates, property growth, rental yield, and
 """)
 
 # --------------------------
-# 9. Download CSV (with Year 0 Starting Wealth)
+# 9. Download CSV
 # --------------------------
-# Prepare CSV
 csv_export = df.copy()
-
-# Optional: reorder columns for clarity
 csv_export = csv_export[[
-    "Year",
-    "Buy Wealth (RM)",
-    "EPF Wealth (RM)",
-    "Buy CAGR",
-    "EPF CAGR",
-    "Annual Rent",
-    "Cumulative Rent",
-    "Property Value",
-    "Mortgage Balance"
+    "Year", "Buy Wealth (RM)", "EPF Wealth (RM)", "Buy CAGR", "EPF CAGR",
+    "Annual Rent", "Cumulative Rent", "Property Value", "Mortgage Balance"
 ]]
-
-# Encode CSV
 csv_bytes = csv_export.to_csv(index=False).encode('utf-8')
 
-# Download button
 st.download_button(
     label="📥 Download Projection Data (CSV)",
     data=csv_bytes,
