@@ -251,25 +251,25 @@ initial_property_price = st.sidebar.number_input(
     "Initial Property Price (RM)", value=500_000, step=50_000
 )
 
-mortgage_rate_pct = st.sidebar.number_input(
-    "Mortgage Rate (Annual, %)", value=4.0, step=0.1
-) / 100  # convert % → decimal
+mortgage_rate_pct = (
+    st.sidebar.number_input("Mortgage Rate (Annual, %)", value=4.0, step=0.1) / 100
+)
 
 loan_term_years = st.sidebar.number_input(
     "Loan Term (Years)", value=30, step=5
 )
 
-property_growth_pct = st.sidebar.number_input(
-    "Property Growth Rate (Annual, %)", value=5.0, step=0.1
-) / 100
+property_growth_pct = (
+    st.sidebar.number_input("Property Growth Rate (Annual, %)", value=5.0, step=0.1) / 100
+)
 
-epf_rate_pct = st.sidebar.number_input(
-    "EPF Return Rate (Annual, %)", value=6.0, step=0.1
-) / 100
+epf_rate_pct = (
+    st.sidebar.number_input("EPF Return Rate (Annual, %)", value=6.0, step=0.1) / 100
+)
 
-rent_yield_pct = st.sidebar.number_input(
-    "Rent Yield (from EDA, %)", value=4.0, step=0.1
-) / 100
+rent_yield_pct = (
+    st.sidebar.number_input("Rent Yield (from EDA, %)", value=4.0, step=0.1) / 100
+)
 
 projection_years = st.sidebar.number_input(
     "Projection Years", value=30, step=5
