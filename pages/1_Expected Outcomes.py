@@ -74,35 +74,78 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
         "Cumulative Rent (RM)": cum_rent
     })
 
+import plotly.graph_objects as go
+
 def plot_outcomes_interactive(df, years):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     winner_name = "Buy Property" if buy_final > epf_final else "Rent+EPF"
 
     fig = go.Figure()
 
-    # Buy Property
+    # Prepare hover text
+    hover_text = []
+    for i in range(len(df)):
+        hover_text.append(
+            f"<b>Year:</b> {df['Year'].iloc[i]}<br>"
+            f"<b>Buy Property:</b> RM {df['Buy Wealth (RM)'].iloc[i]:,.0f}<br>"
+            f"<b>Rent+EPF:</b> RM {df['EPF Wealth (RM)'].iloc[i]:,.0f}<br>"
+            f"<b>Cumulative Rent:</b> RM {df['Cumulative Rent (RM)'].iloc[i]:,.0f}"
+        )
+
+    # Add Buy Property trace
     fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["Buy Wealth (RM)"],
-        mode='lines+markers',
+        x=df["Year"],
+        y=df["Buy Wealth (RM)"],
+        mode='lines',
+        line=dict(color='blue', width=3),
         name='Buy Property',
-        line=dict(color='blue', width=3)
+        text=hover_text,
+        hovertemplate='%{text}<extra></extra>'
     ))
 
-    # Rent+EPF
+    # Add Rent+EPF trace
     fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["EPF Wealth (RM)"],
-        mode='lines+markers',
+        x=df["Year"],
+        y=df["EPF Wealth (RM)"],
+        mode='lines',
+        line=dict(color='green', width=3),
         name='Rent+EPF',
-        line=dict(color='green', width=3)
+        text=hover_text,
+        hovertemplate='%{text}<extra></extra>'
     ))
 
-    # Cumulative Rent
+    # Add Cumulative Rent trace
     fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["Cumulative Rent (RM)"],
+        x=df["Year"],
+        y=df["Cumulative Rent (RM)"],
         mode='lines+markers',
+        line=dict(color='red', width=2, dash='dash'),
         name='Cumulative Rent',
-        line=dict(color='red', width=2, dash='dash')
+        text=hover_text,
+        hovertemplate='%{text}<extra></extra>'
     ))
+
+    # Add shaded winner area
+    if winner_name == "Buy Property":
+        fig.add_trace(go.Scatter(
+            x=df["Year"].tolist() + df["Year"].tolist()[::-1],
+            y=df["Buy Wealth (RM)"].tolist() + df["EPF Wealth (RM)"].tolist()[::-1],
+            fill='toself',
+            fillcolor='rgba(0,0,255,0.1)',
+            line=dict(color='rgba(255,255,255,0)'),
+            hoverinfo='skip',
+            showlegend=False
+        ))
+    else:
+        fig.add_trace(go.Scatter(
+            x=df["Year"].tolist() + df["Year"].tolist()[::-1],
+            y=df["EPF Wealth (RM)"].tolist() + df["Buy Wealth (RM)"].tolist()[::-1],
+            fill='toself',
+            fillcolor='rgba(0,128,0,0.1)',
+            line=dict(color='rgba(255,255,255,0)'),
+            hoverinfo='skip',
+            showlegend=False
+        ))
 
     # Break-even year
     break_even_year = None
@@ -120,16 +163,18 @@ def plot_outcomes_interactive(df, years):
             annotation_font=dict(color='orange', size=12)
         )
 
+    # Layout
     fig.update_layout(
         title=f"Comparison Over {years} Years – Winner: {winner_name}",
         xaxis_title="Year",
         yaxis_title="Wealth / Rent (RM)",
-        yaxis_tickprefix="RM ",
         template="plotly_white",
-        legend=dict(x=0.01, y=0.99)
+        legend=dict(x=0.01, y=0.99),
+        hovermode='x unified'
     )
 
     return fig
+
 
 def format_table(df):
     df_fmt = df.copy()
@@ -260,7 +305,7 @@ tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
     st.plotly_chart(plot_outcomes_interactive(df, projection_years), use_container_width=True)
-
+    
 with tab2:
     st.dataframe(format_table(df), use_container_width=True)
 
