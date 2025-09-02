@@ -80,36 +80,39 @@ def calculate_cagr(initial, final, years):
 # --------------------------
 def format_table(df):
     df_fmt = df.copy()
-    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Annual Rent (RM)", "Cumulative Rent (RM)"]:
-        df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
+    # Save numeric values before formatting
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
-    winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
-    break_even_year_idx = next((i for i, (b, e) in enumerate(zip(df["Buy Wealth (RM)"], df["EPF Wealth (RM)"])) if b > e), None)
-
-    buy_initial = next((x for x in df["Buy Wealth (RM)"] if x>0),1)
-    epf_initial = next((x for x in df["EPF Wealth (RM)"] if x>0),1)
+    buy_initial = next((x for x in df["Buy Wealth (RM)"] if x > 0), 1)
+    epf_initial = next((x for x in df["EPF Wealth (RM)"] if x > 0), 1)
     years = df["Year"].iloc[-1]
     buy_cagr = calculate_cagr(buy_initial, buy_final, years)
     epf_cagr = calculate_cagr(epf_initial, epf_final, years)
 
+    # Format with RM
+    for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Annual Rent (RM)", "Cumulative Rent (RM)"]:
+        df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
+
+    winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
+    break_even_year_idx = next((i for i, (b, e) in enumerate(zip(df["Buy Wealth (RM)"], df["EPF Wealth (RM)"])) if b > e), None)
+
     def highlight_rows(row):
         styles = ['' for _ in df_fmt.columns]
         if row.name == df.index[-1]:
-            styles = ['background-color: lightgreen' if col==winner_col else '' for col in df_fmt.columns]
+            styles = ['background-color: lightgreen' if col == winner_col else '' for col in df_fmt.columns]
         if break_even_year_idx is not None and row.name == break_even_year_idx:
             styles = ['background-color: lightyellow' for _ in df_fmt.columns]
         return styles
 
     def color_cagr(val, column):
         if column == "Buy Wealth (RM)":
-            return 'color: green;' if buy_cagr >=0 else 'color: red;'
+            return 'color: green;' if buy_cagr >= 0 else 'color: red;'
         elif column == "EPF Wealth (RM)":
-            return 'color: green;' if epf_cagr >=0 else 'color: red;'
+            return 'color: green;' if epf_cagr >= 0 else 'color: red;'
         return ''
 
     styled = df_fmt.style.apply(highlight_rows, axis=1)\
-                         .apply(lambda x: [color_cagr(v, col) for col, v in zip(df_fmt.columns, x)], axis=1)\
+                         .apply(lambda row: [color_cagr(v, col) for col, v in zip(row, df_fmt.columns)], axis=1)\
                          .set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
     return styled
 
@@ -203,9 +206,14 @@ def plot_outcomes_interactive(df, years, PMT):
         fig.add_vline(
             x=break_even_year,
             line=dict(color='orange', dash='dash', width=2),
-            annotation_text=f"🟡 Break-even: Year {break_even_year}",
-            annotation_position="top right",
-            annotation_font=dict(color='orange', size=12)
+    )
+        fig.add_annotation(
+            x=break_even_year,
+            y=max(df["Buy Wealth (RM)"].max(), df["EPF Wealth (RM)"].max()),
+            text=f"🟡 Break-even: Year {break_even_year}",
+            showarrow=False,
+            yanchor="bottom",
+            font=dict(color="orange", size=12)
         )
 
     fig.update_layout(
@@ -272,36 +280,147 @@ df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years,
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.plotly_chart(plot_outcomes_interactive(df, projection_years,
-                                              calculate_mortgage_payment(initial_property_price, mortgage_rate, loan_term_years)),
-                    use_container_width=True)
+    st.subheader("📈 Scenario Comparison")
+
+    fig = go.Figure()
+
+    # Property line (blue)
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=df["Property Value"],
+        mode="lines+markers",
+        name="🏡 Property",
+        line=dict(color="royalblue", width=3),
+        marker=dict(size=6)
+    ))
+
+    # Investment line (orange)
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=df["Investment Value"],
+        mode="lines+markers",
+        name="💰 Investment",
+        line=dict(color="darkorange", width=3),
+        marker=dict(size=6)
+    ))
+
+    # Break-even vertical line
+    break_even = df[df["Property Value"] > df["Investment Value"]]
+    if not break_even.empty:
+        break_year = int(break_even.iloc[0]["Year"])
+        fig.add_vline(
+            x=break_year,
+            line=dict(color="green", dash="dash", width=2),
+            annotation=dict(
+                text=f"📍 Break-even Year {break_year}",
+                showarrow=False, y=1.05, xanchor="left", font=dict(color="green")
+            )
+        )
+
+    fig.update_layout(
+        xaxis_title="Year",
+        yaxis_title="Value (RM)",
+        legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"),
+        template="simple_white"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Unified Legend / Explanation
+    st.markdown("""
+    ### Legend & Color Mapping
+    - **🏡 Royal Blue — Property:** Wealth accumulation through homeownership  
+    - **💰 Dark Orange — Investment:** Wealth accumulation through renting & investing  
+    - **📍 Green Dashed Line — Break-even:** Year when property wealth surpasses investment wealth  
+    """)
 
 with tab2:
-    st.subheader("Projection Results Table")
-    st.dataframe(format_table(df), use_container_width=True)
+    st.subheader("📊 Key Metrics Table")
 
-    st.subheader("📌 Baseline Assumptions (from Sidebar)")
-    assumptions = {
-        "Initial Property Price": f"RM {initial_property_price:,.0f}",
-        "Annual Price Growth": f"{property_growth_pct*100:.1f}%",
-        "Mortgage Rate": f"{mortgage_rate_pct*100:.1f}%",
-        "Loan Term (Years)": loan_term_years,
-        "Annual Rent Yield": f"{rent_yield_pct*100:.1f}%",
-        "EPF Return Rate": f"{epf_rate_pct*100:.1f}%",
-        "Projection Years": projection_years,
-    }
-    if custom_rent:
-        assumptions["Custom Starting Rent"] = f"RM {custom_rent:,.0f} (annual)"
-    st.table(pd.DataFrame(assumptions.items(), columns=["Assumption", "Value"]))
+    # Build metrics dataframe (numeric first)
+    metrics = pd.DataFrame({
+        "Scenario": ["🏡 Property", "💰 Investment"],
+        "Final Value (RM)": [
+            df["Property Value"].iloc[-1],
+            df["Investment Value"].iloc[-1]
+        ],
+        "CAGR (%)": [
+            df["Property CAGR"].iloc[-1],
+            df["Investment CAGR"].iloc[-1]
+        ]
+    })
+
+    # Format Final Value nicely (RM)
+    metrics["Final Value (RM)"] = metrics["Final Value (RM)"].map("RM {:,.0f}".format)
+    metrics["CAGR (%)"] = metrics["CAGR (%)"].round(2)
+
+    # Highlight winners with same palette (blue/orange)
+    style = (
+        metrics.style
+        .highlight_max(subset=["Final Value (RM)"], color="royalblue", props="color:white;")
+        .highlight_max(subset=["CAGR (%)"], color="darkorange", props="color:white;")
+    )
+
+    # Display styled dataframe
+    st.dataframe(style, use_container_width=True)
+
+    st.markdown("""
+    ✅ **Interpretation**  
+    - *Final Value* (RM) represents projected wealth after the full forecast.  
+    - *CAGR (%)* shows annual growth efficiency.  
+    - **🏡 Royal Blue — Property:** Higher final value in blue indicates stronger property performance  
+    - **💰 Dark Orange — Investment:** Higher CAGR in orange indicates stronger investment efficiency
+    - Highlights now align visually with chart colors and Tab 3 interpretation
+    """)
+    
 
 with tab3:
-    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Buy Property Wealth", f"RM {df['Buy Wealth (RM)'].iloc[-1]:,.0f}")
-    col2.metric("Rent+EPF Wealth", f"RM {df['EPF Wealth (RM)'].iloc[-1]:,.0f}")
-    col3.metric("Cumulative Rent Paid", f"RM {df['Cumulative Rent (RM)'].iloc[-1]:,.0f}")
-    col4.metric("Break-even Year", f"Year {break_even_year}" if break_even_year else "N/A")
-    st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
+    st.subheader("📝 Interpretation")
+
+    # Determine winners
+    final_property = df["Property Value"].iloc[-1]
+    final_investment = df["Investment Value"].iloc[-1]
+
+    cagr_property = df["Property CAGR"].iloc[-1]
+    cagr_investment = df["Investment CAGR"].iloc[-1]
+
+    # Decide best scenario by Final Value
+    if final_property > final_investment:
+        winner_value = "🏡 <span style='color:royalblue'>Property</span>"
+    else:
+        winner_value = "💰 <span style='color:darkorange'>Investment</span>"
+
+    # Decide best scenario by CAGR
+    if cagr_property > cagr_investment:
+        winner_cagr = "🏡 <span style='color:royalblue'>Property</span>"
+    else:
+        winner_cagr = "💰 <span style='color:darkorange'>Investment</span>"
+
+    # Find break-even year if it exists
+    break_even = df[df["Property Value"] > df["Investment Value"]]
+    if not break_even.empty:
+        break_year = int(break_even.iloc[0]["Year"])
+        break_text = f"📍 Break-even occurs at **Year {break_year}** when property value overtakes investment."
+    else:
+        break_text = "📍 No break-even within the time horizon — one scenario stays ahead throughout."
+
+    # Show adaptive interpretation
+    st.markdown(f"""
+    ### Key Insights  
+    - By the end of the projection, **{winner_value}** achieves the higher **final wealth**.  
+    - In terms of growth efficiency, **{winner_cagr}** demonstrates the stronger **CAGR performance**.  
+    - {break_text}  
+
+    ### Color & Icon Reference
+    - **🏡 Royal Blue — Property**
+    - **💰 Dark Orange — Investment**
+    - - **📍 Green Dashed Line — Break-even**
+    """, unsafe_allow_html=True)
+
+    ### Recommendation  
+    - If your priority is **long-term wealth accumulation**, the better performer (highlighted above) may be the preferred option.  
+    - If your priority is **higher growth efficiency (CAGR)**, consider the scenario with stronger annual compounding.  
+    - Always weigh in personal factors such as **risk tolerance, liquidity needs, and housing preferences**.
+    """, unsafe_allow_html=True)
+
 
 # --------------------------
 # Sensitivity Analysis Mention with Link
