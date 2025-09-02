@@ -33,10 +33,15 @@ st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
 def calculate_mortgage_payment(P, r, n):
     return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
 
-def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
+def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
     PMT = calculate_mortgage_payment(P, r, n)
     property_values, mortgage_balances = [P], [P]
-    buy_wealth, epf_wealth, rents, cum_rent = [0], [0], [P * rent_yield], [P * rent_yield]
+    buy_wealth, epf_wealth, rents, cum_rent = [0], [0], [], []
+
+    # Initial rent setup
+    initial_rent = custom_rent if custom_rent is not None else P * rent_yield
+    rents.append(initial_rent)
+    cum_rent.append(initial_rent)
 
     for t in range(1, years + 1):
         # Property growth
@@ -54,7 +59,7 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years):
         buy_wealth.append(new_buy_wealth)
 
         # Rent grows with property value
-        rent_payment = new_property_value * rent_yield
+        rent_payment = (custom_rent if custom_rent is not None else new_property_value * rent_yield)
         rents.append(rent_payment)
         cum_rent.append(cum_rent[-1] + rent_payment)
 
@@ -179,10 +184,15 @@ epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=
 rent_yield = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005)
 projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
 
+use_custom_rent = st.sidebar.checkbox("Use Custom Starting Rent?")
+custom_rent = None
+if use_custom_rent:
+    custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000)
+
 # --------------------------
 # 4. Projection
 # --------------------------
-df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, rent_yield, projection_years)
+df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, rent_yield, projection_years, custom_rent)
 
 # --------------------------
 # 5. Tabs
