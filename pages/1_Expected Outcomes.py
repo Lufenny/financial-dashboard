@@ -126,35 +126,37 @@ def format_table(df):
     for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Annual Rent (RM)", "Cumulative Rent (RM)"]:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
 
-    # Highlight final winner
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
+
+    def highlight_winner(row):
+        if row.name == df.index[-1]:
+            color = 'lightgreen' if row[winner_col] == f"RM {max(buy_final, epf_final):,.0f}" else ''
+            return [f'background-color: {color}' for _ in row]
+        return ['' for _ in row]
+
     styled_df = df_fmt.style.set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
-    styled_df = styled_df.apply(
-        lambda x: [
-            'background-color: lightgreen' if x.name == df.index[-1] and col == winner_col else ''
-            for col in df_fmt.columns
-        ],
-        axis=1
-    )
+    styled_df = styled_df.apply(highlight_winner, axis=1)
     return styled_df
 
 def calculate_cagr(initial, final, years):
-    if initial <= 0 or final <= 0 or years <= 0:
+    if years <= 0 or final <= 0:
         return 0
-    try:
-        return (final / initial) ** (1 / years) - 1
-    except ZeroDivisionError:
+    if initial <= 0:
         return 0
+    return (final / initial) ** (1 / years) - 1
 
 def generate_summary(df, years):
     buy_final = df["Buy Wealth (RM)"].iloc[-1]
     epf_final = df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
 
-    # CAGR
-    buy_cagr = calculate_cagr(max(1, df["Buy Wealth (RM)"].iloc[1]), buy_final, years)
-    epf_cagr = calculate_cagr(max(1, df["EPF Wealth (RM)"].iloc[1]), epf_final, years)
+    # Use first positive year for CAGR (not hardcoded index 1)
+    buy_initial = next((x for x in df["Buy Wealth (RM)"] if x > 0), 1)
+    epf_initial = next((x for x in df["EPF Wealth (RM)"] if x > 0), 1)
+
+    buy_cagr = calculate_cagr(buy_initial, buy_final, years)
+    epf_cagr = calculate_cagr(epf_initial, epf_final, years)
 
     winner = "Buy Property" if buy_final > epf_final else "Rent+EPF"
     ratio = buy_final / epf_final if epf_final > 0 else float('inf')
