@@ -256,82 +256,120 @@ st.download_button(
 )
 
 # --------------------------
-# 10. Interactive Sensitivity Tornado with Adjustable Range
+# Interactive Sensitivity Analysis
 # --------------------------
-st.subheader("🌪️ Interactive Sensitivity Analysis – Tornado Chart")
+st.subheader("🧩 Interactive Sensitivity Analysis")
 
-# Sidebar slider for sensitivity range
-sensitivity_pct = st.sidebar.slider(
-    "Sensitivity Range (%)", min_value=5, max_value=50, value=20, step=5
-) / 100  # convert to decimal
+# Sidebar: Sensitivity %
+sensitivity_pct = st.sidebar.slider("Sensitivity Range (%)", min_value=1, max_value=50, value=10, step=1)
 
-params = {
-    "Mortgage Rate": mortgage_rate,
-    "Property Growth": property_growth,
-    "Rent Yield": rent_yield,
-    "EPF Return": epf_rate
-}
+# --------------------------
+# 1. Compute Sensitivity Table
+# --------------------------
+sens_df = pd.DataFrame({
+    "Parameter": ["Mortgage Rate", "Property Growth", "EPF Rate", "Rent Yield"],
+    "Base": [mortgage_rate, property_growth, epf_rate, rent_yield]
+})
 
-results = []
+# Compute high/low scenarios
+sens_df["Low"] = sens_df["Base"] * (1 - sensitivity_pct/100)
+sens_df["High"] = sens_df["Base"] * (1 + sensitivity_pct/100)
 
-for key, baseline in params.items():
-    low = baseline * (1 - sensitivity_pct)
-    high = baseline * (1 + sensitivity_pct)
-    
-    # Helper function to generate outcome based on key parameter
-    def scenario_value(val):
-        if key == "Mortgage Rate":
-            df_s = project_outcomes(initial_property_price, loan_amount, val, loan_term_years,
-                                    property_growth, epf_rate, rent_yield, projection_years, down_payment, custom_rent)
-        elif key == "Property Growth":
-            df_s = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
-                                    val, epf_rate, rent_yield, projection_years, down_payment, custom_rent)
-        elif key == "Rent Yield":
-            df_s = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
-                                    property_growth, epf_rate, val, projection_years, down_payment, custom_rent)
-        elif key == "EPF Return":
-            df_s = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
-                                    property_growth, val, rent_yield, projection_years, down_payment, custom_rent)
-        return df_s["Buy Wealth (RM)"].iloc[-1], df_s["EPF Wealth (RM)"].iloc[-1]
+# Placeholder lists for impacts
+buy_low, buy_high, epf_low, epf_high = [], [], [], []
 
-    buy_low, epf_low = scenario_value(low)
-    buy_high, epf_high = scenario_value(high)
+# Calculate projected outcomes for each parameter scenario
+for idx, row in sens_df.iterrows():
+    param = row["Parameter"]
 
-    results.append({
-        "Parameter": key,
-        "Buy Low": buy_low,
-        "Buy High": buy_high,
-        "EPF Low": epf_low,
-        "EPF High": epf_high
-    })
+    # Low scenario
+    if param == "Mortgage Rate":
+        df_low = project_outcomes(initial_property_price, loan_amount, row["Low"], loan_term_years,
+                                  property_growth, epf_rate, rent_yield, projection_years, down_payment, custom_rent)
+    elif param == "Property Growth":
+        df_low = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
+                                  row["Low"], epf_rate, rent_yield, projection_years, down_payment, custom_rent)
+    elif param == "EPF Rate":
+        df_low = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
+                                  property_growth, row["Low"], rent_yield, projection_years, down_payment, custom_rent)
+    elif param == "Rent Yield":
+        df_low = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
+                                  property_growth, epf_rate, row["Low"], projection_years, down_payment, custom_rent)
+    buy_low.append(df_low["Buy Wealth (RM)"].iloc[-1])
+    epf_low.append(df_low["EPF Wealth (RM)"].iloc[-1])
 
-sens_df = pd.DataFrame(results)
+    # High scenario
+    if param == "Mortgage Rate":
+        df_high = project_outcomes(initial_property_price, loan_amount, row["High"], loan_term_years,
+                                   property_growth, epf_rate, rent_yield, projection_years, down_payment, custom_rent)
+    elif param == "Property Growth":
+        df_high = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
+                                   row["High"], epf_rate, rent_yield, projection_years, down_payment, custom_rent)
+    elif param == "EPF Rate":
+        df_high = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
+                                   property_growth, row["High"], rent_yield, projection_years, down_payment, custom_rent)
+    elif param == "Rent Yield":
+        df_high = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
+                                   property_growth, epf_rate, row["High"], projection_years, down_payment, custom_rent)
+    buy_high.append(df_high["Buy Wealth (RM)"].iloc[-1])
+    epf_high.append(df_high["EPF Wealth (RM)"].iloc[-1])
 
-# Tornado chart
+sens_df["Buy Low"] = buy_low
+sens_df["Buy High"] = buy_high
+sens_df["EPF Low"] = epf_low
+sens_df["EPF High"] = epf_high
+
+# Calculate impacts
+sens_df["Buy Impact"] = sens_df["Buy High"] - sens_df["Buy Low"]
+sens_df["EPF Impact"] = sens_df["EPF High"] - sens_df["EPF Low"]
+
+# --------------------------
+# 2. Tornado Chart with Highlights
+# --------------------------
 fig_tornado = go.Figure()
+max_buy_idx = sens_df["Buy Impact"].idxmax()
+max_epf_idx = sens_df["EPF Impact"].idxmax()
 
 for i, row in sens_df.iterrows():
-    # Buy bars
+    buy_color = 'darkblue' if i == max_buy_idx else 'blue'
+    epf_color = 'darkgreen' if i == max_epf_idx else 'green'
+
     fig_tornado.add_trace(go.Bar(
         y=[row["Parameter"]],
         x=[row["Buy High"] - row["Buy Low"]],
         base=row["Buy Low"],
         orientation='h',
-        name='🏡 Buy Property',
-        marker_color='blue'
+        name='🏡 Buy Property' if i==0 else None,
+        marker_color=buy_color,
+        showlegend=i==0
     ))
-    # EPF bars
+
     fig_tornado.add_trace(go.Bar(
         y=[row["Parameter"]],
         x=[row["EPF High"] - row["EPF Low"]],
         base=row["EPF Low"],
         orientation='h',
-        name='💰 Rent+EPF',
-        marker_color='green'
+        name='💰 Rent+EPF' if i==0 else None,
+        marker_color=epf_color,
+        showlegend=i==0
     ))
 
+# Add annotations for largest impacts
+fig_tornado.add_annotation(
+    x=sens_df.loc[max_buy_idx, "Buy High"],
+    y=sens_df.loc[max_buy_idx, "Parameter"],
+    text="🏡 Largest Impact",
+    showarrow=True, arrowhead=2, ax=40, ay=0, font=dict(color="darkblue")
+)
+fig_tornado.add_annotation(
+    x=sens_df.loc[max_epf_idx, "EPF High"],
+    y=sens_df.loc[max_epf_idx, "Parameter"],
+    text="💰 Largest Impact",
+    showarrow=True, arrowhead=2, ax=40, ay=0, font=dict(color="darkgreen")
+)
+
 fig_tornado.update_layout(
-    title=f"Tornado Chart: ±{int(sensitivity_pct*100)}% Variation Around Current Assumptions",
+    title=f"Tornado Chart with Highlighted Largest Impacts (±{sensitivity_pct}%)",
     barmode='overlay',
     xaxis_title="Final Wealth (RM)",
     yaxis_title="Parameter",
@@ -340,3 +378,30 @@ fig_tornado.update_layout(
 )
 
 st.plotly_chart(fig_tornado, use_container_width=True)
+
+# --------------------------
+# 3. Impact Table
+# --------------------------
+impact_table = sens_df.copy()
+for col in ["Buy Low", "Buy High", "Buy Impact", "EPF Low", "EPF High", "EPF Impact"]:
+    impact_table[col] = impact_table[col].map(lambda x: f"RM {x:,.0f}")
+
+st.dataframe(
+    impact_table[["Parameter", "Buy Low", "Buy High", "Buy Impact", "EPF Low", "EPF High", "EPF Impact"]],
+    use_container_width=True
+)
+
+# --------------------------
+# 4. Top Drivers Summary
+# --------------------------
+top_buy_drivers = sens_df.sort_values("Buy Impact", ascending=False).head(2)
+top_epf_drivers = sens_df.sort_values("EPF Impact", ascending=False).head(2)
+
+buy_text = ", ".join([f"{row['Parameter']} (RM {row['Buy Impact']:,.0f})" for _, row in top_buy_drivers.iterrows()])
+epf_text = ", ".join([f"{row['Parameter']} (RM {row['EPF Impact']:,.0f})" for _, row in top_epf_drivers.iterrows()])
+
+st.markdown(f"""
+- 🏡 **Buy Property – Top Drivers:** {buy_text}  
+- 💰 **Rent+EPF – Top Drivers:** {epf_text}  
+""")
+
