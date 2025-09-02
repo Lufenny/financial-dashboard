@@ -56,42 +56,52 @@ if page == "📊 EDA":
 
     # Dataset overview
     st.subheader("📋 Dataset Preview")
+    st.write(f"Total rows: {df.shape[0]}, Total columns: {df.shape[1]}")
     st.dataframe(df.head(10))
 
+    # Dataset Info
     st.subheader("ℹ️ Dataset Info")
-    buffer = df.info(buf=None)
-    st.text(buffer)
+    import io
+    buffer = io.StringIO()
+    df.info(buf=buffer)
+    s = buffer.getvalue()
+    st.text(s)
 
+    # Missing Values
     st.subheader("❗ Missing Values Summary")
     st.write(df.isna().sum())
 
+    # Numeric Descriptive Statistics
     st.subheader("📊 Numeric Descriptive Statistics")
     st.write(df.describe(include=[np.number]))
 
-    # Separate numeric and categorical columns
-    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+    # Categorical Descriptive Statistics
     categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
+    if categorical_cols:
+        st.subheader("📋 Categorical Columns Summary")
+        st.write(df[categorical_cols].describe())
 
     # ----------------------------
-    # Distributions for numeric columns
+    # Numeric distributions
     # ----------------------------
-    st.subheader("📈 Numeric Distributions")
-    for col in numeric_cols:
-        fig, ax = plt.subplots()
-        ax.hist(df[col].dropna(), bins=15, color="skyblue", edgecolor="black")
-        ax.set_title(f"Distribution of {col}")
-        st.pyplot(fig)
+    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+    if numeric_cols:
+        st.subheader("📈 Numeric Distributions")
+        for col in numeric_cols:
+            fig, ax = plt.subplots()
+            ax.hist(df[col].dropna(), bins=15, color="skyblue", edgecolor="black")
+            ax.set_title(f"Distribution of {col}")
+            st.pyplot(fig)
 
-    # Boxplots to detect outliers
-    st.subheader("📦 Boxplots (Outliers)")
-    for col in numeric_cols:
-        fig, ax = plt.subplots()
-        ax.boxplot(df[col].dropna(), vert=True)
-        ax.set_title(f"Boxplot of {col}")
-        st.pyplot(fig)
+        st.subheader("📦 Boxplots (Outliers)")
+        for col in numeric_cols:
+            fig, ax = plt.subplots()
+            ax.boxplot(df[col].dropna(), vert=True)
+            ax.set_title(f"Boxplot of {col}")
+            st.pyplot(fig)
 
     # ----------------------------
-    # Categorical variables analysis
+    # Categorical analysis
     # ----------------------------
     if categorical_cols:
         st.subheader("📊 Categorical Columns Analysis")
@@ -138,6 +148,13 @@ if page == "📊 EDA":
         plt.yticks(range(len(numeric_cols)), numeric_cols)
         fig.colorbar(cax)
         st.pyplot(fig)
+
+    # ----------------------------
+    # Download filtered/exported data
+    # ----------------------------
+    st.subheader("⬇️ Download Data")
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download Dataset (CSV)", data=csv_bytes, file_name="EDA_data.csv", mime="text/csv")
 
 # ----------------------------
 # WordCloud Page
