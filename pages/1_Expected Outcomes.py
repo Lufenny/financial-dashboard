@@ -405,3 +405,20 @@ st.markdown(f"""
 - 💰 **Rent+EPF – Top Drivers:** {epf_text}  
 """)
 
+# --------------------------
+# 5. Automated Recommendation
+# --------------------------
+st.subheader("💡 Sensitivity Recommendation")
+
+# Identify the largest single driver per scenario
+largest_buy = top_buy_drivers.iloc[0]
+largest_epf = top_epf_drivers.iloc[0]
+
+st.markdown(f"""
+- 🏡 **Buy Property:** The most sensitive factor is **{largest_buy['Parameter']}**, with an impact of **RM {largest_buy['Buy Impact']:,.0f}**.  
+  ⚠️ Recommendation: Monitor this parameter closely; small changes here can significantly affect your long-term wealth.
+
+- 💰 **Rent+EPF:** The most sensitive factor is **{largest_epf['Parameter']}**, with an impact of **RM {largest_epf['EPF Impact']:,.0f}**.  
+  ⚠️ Recommendation: This parameter largely drives your EPF wealth outcome; adjust contributions or strategy if necessary.
+""")
+
