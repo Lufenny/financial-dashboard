@@ -1,11 +1,10 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import plotly.express as px
 
-st.set_page_config(page_title="Buy vs Rent Model", layout="wide")
-st.title("🏡 Buy vs Rent Modelling and Sensitivity Analysis")
+st.set_page_config(page_title="Buy vs Rent Modelling", layout="wide")
+st.title("🏡 Buy vs Rent Modelling and Sensitivity Analysis (Fair Comparison)")
 
 # --------------------------
 # 1. Sidebar Inputs
@@ -15,7 +14,7 @@ st.sidebar.header("📌 Assumptions")
 purchase_price = st.sidebar.number_input("Property Price (RM)", value=500000, step=10000)
 down_payment_pct = st.sidebar.slider("Down Payment (%)", 0.0, 0.5, 0.1)
 mortgage_term = st.sidebar.slider("Mortgage Term (years)", 10, 35, 30)
-years = st.sidebar.slider("Analysis Horizon (years)", 5, 40, 20)
+projection_years = st.sidebar.slider("Projection Horizon (years)", 5, 40, 20)
 
 # Base-case rates
 mortgage_rate = st.sidebar.slider("Mortgage Rate (%)", 2.0, 8.0, 4.0, step=0.1)
@@ -40,80 +39,133 @@ def outstanding_balance(principal, annual_rate, n_years, months_elapsed):
     balance = principal * (1 + r)**months_elapsed - pmt * ((1 + r)**months_elapsed - 1) / r
     return balance
 
-# --------------------------
-# 3. Base-case Buy vs Rent Simulation
-# --------------------------
-dp = purchase_price * down_payment_pct
-loan = purchase_price - dp
-pmt = mortgage_payment(loan, mortgage_rate/100, mortgage_term)
+def project_buy_rent(price, dp_pct, mortgage_rate, mortgage_term, prop_growth,
+                     rent_yield, invest_return, years):
+    dp = price * dp_pct
+    loan = price - dp
+    pmt = mortgage_payment(loan, mortgage_rate, mortgage_term)
 
-years_list = np.arange(1, years+1)
-buy_equity, rent_portfolio = [], []
+    buy_wealth, rent_wealth = [dp], [dp]
+    years_list = np.arange(1, years+1)
 
-for t in years_list:
-    Vt = purchase_price * (1 + prop_appreciation/100)**t
-    bal = outstanding_balance(loan, mortgage_rate/100, mortgage_term, t*12)
-    eq = Vt - bal
-    buy_equity.append(eq)
-    
-    annual_rent = purchase_price * rent_yield * (1.02**(t-1))  # rent grows 2% annually
-    invested = (rent_portfolio[-1] if t > 1 else dp)
-    invested = invested * (1 + investment_return/100) + (pmt*12 - annual_rent)
-    rent_portfolio.append(invested)
+    for t in years_list:
+        # Buy
+        Vt = price * (1 + prop_growth)**t
+        bal = outstanding_balance(loan, mortgage_rate, mortgage_term, t*12)
+        eq = Vt - bal
+        buy_wealth.append(eq)
 
-df_base = pd.DataFrame({
-    "Year": years_list,
-    "BuyEquity": buy_equity,
-    "RentPortfolio": rent_portfolio,
-    "Difference": np.array(buy_equity) - np.array(rent_portfolio)
-})
+        # Rent + Invest
+        annual_rent = price * rent_yield * (1.02**(t-1))  # rent grows 2% p.a.
+        invested = rent_wealth[-1] * (1 + invest_return) + (pmt*12 - annual_rent)
+        rent_wealth.append(invested)
 
-# --------------------------
-# 4. Base-case Charts
-# --------------------------
-st.subheader("📊 Wealth Accumulation Over Time (Base-case)")
-st.line_chart(df_base.set_index("Year")[["BuyEquity","RentPortfolio"]])
+    df = pd.DataFrame({
+        "Year": np.arange(0, years+1),
+        "Buy Wealth (RM)": buy_wealth,
+        "EPF Wealth (RM)": rent_wealth
+    })
 
-st.subheader("📈 Final Comparison")
-st.write(f"After {years} years:")
-st.write(f"- Buy Equity: RM{buy_equity[-1]:,.0f}")
-st.write(f"- Rent & Invest Portfolio: RM{rent_portfolio[-1]:,.0f}")
-st.write(f"- Difference: RM{df_base['Difference'].iloc[-1]:,.0f}")
+    # CAGR
+    df["Buy CAGR"] = [( (df["Buy Wealth (RM)"].iloc[i]/df["Buy Wealth (RM)"].iloc[0])**(1/i)-1 if i>0 else 0)
+                      for i in range(len(df))]
+    df["EPF CAGR"] = [( (df["EPF Wealth (RM)"].iloc[i]/df["EPF Wealth (RM)"].iloc[0])**(1/i)-1 if i>0 else 0)
+                      for i in range(len(df))]
+
+    return df
 
 # --------------------------
-# 5. Sensitivity Analysis (4 Parameters)
+# 3. Base-case Projection
 # --------------------------
-st.subheader("🧮 Sensitivity Analysis (4 Parameters)")
+df_base = project_buy_rent(
+    purchase_price, down_payment_pct, mortgage_rate/100, mortgage_term,
+    prop_appreciation/100, rent_yield/100, investment_return/100, projection_years
+)
 
-mortgage_rates = [3, 4, 5, 6, 7]          # Mortgage %
-investment_returns = [4, 5, 6, 7, 8]      # Investment %
-appreciations = [2, 3, 4]                 # Property appreciation %
-rent_yields = [3, 4, 5]                   # Rental yields %
+break_even_year = next((row.Year for i,row in df_base.iterrows()
+                        if row["Buy Wealth (RM)"]>row["EPF Wealth (RM)"]), None)
+
+# --------------------------
+# 4. Base-case Charts & Table
+# --------------------------
+st.subheader("📊 Wealth Accumulation Over Time – Base-case")
+st.line_chart(df_base.set_index("Year")[["Buy Wealth (RM)", "EPF Wealth (RM)"]])
+
+st.subheader("📈 Base-case Summary")
+final_buy = df_base["Buy Wealth (RM)"].iloc[-1]
+final_epf = df_base["EPF Wealth (RM)"].iloc[-1]
+cagr_buy = df_base["Buy CAGR"].iloc[-1]*100
+cagr_epf = df_base["EPF CAGR"].iloc[-1]*100
+
+st.markdown(f"""
+- **Final Wealth:** Buy RM {final_buy:,.0f} vs Rent+Invest RM {final_epf:,.0f}  
+- **CAGR:** Buy {cagr_buy:.2f}% vs Rent+Invest {cagr_epf:.2f}%  
+- **Break-even Year:** {break_even_year if break_even_year else 'No break-even'}
+""")
+
+# --------------------------
+# 5. Sensitivity Analysis
+# --------------------------
+st.subheader("🧮 Sensitivity Analysis – Final Year Outcomes")
+
+mortgage_rates = [0.03, 0.04, 0.05, 0.06, 0.07]
+investment_returns = [0.04, 0.05, 0.06, 0.07, 0.08]
+appreciations = [0.02, 0.03, 0.04]
+rent_yields = [0.03, 0.04, 0.05]
 
 records = []
 
-for t in range(1, years+1):  # loop over years
-    for mr in mortgage_rates:
-        for ir in investment_returns:
-            for g in appreciations:
-                for ry in rent_yields:
-                    Vt = purchase_price * (1 + g/100)**t
-                    bal = outstanding_balance(loan, mr/100, mortgage_term, t*12)
-                    eq = Vt - bal
-                    
-                    annual_rent = purchase_price * ry
-                    rent_val = dp * (1 + ir/100)**t + (pmt*12 - annual_rent) * (((1 + ir/100)**t - 1) / (ir/100))
-                    
-                    diff = eq - rent_val
-                    records.append([t, mr, ir, g, ry, eq, rent_val, diff])
+for mr in mortgage_rates:
+    for ir in investment_returns:
+        for g in appreciations:
+            for ry in rent_yields:
+                df_temp = project_buy_rent(purchase_price, down_payment_pct, mr, mortgage_term,
+                                           g, ry, ir, projection_years)
+                final_buy = df_temp["Buy Wealth (RM)"].iloc[-1]
+                final_epf = df_temp["EPF Wealth (RM)"].iloc[-1]
+                diff = final_buy - final_epf
+                records.append([mr, ir, g, ry, final_buy, final_epf, diff])
 
-df_sens = pd.DataFrame(
-    records,
-    columns=["Year","MortgageRate","InvestReturn","Appreciation","RentYield","BuyEquity","RentPortfolio","Difference"]
-)
+df_sens = pd.DataFrame(records, columns=["MortgageRate","InvestReturn","Appreciation","RentYield",
+                                         "BuyWealth","EPFWealth","Difference"])
+
+st.dataframe(df_sens, use_container_width=True)
 
 # --------------------------
-# 6. Download CSV
+# 6. Interactive Heatmap
+# --------------------------
+st.subheader("📊 Heatmap – Impact of Parameters on Buy vs Rent")
+
+param_x = st.selectbox("X-axis parameter", ["MortgageRate", "InvestReturn", "Appreciation", "RentYield"], index=0)
+param_y = st.selectbox("Y-axis parameter", ["MortgageRate", "InvestReturn", "Appreciation", "RentYield"], index=1)
+
+pivot_heatmap = df_sens.pivot_table(
+    index=param_y,
+    columns=param_x,
+    values="Difference",
+    aggfunc="mean"
+).fillna(0)
+
+fig_heatmap = px.imshow(
+    pivot_heatmap.values,
+    x=pivot_heatmap.columns,
+    y=pivot_heatmap.index,
+    color_continuous_scale="RdBu_r",
+    text_auto=True,
+    aspect="auto"
+)
+
+fig_heatmap.update_layout(
+    title=f"Tipping Map – Buy vs Rent Difference (RM)",
+    xaxis_title=param_x,
+    yaxis_title=param_y,
+    coloraxis_colorbar=dict(title="Buy - Rent (RM)")
+)
+
+st.plotly_chart(fig_heatmap, use_container_width=True)
+
+# --------------------------
+# 7. Download CSV
 # --------------------------
 csv = df_sens.to_csv(index=False).encode("utf-8")
 st.download_button(
@@ -122,49 +174,3 @@ st.download_button(
     file_name="buy_vs_rent_sensitivity.csv",
     mime="text/csv"
 )
-
-# --------------------------
-# 7. Interactive Heatmap (Final Year)
-# --------------------------
-st.subheader("📊 Interactive Heatmap – Final Year Scenarios (Plotly)")
-
-df_final_year = df_sens[df_sens['Year']==years]
-
-# Let user select X and Y axes
-param_x = st.selectbox("X-axis parameter", ["MortgageRate", "InvestReturn", "Appreciation", "RentYield"], index=0)
-param_y = st.selectbox("Y-axis parameter", ["MortgageRate", "InvestReturn", "Appreciation", "RentYield"], index=1)
-
-# Pivot table for heatmap values
-pivot_plotly = df_final_year.pivot_table(
-    index=param_y,
-    columns=param_x,
-    values='Difference',
-    aggfunc='mean'
-).fillna(0)
-
-df_hover = df_final_year[[param_x, param_y, 'Difference', 'MortgageRate', 'InvestReturn', 'Appreciation', 'RentYield']]
-
-fig_plotly = px.imshow(
-    pivot_plotly.values,
-    x=pivot_plotly.columns,
-    y=pivot_plotly.index,
-    color_continuous_scale='RdBu_r',
-    text_auto=True,
-    aspect="auto"
-)
-
-fig_plotly.update_layout(
-    xaxis_title=param_x,
-    yaxis_title=param_y,
-    coloraxis_colorbar=dict(title="Buy - Rent (RM)"),
-    title=f"Tipping Map – {years} yrs (Interactive)"
-)
-
-fig_plotly.update_traces(
-    hovertemplate=
-    f"{param_x}: %{{x}}<br>{param_y}: %{{y}}<br>Difference: %{{z:,.0f}}<br>" +
-    "MortgageRate: %{customdata[0]}%<br>InvestReturn: %{customdata[1]}%<br>Appreciation: %{customdata[2]}%<br>RentYield: %{customdata[3]}%",
-    customdata=df_hover[['MortgageRate','InvestReturn','Appreciation','RentYield']].values
-)
-
-st.plotly_chart(fig_plotly, use_container_width=True)
