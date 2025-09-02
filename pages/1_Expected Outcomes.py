@@ -9,7 +9,6 @@ import matplotlib
 # --------------------------
 st.set_page_config(page_title='Expected Outcomes – Buy vs Rent+EPF', layout='wide')
 
-# Times New Roman styling
 st.markdown("""
 <style>
 html, body, [class*="css"] {
@@ -19,7 +18,7 @@ html, body, [class*="css"] {
 """, unsafe_allow_html=True)
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
-st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
+st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF (Fair Comparison)")
 
 # --------------------------
 # 2. Helper Functions
