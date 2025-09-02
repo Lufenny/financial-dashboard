@@ -59,7 +59,7 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
         buy_wealth.append(new_buy_wealth)
 
         # Rent grows with property value
-        rent_payment = (custom_rent if custom_rent is not None else new_property_value * rent_yield)
+        rent_payment = custom_rent if custom_rent is not None else new_property_value * rent_yield
         rents.append(rent_payment)
         cum_rent.append(cum_rent[-1] + rent_payment)
 
@@ -81,43 +81,32 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
 def plot_outcomes(df, years):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
-    winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
-    winner_name = "Buy Property" if winner_col == "Buy Wealth (RM)" else "Rent+EPF"
+    winner_name = "Buy Property" if buy_final > epf_final else "Rent+EPF"
 
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(df["Year"], df["Buy Wealth (RM)"], label="Buy Property", color="blue", linewidth=2)
     ax.plot(df["Year"], df["EPF Wealth (RM)"], label="Rent+EPF", color="green", linewidth=2)
     ax.plot(df["Year"], df["Cumulative Rent (RM)"], label="Cumulative Rent", color="red", linestyle="--", linewidth=2)
 
-    # Highlight winner area
+    # Highlight winner areas subtly
     ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], 
-                    where=df["Buy Wealth (RM)"]>=df["EPF Wealth (RM)"],
-                    color="blue", alpha=0.08, interpolate=True)
+                    where=df["Buy Wealth (RM)"]>=df["EPF Wealth (RM)"], color="blue", alpha=0.08, interpolate=True)
     ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], 
-                    where=df["Buy Wealth (RM)"]<df["EPF Wealth (RM)"],
-                    color="green", alpha=0.08, interpolate=True)
+                    where=df["Buy Wealth (RM)"]<df["EPF Wealth (RM)"], color="green", alpha=0.08, interpolate=True)
 
-    # Offset for final annotations
+    # Offset for annotations
     offset = max(df["Buy Wealth (RM)"].max(), df["EPF Wealth (RM)"].max()) * 0.02
 
     # Annotate final values
-    ax.text(years + 0.3, buy_final + offset, f"RM {buy_final:,.0f}",
-            color="blue", fontsize=11, weight="bold", ha="left", va="bottom")
-    ax.text(years + 0.3, epf_final + offset, f"RM {epf_final:,.0f}",
-            color="green", fontsize=11, weight="bold", ha="left", va="bottom")
-    ax.text(years + 0.3, rent_final + offset, f"RM {rent_final:,.0f}",
-            color="red", fontsize=11, weight="bold", ha="left", va="bottom")
+    ax.text(years + 0.3, buy_final + offset, f"RM {buy_final:,.0f}", color="blue", fontsize=11, weight="bold", ha="left", va="bottom")
+    ax.text(years + 0.3, epf_final + offset, f"RM {epf_final:,.0f}", color="green", fontsize=11, weight="bold", ha="left", va="bottom")
+    ax.text(years + 0.3, rent_final + offset, f"RM {rent_final:,.0f}", color="red", fontsize=11, weight="bold", ha="left", va="bottom")
 
     # Break-even year
-    break_even_year = None
-    for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]):
-        if buy > epf:
-            break_even_year = year
-            break
+    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy > epf), None)
     if break_even_year is not None:
         ax.axvline(x=break_even_year, color="orange", linestyle="--", linewidth=1.5, alpha=0.8)
-        ax.text(break_even_year, -offset*5,  # below x-axis for visibility
-                f"Break-even: Year {break_even_year}", 
+        ax.text(break_even_year, -offset*5, f"Break-even: Year {break_even_year}", 
                 color="orange", fontsize=10, weight="bold", ha="center", va="bottom",
                 bbox=dict(facecolor="white", alpha=0.7, edgecolor="orange"))
 
@@ -141,8 +130,7 @@ def format_table(df):
 
     def highlight_winner(row):
         if row.name == df.index[-1]:
-            color = 'lightgreen' if row[winner_col] == f"RM {max(buy_final, epf_final):,.0f}" else ''
-            return [f'background-color: {color}' for _ in row]
+            return ['background-color: lightgreen' if col == winner_col else '' for col in row.index]
         return ['' for _ in row]
 
     styled_df = df_fmt.style.set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
@@ -150,9 +138,7 @@ def format_table(df):
     return styled_df
 
 def calculate_cagr(initial, final, years):
-    if years <= 0 or final <= 0:
-        return 0
-    if initial <= 0:
+    if initial <= 0 or final <= 0 or years <= 0:
         return 0
     return (final / initial) ** (1 / years) - 1
 
@@ -161,25 +147,18 @@ def generate_summary(df, years):
     epf_final = df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
 
-    # Use first positive year for CAGR
+    # First positive year for CAGR
     buy_initial = next((x for x in df["Buy Wealth (RM)"] if x > 0), 1)
     epf_initial = next((x for x in df["EPF Wealth (RM)"] if x > 0), 1)
 
     buy_cagr = calculate_cagr(buy_initial, buy_final, years)
     epf_cagr = calculate_cagr(epf_initial, epf_final, years)
 
-    # Determine winner
     winner = "Buy Property" if buy_final > epf_final else "Rent+EPF"
     ratio = buy_final / epf_final if epf_final > 0 else float('inf')
 
-    # Find break-even year (first year where Buy > EPF)
-    break_even_year = None
-    for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]):
-        if buy > epf:
-            break_even_year = year
-            break
+    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy > epf), None)
 
-    # Format summary
     summary = f"""
     ### 📊 Expected Outcomes after {years} Years  
 
@@ -190,10 +169,9 @@ def generate_summary(df, years):
     """
 
     if break_even_year is not None:
-        summary += f"- **Break-even Year**: Year {break_even_year} (Buy Property surpasses Rent+EPF)\n"
+        summary += f"- **Break-even Year**: Year {break_even_year}\n"
 
     summary += f"\n🏆 **Winner: {winner}**"
-
     return summary
 
 # --------------------------
@@ -230,21 +208,13 @@ with tab2:
     st.dataframe(format_table(df), use_container_width=True)
 
 with tab3:
-    # Calculate break-even year
-    break_even_year = None
-    for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]):
-        if buy > epf:
-            break_even_year = year
-            break
-
+    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy > epf), None)
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Buy Property Wealth", f"RM {df['Buy Wealth (RM)'].iloc[-1]:,.0f}")
     col2.metric("Rent+EPF Wealth", f"RM {df['EPF Wealth (RM)'].iloc[-1]:,.0f}")
     col3.metric("Cumulative Rent Paid", f"RM {df['Cumulative Rent (RM)'].iloc[-1]:,.0f}")
-    col4.metric("Break-even Year", f"Year {break_even_year}" if break_even_year is not None else "N/A")
-
+    col4.metric("Break-even Year", f"Year {break_even_year}" if break_even_year else "N/A")
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
-
 
 # --------------------------
 # 6. Download CSV
