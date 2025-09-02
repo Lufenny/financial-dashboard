@@ -356,8 +356,16 @@ with tab2:
 with tab3:
     st.subheader("📊 Baseline Assumptions Table")
     st.table({
-        "Parameter": ["Property Price", "Mortgage Rate", "Investment Return", "Inflation Rate"],
-        "Baseline": ["RM500,000", "5%", "4%", "3%"]
+        "Parameter": [
+            "Property Price", 
+            "Mortgage Rate", 
+            "Investment Return", 
+            "Inflation Rate", 
+            "Annual Price Growth"
+        ],
+        "Baseline (EDA)": [
+            "RM500,000", "5%", "4%", "3%", "5%"
+        ]
     })
     st.markdown(
         """
@@ -365,6 +373,7 @@ with tab3:
         Use the **sidebar inputs** to test alternative scenarios and compare against this baseline.
         """
     )
+
 
 # --------------------------
 # Sensitivity Analysis Mention with Link
