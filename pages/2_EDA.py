@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 from collections import Counter
@@ -7,10 +8,9 @@ import nltk
 from nltk.corpus import stopwords
 import os
 import re
-import numpy as np
 
 # ----------------------------
-# NLTK Setup (download if missing)
+# NLTK Setup
 # ----------------------------
 try:
     stopwords.words("english")
@@ -19,142 +19,131 @@ except LookupError:
     nltk.download('stopwords')
 
 # ----------------------------
-# App config + Sidebar Navigation
+# App config
 # ----------------------------
-st.set_page_config(page_title="EDA & WordCloud", layout="wide")
+st.set_page_config(page_title="Full EDA Dashboard", layout="wide")
 st.sidebar.title("🔍 Navigation")
 page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
 
 # ----------------------------
-# Helper: load dataset (from upload or fallback file)
+# Load dataset
 # ----------------------------
 @st.cache_data
-def load_csv_from_path(path):
+def load_csv(path):
     return pd.read_csv(path)
 
-def load_dataset(uploaded_file=None, fallback_path="Data.csv"):
+def get_dataset(uploaded_file=None, fallback_path="Data.csv"):
     if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
     elif os.path.exists(fallback_path):
-        df = load_csv_from_path(fallback_path)
+        df = load_csv(fallback_path)
     else:
         return None
     return df
 
 # ----------------------------
-# Page 1: EDA
+# EDA Page
 # ----------------------------
 if page == "📊 EDA":
     st.title("🔎 Exploratory Data Analysis (EDA)")
 
     uploaded_file = st.file_uploader("Upload your dataset (CSV)", type=["csv"])
-    df = load_dataset(uploaded_file, fallback_path="Data.csv")
+    df = get_dataset(uploaded_file)
 
     if df is None:
-        st.error("❌ No dataset found. Please upload a CSV file (or place Data.csv in the working directory).")
+        st.error("❌ No dataset found. Please upload a CSV file or place 'Data.csv' in working directory.")
         st.stop()
 
-    # Ensure Year column is numeric integer if present
-    if "Year" in df.columns:
-        df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
-        df = df.dropna(subset=["Year"]).copy()
-        df["Year"] = df["Year"].astype(int)
-    else:
-        st.warning("Dataset has no 'Year' column — charts by year will be disabled. You can continue with the wordcloud page.")
-    
-    # Show dataset span info (full period)
-    if "Year" in df.columns and len(df) > 0:
-        year_min = int(df["Year"].min())
-        year_max = int(df["Year"].max())
-        span_years = year_max - year_min + 1
-        st.markdown(f"**Dataset period:** {year_min} — {year_max}  (_{span_years} years total_)")
-    else:
-        year_min = year_max = None
+    # Dataset overview
+    st.subheader("📋 Dataset Preview")
+    st.dataframe(df.head(10))
 
-    # Data Preview
-    st.subheader("📋 Data Preview")
-    st.dataframe(df.reset_index(drop=True))
+    st.subheader("ℹ️ Dataset Info")
+    buffer = df.info(buf=None)
+    st.text(buffer)
 
-    # Summary Statistics
-    st.subheader("📊 Summary Statistics (numeric columns)")
+    st.subheader("❗ Missing Values Summary")
+    st.write(df.isna().sum())
+
+    st.subheader("📊 Numeric Descriptive Statistics")
     st.write(df.describe(include=[np.number]))
 
-    # If Year exists, let user select subset of years to visualize
-    if year_min is not None:
-        st.subheader("📈 Visual Analysis (select year range)")
-        y0, y1 = st.slider("Select Year Range", min_value=year_min, max_value=year_max, value=(year_min, year_max), step=1)
-        df_plot = df[(df["Year"] >= y0) & (df["Year"] <= y1)].copy()
-    else:
-        st.subheader("📈 Visual Analysis")
-        df_plot = df.copy()
+    # Separate numeric and categorical columns
+    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+    categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
-    # Chart Selector
-    chart_type = st.selectbox(
-        "Select a chart to display:",
-        ["OPR vs Year", "EPF vs Year", "Price Growth vs Year", "Rent Yield vs Year", "Correlation Heatmap"]
-    )
-
-    # Utility to plot a simple line if column exists
-    def plot_line(year_col, value_col, ylabel, title):
-        if year_col not in df_plot.columns or value_col not in df_plot.columns:
-            st.warning(f"Missing column: '{value_col}'. Available columns: {', '.join(df_plot.columns)}")
-            return
+    # ----------------------------
+    # Distributions for numeric columns
+    # ----------------------------
+    st.subheader("📈 Numeric Distributions")
+    for col in numeric_cols:
         fig, ax = plt.subplots()
-        ax.plot(df_plot[year_col], df_plot[value_col], marker="o", linewidth=1)
-        ax.set_xlabel("Year")
-        ax.set_ylabel(ylabel)
-        ax.set_title(title)
-        ax.grid(alpha=0.2)
+        ax.hist(df[col].dropna(), bins=15, color="skyblue", edgecolor="black")
+        ax.set_title(f"Distribution of {col}")
         st.pyplot(fig)
 
-    if chart_type == "OPR vs Year":
-        plot_line("Year", "OPR_avg", "OPR (%)", f"Trend of OPR ({y0}–{y1})" if year_min else "Trend of OPR")
-        if "OPR_avg" in df_plot.columns and "Year" in df_plot.columns:
-            start, end = float(df_plot["OPR_avg"].iloc[0]), float(df_plot["OPR_avg"].iloc[-1])
-            st.write(f"**Observation:** OPR changed from {start:.2f}% to {end:.2f}% between {df_plot['Year'].iloc[0]} and {df_plot['Year'].iloc[-1]} (selected range).")
+    # Boxplots to detect outliers
+    st.subheader("📦 Boxplots (Outliers)")
+    for col in numeric_cols:
+        fig, ax = plt.subplots()
+        ax.boxplot(df[col].dropna(), vert=True)
+        ax.set_title(f"Boxplot of {col}")
+        st.pyplot(fig)
 
-    elif chart_type == "EPF vs Year":
-        plot_line("Year", "EPF", "EPF Dividend (%)", f"Trend of EPF Dividend ({y0}–{y1})" if year_min else "Trend of EPF Dividend")
-
-    elif chart_type == "Price Growth vs Year":
-        plot_line("Year", "PriceGrowth", "Price Growth (%)", f"Trend of Property Price Growth ({y0}–{y1})" if year_min else "Trend of Property Price Growth")
-
-    elif chart_type == "Rent Yield vs Year":
-        plot_line("Year", "RentYield", "Rental Yield (%)", f"Trend of Rental Yield ({y0}–{y1})" if year_min else "Trend of Rental Yield")
-
-    elif chart_type == "Correlation Heatmap":
-        st.write("### Correlation Matrix (numeric columns)")
-        corr = df_plot.corr(numeric_only=True)
-        if corr.empty:
-            st.write("No numeric columns available to compute correlations.")
-        else:
-            fig, ax = plt.subplots(figsize=(8, 6))
-            im = ax.imshow(corr.values, cmap="Blues", vmin=-1, vmax=1)
-            ax.set_xticks(np.arange(len(corr.columns)))
-            ax.set_yticks(np.arange(len(corr.index)))
-            ax.set_xticklabels(corr.columns, rotation=45, ha="right")
-            ax.set_yticklabels(corr.index)
-            # annotate with contrast
-            for i in range(len(corr.index)):
-                for j in range(len(corr.columns)):
-                    val = corr.values[i, j]
-                    color = "white" if abs(val) > 0.5 else "black"
-                    ax.text(j, i, f"{val:.2f}", ha="center", va="center", fontsize=8, color=color)
-            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            ax.set_title(f"Correlation matrix ({y0}–{y1})" if year_min else "Correlation matrix")
-            plt.tight_layout()
+    # ----------------------------
+    # Categorical variables analysis
+    # ----------------------------
+    if categorical_cols:
+        st.subheader("📊 Categorical Columns Analysis")
+        for col in categorical_cols:
+            fig, ax = plt.subplots()
+            df[col].value_counts().plot(kind="bar", ax=ax, color="lightgreen")
+            ax.set_title(f"Counts of {col}")
             st.pyplot(fig)
 
-    # Download filtered/exported data
-    st.subheader("⬇️ Download Data")
-    csv_bytes = df_plot.to_csv(index=False).encode("utf-8")
-    st.download_button("Download Filtered Dataset (CSV)", data=csv_bytes, file_name="EDA_data_filtered.csv", mime="text/csv")
+    # ----------------------------
+    # Trends over years (if Year exists)
+    # ----------------------------
+    if "Year" in df.columns:
+        st.subheader("📈 Trends Over Years")
+        df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
+        df = df.dropna(subset=["Year"])
+        df["Year"] = df["Year"].astype(int)
+
+        year_min, year_max = int(df["Year"].min()), int(df["Year"].max())
+        y0, y1 = st.slider("Select Year Range", year_min, year_max, (year_min, year_max))
+
+        df_year = df[(df["Year"] >= y0) & (df["Year"] <= y1)]
+
+        # Line charts for numeric columns
+        chart_cols = st.multiselect("Select numeric columns to plot trends", numeric_cols, default=numeric_cols)
+        for col in chart_cols:
+            fig, ax = plt.subplots()
+            ax.plot(df_year["Year"], df_year[col], marker="o", linewidth=1)
+            ax.set_xlabel("Year")
+            ax.set_ylabel(col)
+            ax.set_title(f"Trend of {col} ({y0}-{y1})")
+            ax.grid(alpha=0.2)
+            st.pyplot(fig)
+
+    # ----------------------------
+    # Correlation Heatmap
+    # ----------------------------
+    if numeric_cols:
+        st.subheader("🧩 Correlation Matrix")
+        corr = df[numeric_cols].corr()
+        fig, ax = plt.subplots(figsize=(8, 6))
+        cax = ax.matshow(corr, cmap="coolwarm")
+        plt.xticks(range(len(numeric_cols)), numeric_cols, rotation=45)
+        plt.yticks(range(len(numeric_cols)), numeric_cols)
+        fig.colorbar(cax)
+        st.pyplot(fig)
 
 # ----------------------------
-# Page 2: WordCloud + Top Words
+# WordCloud Page
 # ----------------------------
 elif page == "☁️ WordCloud":
-    st.title("📝 Rent vs Buy — Blog Word Analysis")
+    st.title("📝 Text Analysis & WordCloud")
 
     uploaded_file = st.file_uploader("Upload your blog dataset (CSV with 'Content' column)", type=["csv"], key="wc")
     if uploaded_file is not None:
@@ -162,29 +151,23 @@ elif page == "☁️ WordCloud":
     elif os.path.exists("Rent_vs_Buy_Blogs.csv"):
         df_text = pd.read_csv("Rent_vs_Buy_Blogs.csv")
     else:
-        st.error("❌ No blog dataset found. Please upload a CSV file with a 'Content' column.")
+        st.error("❌ No blog dataset found. Upload CSV with 'Content' column.")
         st.stop()
 
     if "Content" not in df_text.columns:
-        st.error("CSV file must contain a 'Content' column with blog text.")
+        st.error("CSV must have a 'Content' column with text.")
     else:
         text_data = " ".join(df_text["Content"].dropna().astype(str))
         tokens = re.findall(r"\b[a-zA-Z]+\b", text_data.lower())
+        stop_words = set(stopwords.words("english")) | {"akan", "dan", "atau", "yang", "untuk", "dengan", "jika"}
+        cleaned_tokens = [w for w in tokens if w not in stop_words]
 
-        # Stopwords: English + some Malay fillers
-        stop_words = set(stopwords.words("english"))
-        extra_stops = {"akan", "dan", "atau", "yang", "untuk", "dengan", "jika"}  
-        stop_words |= extra_stops
-
-        cleaned_tokens = [word for word in tokens if word not in stop_words]
-
+        # WordCloud
         wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(cleaned_tokens))
-
         word_freq = Counter(cleaned_tokens).most_common(15)
         words, counts = zip(*word_freq) if word_freq else ([], [])
 
         col1, col2 = st.columns(2)
-
         with col1:
             st.subheader("☁️ WordCloud")
             fig_wc, ax_wc = plt.subplots(figsize=(8, 5))
@@ -201,5 +184,4 @@ elif page == "☁️ WordCloud":
                 ax_bar.set_ylabel("Word")
             else:
                 ax_bar.text(0.5, 0.5, "No words found", ha="center")
-                ax_bar.set_title("No data")
             st.pyplot(fig_bar)
