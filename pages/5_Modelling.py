@@ -1,17 +1,21 @@
-# ========================================
-# Buy vs Rent + EPF Modelling - Streamlit
-# ========================================
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
 # --------------------------
-# 1. Page Config
+# 1. Page Config & Style
 # --------------------------
-st.set_page_config(page_title="Buy vs Rent + EPF Modelling", layout="wide")
-st.title("📊 Buy vs Rent + EPF Modelling")
+st.set_page_config(page_title='Buy vs Rent + EPF Modelling', layout='wide')
+st.markdown("""
+<style>
+html, body, [class*="css"] {
+    font-family: 'Times New Roman', serif !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.title("🏡 Buy Property vs 💰 Rent+EPF: Wealth Projection & Sensitivity Analysis")
 
 # --------------------------
 # 2. Helper Functions
@@ -24,9 +28,7 @@ def calculate_monthly_mortgage(loan_amount, annual_rate, years):
 def project_buy_rent(P, loan_amount, mortgage_rate, mortgage_term,
                      property_growth, epf_rate, rent_yield, years,
                      down_payment=0, custom_rent=None):
-    
     monthly_PMT = calculate_monthly_mortgage(loan_amount, mortgage_rate, mortgage_term)
-    
     property_values = [P]
     mortgage_balances = [loan_amount]
     buy_wealth = [down_payment]
@@ -34,11 +36,11 @@ def project_buy_rent(P, loan_amount, mortgage_rate, mortgage_term,
     rents = []
     cum_rent = []
 
-    annual_rent = custom_rent if custom_rent is not None else P * rent_yield
+    annual_rent = custom_rent if custom_rent else P * rent_yield
     rents.append(annual_rent)
     cum_rent.append(annual_rent)
 
-    for t in range(1, years+1):
+    for t in range(1, years + 1):
         new_property_value = property_values[-1] * (1 + property_growth)
         property_values.append(new_property_value)
 
@@ -49,7 +51,7 @@ def project_buy_rent(P, loan_amount, mortgage_rate, mortgage_term,
 
         buy_wealth.append(new_property_value - new_balance)
 
-        annual_rent = custom_rent if custom_rent is not None else new_property_value * rent_yield
+        annual_rent = custom_rent if custom_rent else new_property_value * rent_yield
         rents.append(annual_rent)
         cum_rent.append(cum_rent[-1] + annual_rent)
 
@@ -59,8 +61,8 @@ def project_buy_rent(P, loan_amount, mortgage_rate, mortgage_term,
     buy_cagr = [( (buy_wealth[i]/buy_wealth[0])**(1/i) - 1 if i>0 else 0) for i in range(len(buy_wealth))]
     epf_cagr = [( (epf_wealth[i]/epf_wealth[0])**(1/i) - 1 if i>0 else 0) for i in range(len(epf_wealth))]
 
-    df = pd.DataFrame({
-        "Year": np.arange(0, years+1),
+    return pd.DataFrame({
+        "Year": np.arange(0, years + 1),
         "Property Value": property_values,
         "Mortgage Balance": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
@@ -70,30 +72,32 @@ def project_buy_rent(P, loan_amount, mortgage_rate, mortgage_term,
         "Buy CAGR": buy_cagr,
         "EPF CAGR": epf_cagr
     })
-    return df
 
 # --------------------------
 # 3. Sidebar Inputs
 # --------------------------
-st.sidebar.header("⚙️ Input Parameters")
+st.sidebar.header("⚙️ Assumptions")
 purchase_price = st.sidebar.number_input("Property Price (RM)", value=500_000, step=50_000)
 down_payment = st.sidebar.number_input("Down Payment (RM)", value=100_000, step=10_000)
 loan_amount = purchase_price - down_payment
 
-mortgage_rate = st.sidebar.slider("Mortgage Rate (%)", 1.0, 8.0, 4.0)/100
-mortgage_term = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
-property_growth = st.sidebar.slider("Property Growth Rate (%)", 1.0, 10.0, 5.0)/100
-epf_rate = st.sidebar.slider("EPF Annual Return (%)", 1.0, 10.0, 6.0)/100
-rent_yield = st.sidebar.slider("Rent Yield (%)", 1.0, 10.0, 4.0)/100
+mortgage_rate = st.sidebar.slider("Mortgage Rate (Annual)", 0.01, 0.08, 0.04, 0.005)
+property_growth = st.sidebar.slider("Property Growth Rate (Annual)", 0.01, 0.10, 0.05, 0.005)
+rent_yield = st.sidebar.slider("Rent Yield", 0.01, 0.10, 0.04, 0.005)
+epf_rate = st.sidebar.slider("EPF Return Rate (Annual)", 0.01, 0.10, 0.06, 0.005)
+
+mortgage_term = st.sidebar.number_input("Mortgage Term (Years)", value=30, step=5)
 projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
 
 use_custom_rent = st.sidebar.checkbox("Use Custom Starting Rent?")
-custom_rent = st.sidebar.number_input("Custom Annual Rent (RM)", value=20000, step=1000) if use_custom_rent else None
+custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000) if use_custom_rent else None
+
+sensitivity_pct = st.sidebar.slider("Sensitivity Range (%)", min_value=1, max_value=50, value=10, step=1)
 
 # --------------------------
 # 4. Run Projection
 # --------------------------
-df_results = project_buy_rent(
+df = project_buy_rent(
     P=purchase_price,
     loan_amount=loan_amount,
     mortgage_rate=mortgage_rate,
@@ -106,61 +110,65 @@ df_results = project_buy_rent(
     custom_rent=custom_rent
 )
 
-# Break-even year
-break_even_year = next((row.Year for i,row in df_results.iterrows() if row["Buy Wealth (RM)"] > row["EPF Wealth (RM)"]), None)
+break_even_year = next((row.Year for i,row in df.iterrows() if row["Buy Wealth (RM)"] > row["EPF Wealth (RM)"]), None)
 
 # --------------------------
-# 5. Display Results
+# 5. Tabs
 # --------------------------
-st.subheader("📊 Projection Table (First 10 Years)")
-st.dataframe(df_results.head(10))
+tab1, tab2, tab3 = st.tabs(["📈 Chart", "📊 Table", "📝 Summary"])
 
-st.subheader("📈 Wealth Comparison")
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=df_results["Year"], y=df_results["Buy Wealth (RM)"], mode='lines+markers', name="🏡 Buy Property"))
-fig.add_trace(go.Scatter(x=df_results["Year"], y=df_results["EPF Wealth (RM)"], mode='lines+markers', name="💰 Rent+EPF"))
-if break_even_year:
-    fig.add_vline(x=break_even_year, line=dict(color='orange', dash='dash'))
-    fig.add_annotation(x=break_even_year, y=max(df_results["Buy Wealth (RM)"].max(), df_results["EPF Wealth (RM)"].max()),
-                       text=f"📍 Break-even: Year {break_even_year}", showarrow=False, yanchor="bottom")
-st.plotly_chart(fig, use_container_width=True)
+with tab1:
+    st.subheader("📈 Wealth Projection Over Time")
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines+markers', name='🏡 Buy Property', line=dict(color='royalblue', width=3)))
+    fig.add_trace(go.Scatter(x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines+markers', name='💰 Rent+EPF', line=dict(color='seagreen', width=3)))
+    if break_even_year:
+        fig.add_vline(x=break_even_year, line=dict(color='orange', dash='dash', width=2))
+        fig.add_annotation(x=break_even_year, y=max(df["Buy Wealth (RM)"].max(), df["EPF Wealth (RM)"].max()),
+                           text=f"📍 Break-even Year: {break_even_year}", showarrow=True, arrowhead=2, ax=-40, ay=-40, font=dict(color="orange", size=12))
+    fig.update_layout(title=f"Wealth Projection ({projection_years} Years)", xaxis_title="Year", yaxis_title="Wealth (RM)", template="plotly_white")
+    st.plotly_chart(fig, use_container_width=True)
 
-st.subheader("💡 Summary")
-st.write(f"Final Buy Wealth: RM {df_results['Buy Wealth (RM)'].iloc[-1]:,.0f}")
-st.write(f"Final EPF Wealth: RM {df_results['EPF Wealth (RM)'].iloc[-1]:,.0f}")
-st.write(f"Break-even Year: {break_even_year if break_even_year else 'No break-even within projection horizon'}")
+with tab2:
+    st.subheader("📊 Projection Table")
+    st.dataframe(df, use_container_width=True)
+
+with tab3:
+    st.subheader("📝 Summary")
+    final_buy = df["Buy Wealth (RM)"].iloc[-1]
+    final_epf = df["EPF Wealth (RM)"].iloc[-1]
+    winner_value = "🏡 Buy Property" if final_buy>final_epf else "💰 Rent+EPF"
+    st.markdown(f"""
+### Key Outcomes
+- **Final Buy Wealth:** RM {final_buy:,.0f}  
+- **Final EPF Wealth:** RM {final_epf:,.0f}  
+- **Winner (Final Wealth):** {winner_value}  
+- **Break-even Year:** {break_even_year if break_even_year else 'No break-even'}  
+""")
 
 # --------------------------
-# 6. Sensitivity Analysis (±10%)
+# 6. Sensitivity Analysis
 # --------------------------
-st.subheader("🧩 Sensitivity Analysis (±10%)")
-sensitivity_pct = 0.10
 params = {
-    "Mortgage Rate": (mortgage_rate*(1-sensitivity_pct), mortgage_rate*(1+sensitivity_pct)),
-    "Property Growth": (property_growth*(1-sensitivity_pct), property_growth*(1+sensitivity_pct)),
-    "EPF Rate": (epf_rate*(1-sensitivity_pct), epf_rate*(1+sensitivity_pct)),
-    "Rent Yield": (rent_yield*(1-sensitivity_pct), rent_yield*(1+sensitivity_pct))
+    "Mortgage Rate": mortgage_rate,
+    "Property Growth": property_growth,
+    "EPF Rate": epf_rate,
+    "Rent Yield": rent_yield
 }
 
 sensitivity_results = []
 
-for param_name, (low, high) in params.items():
-    kwargs = {
-        "P": purchase_price,
-        "loan_amount": loan_amount,
-        "mortgage_rate": mortgage_rate,
-        "mortgage_term": mortgage_term,
-        "property_growth": property_growth,
-        "epf_rate": epf_rate,
-        "rent_yield": rent_yield,
-        "years": projection_years,
-        "down_payment": down_payment,
-        "custom_rent": custom_rent
-    }
-    kwargs_low = kwargs.copy()
+for param_name, base_val in params.items():
+    low = base_val*(1 - sensitivity_pct/100)
+    high = base_val*(1 + sensitivity_pct/100)
+
+    kwargs_low = dict(P=purchase_price, loan_amount=loan_amount, mortgage_rate=mortgage_rate, mortgage_term=mortgage_term,
+                      property_growth=property_growth, epf_rate=epf_rate, rent_yield=rent_yield, years=projection_years,
+                      down_payment=down_payment, custom_rent=custom_rent)
     kwargs_low[param_name.replace(" ", "_").lower()] = low
     df_low = project_buy_rent(**kwargs_low)
-    kwargs_high = kwargs.copy()
+
+    kwargs_high = kwargs_low.copy()
     kwargs_high[param_name.replace(" ", "_").lower()] = high
     df_high = project_buy_rent(**kwargs_high)
 
@@ -175,50 +183,41 @@ for param_name, (low, high) in params.items():
     })
 
 df_sensitivity = pd.DataFrame(sensitivity_results)
-st.dataframe(df_sensitivity)
 
-# Highlight most sensitive factors
-most_sensitive_buy = df_sensitivity.loc[df_sensitivity["Buy Impact"].idxmax()]
-most_sensitive_epf = df_sensitivity.loc[df_sensitivity["EPF Impact"].idxmax()]
+st.subheader(f"🌪️ Sensitivity Analysis (±{sensitivity_pct}%)")
+st.dataframe(df_sensitivity, use_container_width=True)
 
-st.markdown(f"**Most sensitive factor for Buy Wealth:** {most_sensitive_buy['Parameter']} (Impact: RM {most_sensitive_buy['Buy Impact']:,.0f})")
-st.markdown(f"**Most sensitive factor for EPF Wealth:** {most_sensitive_epf['Parameter']} (Impact: RM {most_sensitive_epf['EPF Impact']:,.0f})")
+# Tornado charts for presentation clarity
+st.subheader("🎯 Tornado Charts")
 
-# --------------------------
-# 7. Tornado Charts for Sensitivity Analysis
-# --------------------------
-st.subheader("🌪️ Tornado Charts - Sensitivity Impact")
-
-import plotly.express as px
-
-# Buy Wealth Tornado
+# Buy Wealth
 df_buy = df_sensitivity[['Parameter', 'Buy Low', 'Buy High']].copy()
 df_buy['Impact'] = df_buy['Buy High'] - df_buy['Buy Low']
 df_buy = df_buy.sort_values('Impact', ascending=True)
-
-fig_buy = go.Figure()
-fig_buy.add_trace(go.Bar(
-    x=df_buy['Impact'],
-    y=df_buy['Parameter'],
-    orientation='h',
-    name='Impact on Buy Wealth',
-    marker_color='teal'
-))
-fig_buy.update_layout(title='Buy Wealth Sensitivity (±10%)', xaxis_title='Impact (RM)', yaxis_title='')
+fig_buy = go.Figure(go.Bar(x=df_buy['Impact'], y=df_buy['Parameter'], orientation='h', marker_color='royalblue'))
+fig_buy.update_layout(title='Buy Wealth Sensitivity', xaxis_title='Impact (RM)', yaxis_title='')
 st.plotly_chart(fig_buy, use_container_width=True)
 
-# EPF Wealth Tornado
+# EPF Wealth
 df_epf = df_sensitivity[['Parameter', 'EPF Low', 'EPF High']].copy()
 df_epf['Impact'] = df_epf['EPF High'] - df_epf['EPF Low']
 df_epf = df_epf.sort_values('Impact', ascending=True)
-
-fig_epf = go.Figure()
-fig_epf.add_trace(go.Bar(
-    x=df_epf['Impact'],
-    y=df_epf['Parameter'],
-    orientation='h',
-    name='Impact on EPF Wealth',
-    marker_color='orange'
-))
-fig_epf.update_layout(title='EPF Wealth Sensitivity (±10%)', xaxis_title='Impact (RM)', yaxis_title='')
+fig_epf = go.Figure(go.Bar(x=df_epf['Impact'], y=df_epf['Parameter'], orientation='h', marker_color='seagreen'))
+fig_epf.update_layout(title='EPF Wealth Sensitivity', xaxis_title='Impact (RM)', yaxis_title='')
 st.plotly_chart(fig_epf, use_container_width=True)
+
+# Top drivers summary cards
+top_buy = df_sensitivity.sort_values("Buy Impact", ascending=False).iloc[0]
+top_epf = df_sensitivity.sort_values("EPF Impact", ascending=False).iloc[0]
+
+st.markdown(f"""
+### 🏆 Top Drivers
+- **Buy Property – Most Sensitive Factor:** {top_buy['Parameter']} (Impact: RM {top_buy['Buy Impact']:,.0f})  
+- **Rent+EPF – Most Sensitive Factor:** {top_epf['Parameter']} (Impact: RM {top_epf['EPF Impact']:,.0f})  
+""")
+
+# --------------------------
+# 7. CSV Download
+# --------------------------
+csv_bytes = df.to_csv(index=False).encode('utf-8')
+st.download_button("📥 Download Projection Data (CSV)", data=csv_bytes, file_name="buy_vs_rent_epf_projection.csv", mime="text/csv")
