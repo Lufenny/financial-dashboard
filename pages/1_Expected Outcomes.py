@@ -125,116 +125,115 @@ def generate_summary(df, years):
     summary += f"\n🏆 **Winner: {winner}**"
     return summary
 
-def plot_outcomes_interactive(df, years):
-    buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
-    winner_name = "Buy Property" if buy_final > epf_final else "Rent+EPF"
-
-    fig = go.Figure()
-
+def plot_outcomes_animated_bounce_flash(df):
+    years = df["Year"].values
     buy_values = df["Buy Wealth (RM)"].values
     epf_values = df["EPF Wealth (RM)"].values
+    rent_values = df["Cumulative Rent (RM)"].values
 
-    # Dynamic shading with annotations
-    segments = []
-    start_idx = 0
-    current_top = buy_values[0] >= epf_values[0]
+    # Determine break-even year
+    break_even_year = next((y for y, b, e in zip(years, buy_values, epf_values) if b > e), None)
+    break_even_value = buy_values[break_even_year] if break_even_year is not None else None
 
-    for i in range(1, len(df)):
-        top = buy_values[i] >= epf_values[i]
-        if top != current_top:
-            segments.append((start_idx, i, current_top))
-            start_idx = i
-            current_top = top
-    segments.append((start_idx, len(df)-1, current_top))
+    # Determine winner
+    buy_final = buy_values[-1]
+    epf_final = epf_values[-1]
+    winner_name = "Buy Property" if buy_final > epf_final else "Rent+EPF"
+    winner_value = max(buy_final, epf_final)
+    winner_color = "blue" if winner_name == "Buy Property" else "green"
 
-    for start, end, buy_on_top in segments:
-        # Invisible line for tonexty fill
-        fig.add_trace(go.Scatter(
-            x=df["Year"].iloc[start:end+1],
-            y=np.maximum(buy_values[start:end+1], epf_values[start:end+1]),
-            mode='lines',
-            line=dict(color='rgba(0,0,0,0)'),
-            showlegend=False
-        ))
-        fig.add_trace(go.Scatter(
-            x=df["Year"].iloc[start:end+1],
-            y=np.minimum(buy_values[start:end+1], epf_values[start:end+1]),
-            fill='tonexty',
-            fillcolor='rgba(0, 0, 255, 0.1)' if buy_on_top else 'rgba(0, 128, 0, 0.1)',
-            line=dict(color='rgba(0,0,0,0)'),
-            hoverinfo='skip',
-            showlegend=False
-        ))
+    frames = []
+    n = len(df)
+    bounce_offsets = [0, 20, -20, 10, 0]  # winner annotation bounce offsets
+    flash_opacity = [1, 0.2, 1, 0.2, 1]  # break-even marker flashing
 
-        # Add annotation in the middle of the segment
-        mid_idx = (start + end) // 2
-        fig.add_annotation(
-            x=df["Year"].iloc[mid_idx],
-            y=max(buy_values[mid_idx], epf_values[mid_idx]) * 0.95,
-            text="Buy Property" if buy_on_top else "Rent+EPF",
-            showarrow=False,
-            font=dict(color='blue' if buy_on_top else 'green', size=12, family="Times New Roman"),
-            bgcolor='rgba(255,255,255,0.7)',
-            bordercolor='rgba(0,0,0,0)',
-            align="center"
+    for i in range(1, n):
+        upper = np.maximum(buy_values[:i+1], epf_values[:i+1])
+        lower = np.minimum(buy_values[:i+1], epf_values[:i+1])
+
+        # Determine marker display
+        marker_x = [break_even_year] if break_even_year is not None and i >= break_even_year else []
+        marker_y = [break_even_value] if break_even_value is not None and i >= break_even_year else []
+        marker_opacity = flash_opacity[i-(n-5)] if i >= n-5 and marker_x else 1  # flashing near end
+
+        frame_annotations = []
+        # Add bouncing winner annotation in last 5 frames
+        if i >= n-5:
+            idx = i - (n-5)
+            frame_annotations.append(dict(
+                x=years[-1],
+                y=winner_value + bounce_offsets[idx],
+                text=f"🏆 Winner: {winner_name}",
+                showarrow=True,
+                arrowhead=2,
+                ax=0,
+                ay=-40,
+                font=dict(size=16, color=winner_color),
+                arrowcolor=winner_color
+            ))
+
+        frame = go.Frame(
+            data=[
+                go.Scatter(x=years[:i+1], y=buy_values[:i+1], mode='lines+markers', line=dict(color='blue', width=2), name='Buy Property'),
+                go.Scatter(x=years[:i+1], y=epf_values[:i+1], mode='lines+markers', line=dict(color='green', width=2), name='Rent+EPF'),
+                go.Scatter(x=years[:i+1], y=rent_values[:i+1], mode='lines', line=dict(color='red', width=2, dash='dash'), name='Cumulative Rent'),
+                go.Scatter(
+                    x=np.concatenate([years[:i+1], years[:i+1][::-1]]),
+                    y=np.concatenate([upper, lower[::-1]]),
+                    fill='toself',
+                    fillcolor='rgba(0, 128, 255, 0.1)' if buy_values[i] > epf_values[i] else 'rgba(0, 255, 0, 0.1)',
+                    line=dict(color='rgba(0,0,0,0)'),
+                    hoverinfo='skip',
+                    showlegend=False
+                ),
+                go.Scatter(
+                    x=marker_x, y=marker_y,
+                    mode='markers+text',
+                    marker=dict(color='orange', size=12, symbol='star', opacity=marker_opacity),
+                    text=["Break-even"] if marker_x else [],
+                    textposition="top center",
+                    name='Break-even',
+                    showlegend=True
+                )
+            ],
+            name=f"frame{i}",
+            layout=go.Layout(annotations=frame_annotations)
         )
+        frames.append(frame)
 
-    # Buy Property line
-    fig.add_trace(go.Scatter(
-        x=df["Year"], y=buy_values,
-        mode='lines+markers', name='Buy Property',
-        line=dict(color='blue', width=2),
-        hovertemplate='Year %{x}<br>Buy Wealth: RM %{y:,.0f}<extra></extra>'
-    ))
-
-    # Rent+EPF line
-    fig.add_trace(go.Scatter(
-        x=df["Year"], y=epf_values,
-        mode='lines+markers', name='Rent+EPF',
-        line=dict(color='green', width=2),
-        hovertemplate='Year %{x}<br>Rent+EPF Wealth: RM %{y:,.0f}<extra></extra>'
-    ))
-
-    # Cumulative Rent line
-    fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["Cumulative Rent (RM)"],
-        mode='lines', name='Cumulative Rent',
-        line=dict(color='red', width=2, dash='dash'),
-        hovertemplate='Year %{x}<br>Cumulative Rent: RM %{y:,.0f}<extra></extra>'
-    ))
-
-    # Break-even year
-    break_even_year = next((year for year, buy, epf in zip(df["Year"], buy_values, epf_values) if buy > epf), None)
-    if break_even_year:
-        idx = df.index[df["Year"] == break_even_year][0]
-        break_y = max(buy_values[idx], epf_values[idx])
-        fig.add_vline(x=break_even_year, line=dict(color="orange", dash="dash", width=2))
-        # Arrow pointing to break-even point
-        fig.add_annotation(
-            x=break_even_year, 
-            y=break_y,
-            ax=break_even_year, 
-            ay=break_y*0.5,  # arrow pointing from below
-            xref="x", yref="y", axref="x", ayref="y",
-            text="Break-even Point",
-            showarrow=True,
-            arrowhead=3,
-            arrowsize=1,
-            arrowwidth=2,
-            arrowcolor="orange",
-            font=dict(color="orange", size=12, family="Times New Roman"),
-            bgcolor='rgba(255,255,255,0.7)'
-        )
-
-    # Layout
-    fig.update_layout(
-        title=f"Comparison Over {years} Years – Winner: {winner_name}",
-        xaxis_title="Year",
-        yaxis_title="Wealth / Rent (RM)",
-        yaxis_tickprefix="RM ",
-        template="plotly_white",
-        legend=dict(title="Legend"),
-        hovermode="x unified"
+    fig = go.Figure(
+        data=[
+            go.Scatter(x=[years[0]], y=[buy_values[0]], mode='lines+markers', line=dict(color='blue', width=2), name='Buy Property'),
+            go.Scatter(x=[years[0]], y=[epf_values[0]], mode='lines+markers', line=dict(color='green', width=2), name='Rent+EPF'),
+            go.Scatter(x=[years[0]], y=[rent_values[0]], mode='lines', line=dict(color='red', width=2, dash='dash'), name='Cumulative Rent'),
+            go.Scatter(
+                x=[years[0], years[0]], y=[buy_values[0], epf_values[0]],
+                fill='toself',
+                fillcolor='rgba(0, 128, 255, 0.1)' if buy_values[0] > epf_values[0] else 'rgba(0, 255, 0, 0.1)',
+                line=dict(color='rgba(0,0,0,0)'),
+                hoverinfo='skip',
+                showlegend=False
+            )
+        ],
+        layout=go.Layout(
+            title="📈 Wealth Accumulation Animation with Bouncing Winner & Flashing Break-even",
+            xaxis=dict(title="Year"),
+            yaxis=dict(title="Wealth / Rent (RM)", tickprefix="RM "),
+            hovermode="x unified",
+            updatemenus=[dict(
+                type="buttons",
+                showactive=False,
+                buttons=[dict(label="Play",
+                              method="animate",
+                              args=[None, {"frame": {"duration": 500, "redraw": True},
+                                           "fromcurrent": True, "transition": {"duration": 300}}]),
+                         dict(label="Pause",
+                              method="animate",
+                              args=[[None], {"frame": {"duration": 0, "redraw": False},
+                                             "mode": "immediate", "transition": {"duration": 0}}])]
+            )]
+        ),
+        frames=frames
     )
 
     return fig
