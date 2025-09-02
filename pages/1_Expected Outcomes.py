@@ -10,9 +10,7 @@ import plotly.graph_objects as go
 # --------------------------
 st.set_page_config(page_title='Expected Outcomes – Fair Comparison', layout='wide')
 
-# --------------------------
-# 1a. Global CSS: Times New Roman
-# --------------------------
+# Times New Roman font
 st.markdown(
     """
     <style>
@@ -20,21 +18,13 @@ st.markdown(
         font-family: 'Times New Roman', serif !important;
     }
     .streamlit-expanderContent, 
-    .css-1d391kg p, 
-    .css-1d391kg h1, 
-    .css-1d391kg h2, 
-    .css-1d391kg h3, 
-    .css-1d391kg h4, 
-    .css-1d391kg h5, 
-    .css-1d391kg h6 {
+    .css-1d391kg p, .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3,
+    .css-1d391kg h4, .css-1d391kg h5, .css-1d391kg h6 {
         font-family: 'Times New Roman', serif;
     }
     </style>
-    """,
-    unsafe_allow_html=True
+    """, unsafe_allow_html=True
 )
-
-# Times New Roman for matplotlib
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
 st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
@@ -98,7 +88,6 @@ def plot_outcomes_interactive(df, years, PMT):
         for _, row in df.iterrows()
     ]
 
-    # Highlight years where EPF = 0 (rent ≥ mortgage)
     zero_epf_years = df.index[df["Annual Rent (RM)"] >= PMT].tolist()
     zero_epf_wealth = df.loc[zero_epf_years, "EPF Wealth (RM)"]
 
@@ -172,13 +161,21 @@ def format_table(df):
     df_fmt = df.copy()
     for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Annual Rent (RM)", "Cumulative Rent (RM)"]:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
+
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
-    def highlight_winner(row):
+    break_even_year_idx = next((i for i, (b, e) in enumerate(zip(df["Buy Wealth (RM)"], df["EPF Wealth (RM)"])) if b > e), None)
+
+    def highlight_rows(row):
+        styles = ['' for _ in df_fmt.columns]
         if row.name == df.index[-1]:
-            return ['background-color: lightgreen' if col==winner_col else '' for col in df_fmt.columns]
-        return ['' for _ in df_fmt.columns]
-    return df_fmt.style.apply(highlight_winner, axis=1).set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
+            styles = ['background-color: lightgreen' if col==winner_col else '' for col in df_fmt.columns]
+        if break_even_year_idx is not None and row.name == break_even_year_idx:
+            styles = ['background-color: lightyellow' for _ in df_fmt.columns]
+        return styles
+
+    return df_fmt.style.apply(highlight_rows, axis=1)\
+                     .set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
 
 def calculate_cagr(initial, final, years):
     if years <=0 or final<=0 or initial<=0:
@@ -189,13 +186,18 @@ def generate_summary(df, years):
     buy_final = df["Buy Wealth (RM)"].iloc[-1]
     epf_final = df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
+
     buy_initial = next((x for x in df["Buy Wealth (RM)"] if x>0),1)
     epf_initial = next((x for x in df["EPF Wealth (RM)"] if x>0),1)
+
     buy_cagr = calculate_cagr(buy_initial, buy_final, years)
     epf_cagr = calculate_cagr(epf_initial, epf_final, years)
+
     winner = "Buy Property" if buy_final>epf_final else "Rent+EPF"
     ratio = buy_final/epf_final if epf_final>0 else float('inf')
+
     break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
+
     summary = f"""
 ### 📊 Expected Outcomes after {years} Years  
 
@@ -224,17 +226,9 @@ custom_rent = None
 if use_custom_rent:
     custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000)
 
-# --------------------------
-# Dynamic Mortgage Slider
-# --------------------------
+# Dynamic Mortgage Rate Slider
 st.sidebar.subheader("🔧 Sensitivity: Mortgage Rate")
-mortgage_rate_slider = st.sidebar.slider(
-    "Adjust Mortgage Rate (%)",
-    min_value=1.0,
-    max_value=10.0,
-    value=4.0,
-    step=0.25
-)/100
+mortgage_rate_slider = st.sidebar.slider("Adjust Mortgage Rate (%)", 1.0, 10.0, 4.0, 0.25)/100
 
 # --------------------------
 # 4. Link EDA Insights
@@ -244,29 +238,25 @@ st.markdown(
     "The Expected Outcomes are shaped by insights from the **EDA**, providing assumptions for property growth, EPF returns, and inflation trends."
 )
 with st.expander("📊 How EDA Informs Expected Outcomes"):
-    st.markdown(
-        """
+    st.markdown("""
         - 🏠 **Property Price Growth:** Historical market appreciation rates.
         - 💰 **EPF Returns:** Dividend trends inform baseline and optimistic scenarios.
         - 📈 **Inflation:** Guides realistic inflation ranges.
-        """
-    )
+        """)
 
 # --------------------------
 # 5. Baseline Assumptions Table
 # --------------------------
 st.subheader("📌 Baseline Assumptions")
-st.markdown(
-    """
-    | Parameter | Baseline Value | Justification / Source |
-    |-----------|----------------|----------------------|
-    | Initial Property Price | RM 500,000 | Typical property price in target area |
-    | Annual Property Growth Rate | 5% | Historical market appreciation (10–20 yrs) |
-    | Loan Term | 30 years | Standard mortgage duration |
-    | EPF Annual Growth Rate | 6% | Historical EPF dividend trends |
-    | Projection Years | 30 | Long-term wealth accumulation horizon |
-    """
-)
+st.markdown("""
+| Parameter | Baseline Value | Justification / Source |
+|-----------|----------------|----------------------|
+| Initial Property Price | RM 500,000 | Typical property price in target area |
+| Annual Property Growth Rate | 5% | Historical market appreciation (10–20 yrs) |
+| Loan Term | 30 years | Standard mortgage duration |
+| EPF Annual Growth Rate | 6% | Historical EPF dividend trends |
+| Projection Years | 30 | Long-term wealth accumulation horizon |
+""")
 
 # --------------------------
 # 6. Projection
@@ -295,7 +285,7 @@ with tab3:
     col2.metric("Rent+EPF Wealth", f"RM {df_slider['EPF Wealth (RM)'].iloc[-1]:,.0f}")
     col3.metric("Cumulative Rent Paid", f"RM {df_slider['Cumulative Rent (RM)'].iloc[-1]:,.0f}")
     col4.metric("Break-even Year", f"Year {break_even_year}" if break_even_year else "N/A")
-    st.markdown(generate_summary(df_slider, projection_years))
+    st.markdown(generate_summary(df_slider, projection_years), unsafe_allow_html=True)
 
 # --------------------------
 # 8. Download CSV
