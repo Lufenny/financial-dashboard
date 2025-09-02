@@ -280,46 +280,79 @@ df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years,
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.subheader("📈 Scenario Comparison")
-    fig = go.Figure()
+    st.subheader("📈 Scenario Comparison – Buy vs Rent+EPF")
 
-    # Buy Wealth line
+    fig = go.Figure()
+    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
+
+    # Hover text
+    hover_text = []
+    for _, row in df.iterrows():
+        be_icon = "🟡 " if row["Year"] == break_even_year else ""
+        hover_text.append(
+            f"<b>Year:</b> {row['Year']}<br>"
+            f"{be_icon}<b>Buy Wealth:</b> 💰 RM {row['Buy Wealth (RM)']:,.0f}<br>"
+            f"<b>EPF Wealth:</b> 💰 RM {row['EPF Wealth (RM)']:,.0f}<br>"
+            f"<b>Cumulative Rent:</b> 💸 RM {row['Cumulative Rent (RM)']:,.0f}"
+        )
+
+    # Buy Wealth trace
     fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["Buy Wealth (RM)"],
-        mode="lines+markers",
-        name="🏡 Property",
-        line=dict(color="royalblue", width=3),
-        marker=dict(size=6)
+        x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines+markers',
+        line=dict(color='blue', width=3), name='🏡 Buy Property',
+        text=hover_text, hovertemplate='%{text}<extra></extra>'
     ))
 
-    # EPF Wealth line
+    # EPF Wealth trace
     fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["EPF Wealth (RM)"],
-        mode="lines+markers",
-        name="💰 Investment",
-        line=dict(color="darkorange", width=3),
-        marker=dict(size=6)
+        x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines+markers',
+        line=dict(color='green', width=3), name='💰 Rent+EPF',
+        text=hover_text, hovertemplate='%{text}<extra></extra>'
+    ))
+
+    # Cumulative Rent trace
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=df["Cumulative Rent (RM)"], mode='lines',
+        line=dict(color='red', width=2, dash='dash'), name='💸 Cumulative Rent',
+        text=hover_text, hovertemplate='%{text}<extra></extra>'
+    ))
+
+    # Shaded area between Buy and EPF
+    fig.add_trace(go.Scatter(
+        x=df["Year"].tolist() + df["Year"].tolist()[::-1],
+        y=df[["Buy Wealth (RM)", "EPF Wealth (RM)"]].max(axis=1).tolist() +
+          df[["Buy Wealth (RM)", "EPF Wealth (RM)"]].min(axis=1).tolist()[::-1],
+        fill='toself',
+        fillcolor='rgba(0,255,0,0.1)',
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo='skip',
+        showlegend=False
     ))
 
     # Break-even vertical line
-    break_even = df[df["Buy Wealth (RM)"] > df["EPF Wealth (RM)"]]
-    if not break_even.empty:
-        break_year = int(break_even.iloc[0]["Year"])
+    if break_even_year is not None:
         fig.add_vline(
-            x=break_year,
-            line=dict(color="green", dash="dash", width=2),
-            annotation=dict(
-                text=f"📍 Break-even Year {break_year}",
-                showarrow=False, y=1.05, xanchor="left", font=dict(color="green")
-            )
+            x=break_even_year,
+            line=dict(color='orange', dash='dash', width=2),
+        )
+        fig.add_annotation(
+            x=break_even_year,
+            y=max(df["Buy Wealth (RM)"].max(), df["EPF Wealth (RM)"].max()),
+            text=f"🟡 Break-even: Year {break_even_year}",
+            showarrow=False,
+            yanchor="bottom",
+            font=dict(color="orange", size=12)
         )
 
     fig.update_layout(
+        title=f"Comparison Over {projection_years} Years",
         xaxis_title="Year",
-        yaxis_title="Value (RM)",
-        legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"),
-        template="simple_white"
+        yaxis_title="Wealth / Rent (RM)",
+        template="plotly_white",
+        legend=dict(x=0.01, y=0.99),
+        hovermode='x unified'
     )
+
     st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
