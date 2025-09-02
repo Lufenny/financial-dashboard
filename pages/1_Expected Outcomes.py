@@ -235,11 +235,21 @@ with tab2:
     st.dataframe(format_table(df), use_container_width=True)
 
 with tab3:
-    col1, col2, col3 = st.columns(3)
+    # Calculate break-even year
+    break_even_year = None
+    for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]):
+        if buy > epf:
+            break_even_year = year
+            break
+
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("Buy Property Wealth", f"RM {df['Buy Wealth (RM)'].iloc[-1]:,.0f}")
     col2.metric("Rent+EPF Wealth", f"RM {df['EPF Wealth (RM)'].iloc[-1]:,.0f}")
     col3.metric("Cumulative Rent Paid", f"RM {df['Cumulative Rent (RM)'].iloc[-1]:,.0f}")
+    col4.metric("Break-even Year", f"Year {break_even_year}" if break_even_year is not None else "N/A")
+
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
+
 
 # --------------------------
 # 6. Download CSV
