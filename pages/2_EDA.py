@@ -9,7 +9,6 @@ from nltk.corpus import stopwords
 import os
 import re
 from fpdf import FPDF
-import io
 
 # ----------------------------
 # NLTK Setup
@@ -21,7 +20,7 @@ except LookupError:
     nltk.download('stopwords')
 
 # ----------------------------
-# Streamlit App Config
+# App config
 # ----------------------------
 st.set_page_config(page_title="Full EDA Dashboard", layout="wide")
 st.sidebar.title("🔍 Navigation")
@@ -44,35 +43,10 @@ def get_dataset(uploaded_file=None, fallback_path="Data.csv"):
     return df
 
 # ----------------------------
-# PDF Generation
-# ----------------------------
-def generate_pdf(df, title="EDA Report"):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, title, ln=True, align="C")
-    pdf.set_font("Arial", '', 12)
-    pdf.ln(10)
-
-    pdf.cell(0, 10, "Dataset Preview (first 10 rows):", ln=True)
-    pdf.ln(5)
-    for i, row in df.head(10).iterrows():
-        pdf.multi_cell(0, 8, str(row.to_dict()))
-        pdf.ln(2)
-
-    pdf.ln(5)
-    pdf.cell(0, 10, "Descriptive Statistics (numeric columns):", ln=True)
-    pdf.ln(5)
-    pdf.multi_cell(0, 8, str(df.describe(include=[np.number])))
-
-    return pdf.output(dest="S").encode("latin1")
-
-# ----------------------------
 # EDA Page
 # ----------------------------
 if page == "📊 EDA":
     st.title("🔎 Exploratory Data Analysis (EDA)")
-
     uploaded_file = st.file_uploader("Upload your dataset (CSV)", type=["csv"])
     df = get_dataset(uploaded_file)
 
@@ -80,25 +54,36 @@ if page == "📊 EDA":
         st.error("❌ No dataset found. Please upload a CSV file or place 'Data.csv' in working directory.")
         st.stop()
 
-    # Dataset preview
+    # Dataset Preview with row control
     st.subheader("📋 Dataset Preview")
-    st.dataframe(df.head(10))
+    num_rows = st.slider("Select number of rows to display", min_value=5, max_value=min(500, len(df)), value=10)
+    st.dataframe(df.head(num_rows))
 
+    # Dataset Info
     st.subheader("ℹ️ Dataset Info")
-    buffer = io.StringIO()
+    buffer = []
     df.info(buf=buffer)
-    st.text(buffer.getvalue())
+    st.text(buffer)
 
+    # Missing Values
     st.subheader("❗ Missing Values Summary")
     st.write(df.isna().sum())
 
-    st.subheader("📊 Numeric Descriptive Statistics")
-    st.write(df.describe(include=[np.number]))
-
+    # Numeric & Categorical Summaries
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
-    # Numeric distributions
+    if st.checkbox("Show full dataset summary"):
+        st.write("### Numeric Columns Summary")
+        st.write(df[numeric_cols].describe(include=[np.number]))
+
+        if categorical_cols:
+            st.write("### Categorical Columns Summary")
+            for col in categorical_cols:
+                st.write(f"**{col}**")
+                st.write(df[col].value_counts())
+
+    # Numeric Distributions
     st.subheader("📈 Numeric Distributions")
     for col in numeric_cols:
         fig, ax = plt.subplots()
@@ -106,7 +91,7 @@ if page == "📊 EDA":
         ax.set_title(f"Distribution of {col}")
         st.pyplot(fig)
 
-    # Boxplots
+    # Boxplots for outliers
     st.subheader("📦 Boxplots (Outliers)")
     for col in numeric_cols:
         fig, ax = plt.subplots()
@@ -114,7 +99,7 @@ if page == "📊 EDA":
         ax.set_title(f"Boxplot of {col}")
         st.pyplot(fig)
 
-    # Categorical analysis
+    # Categorical Analysis
     if categorical_cols:
         st.subheader("📊 Categorical Columns Analysis")
         for col in categorical_cols:
@@ -123,7 +108,7 @@ if page == "📊 EDA":
             ax.set_title(f"Counts of {col}")
             st.pyplot(fig)
 
-    # Trends over Year
+    # Trends over years
     if "Year" in df.columns:
         st.subheader("📈 Trends Over Years")
         df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
@@ -134,6 +119,7 @@ if page == "📊 EDA":
         y0, y1 = st.slider("Select Year Range", year_min, year_max, (year_min, year_max))
 
         df_year = df[(df["Year"] >= y0) & (df["Year"] <= y1)]
+
         chart_cols = st.multiselect("Select numeric columns to plot trends", numeric_cols, default=numeric_cols)
         for col in chart_cols:
             fig, ax = plt.subplots()
@@ -144,7 +130,7 @@ if page == "📊 EDA":
             ax.grid(alpha=0.2)
             st.pyplot(fig)
 
-    # Correlation heatmap
+    # Correlation Heatmap
     if numeric_cols:
         st.subheader("🧩 Correlation Matrix")
         corr = df[numeric_cols].corr()
@@ -155,18 +141,17 @@ if page == "📊 EDA":
         fig.colorbar(cax)
         st.pyplot(fig)
 
-    # PDF download
-    st.subheader("⬇️ Download EDA Report as PDF")
-    pdf_bytes = generate_pdf(df)
-    st.download_button("Download PDF", data=pdf_bytes, file_name="EDA_Report.pdf", mime="application/pdf")
+    # Download filtered/exported data
+    st.subheader("⬇️ Download Data")
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download Full Dataset (CSV)", data=csv_bytes, file_name="EDA_data_full.csv", mime="text/csv")
 
 # ----------------------------
 # WordCloud Page
 # ----------------------------
 elif page == "☁️ WordCloud":
     st.title("📝 Text Analysis & WordCloud")
-
-    uploaded_file = st.file_uploader("Upload your blog dataset (CSV with 'Content' column)", type=["csv"], key="wc")
+    uploaded_file = st.file_uploader("Upload blog dataset (CSV with 'Content')", type=["csv"], key="wc")
     if uploaded_file is not None:
         df_text = pd.read_csv(uploaded_file)
     elif os.path.exists("Rent_vs_Buy_Blogs.csv"):
@@ -183,6 +168,7 @@ elif page == "☁️ WordCloud":
         stop_words = set(stopwords.words("english")) | {"akan", "dan", "atau", "yang", "untuk", "dengan", "jika"}
         cleaned_tokens = [w for w in tokens if w not in stop_words]
 
+        # WordCloud
         wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(cleaned_tokens))
         word_freq = Counter(cleaned_tokens).most_common(15)
         words, counts = zip(*word_freq) if word_freq else ([], [])
