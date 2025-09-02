@@ -147,14 +147,20 @@ tab1, tab2, tab3 = st.tabs(["📈 Chart", "📊 Table", "📝 Summary"])
 with tab1:
     st.subheader("📈 Scenario Comparison")
     fig = go.Figure()
+    
+    # Buy Property line
     fig.add_trace(go.Scatter(
         x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines+markers',
         name='🏡 Buy Property', line=dict(color='blue', width=3)
     ))
+    
+    # Rent+EPF line
     fig.add_trace(go.Scatter(
         x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines+markers',
         name='💰 Rent+EPF', line=dict(color='green', width=3)
     ))
+    
+    # Cumulative Rent line
     fig.add_trace(go.Scatter(
         x=df["Year"], y=df["Cumulative Rent"], mode='lines', 
         name='💸 Cumulative Rent', line=dict(color='red', width=2, dash='dash')
@@ -169,21 +175,38 @@ with tab1:
             font=dict(color="orange", size=12)
         )
 
+    # Annotation at Year 0 to show starting wealth (down payment)
+    fig.add_annotation(
+        x=0, y=df["Buy Wealth (RM)"].iloc[0],
+        text=f"🏡 Start: RM {df['Buy Wealth (RM)'].iloc[0]:,.0f}", showarrow=True, arrowhead=2, ay=-40, font=dict(color="blue")
+    )
+    fig.add_annotation(
+        x=0, y=df["EPF Wealth (RM)"].iloc[0],
+        text=f"💰 Start: RM {df['EPF Wealth (RM)'].iloc[0]:,.0f}", showarrow=True, arrowhead=2, ay=-40, font=dict(color="green")
+    )
+
     fig.update_layout(
         title=f"Comparison Over {projection_years} Years",
         xaxis_title="Year", yaxis_title="Wealth / Rent (RM)",
-        template="simple_white", legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center")
+        template="simple_white",
+        legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center")
     )
+
     st.plotly_chart(fig, use_container_width=True)
 
 # ----- Tab 2: Table -----
 with tab2:
     st.subheader("📊 Key Metrics Table")
+
     metrics = pd.DataFrame({
         "Scenario": ["🏡 Buy Property", "💰 Rent+EPF"],
+        "Starting Wealth (RM)": [df["Buy Wealth (RM)"].iloc[0], df["EPF Wealth (RM)"].iloc[0]],
         "Final Value (RM)": [df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]],
         "CAGR (%)": [df["Buy CAGR"].iloc[-1]*100, df["EPF CAGR"].iloc[-1]*100]
     })
+    
+    # Format RM values
+    metrics["Starting Wealth (RM)"] = metrics["Starting Wealth (RM)"].map("RM {:,.0f}".format)
     metrics["Final Value (RM)"] = metrics["Final Value (RM)"].map("RM {:,.0f}".format)
     metrics["CAGR (%)"] = metrics["CAGR (%)"].round(2)
 
@@ -193,6 +216,8 @@ with tab2:
 with tab3:
     st.subheader("📝 Interpretation")
 
+    start_buy = df["Buy Wealth (RM)"].iloc[0]
+    start_epf = df["EPF Wealth (RM)"].iloc[0]
     final_buy = df["Buy Wealth (RM)"].iloc[-1]
     final_epf = df["EPF Wealth (RM)"].iloc[-1]
     cagr_buy = df["Buy CAGR"].iloc[-1]*100
@@ -204,6 +229,7 @@ with tab3:
 
     st.markdown(f"""
 ### Key Insights  
+- **Starting Wealth (Year 0):** 🏡 RM {start_buy:,.0f} vs 💰 RM {start_epf:,.0f}  
 - **Final Wealth Winner:** {winner_value} (RM {final_buy:,.0f} vs RM {final_epf:,.0f})  
 - **CAGR Winner:** {winner_cagr} ({cagr_buy:.2f}% vs {cagr_epf:.2f}%)  
 - {break_text}
@@ -220,6 +246,7 @@ with tab3:
 - Prioritize **growth efficiency (CAGR)**: choose the CAGR winner.  
 - Consider personal factors: risk tolerance, liquidity, housing preference.
 """, unsafe_allow_html=True)
+
 
 # --------------------------
 # 8. Sensitivity Analysis Note
