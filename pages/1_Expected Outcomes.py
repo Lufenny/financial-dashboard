@@ -81,12 +81,13 @@ def project_outcomes(price, down_payment_pct, mortgage_rate, loan_term, growth, 
     
     # Return DataFrame
     return pd.DataFrame({
-        "Year": np.arange(0, years + 1),
-        "Property Value (RM)": property_values,
-        "Mortgage Balance (RM)": mortgage_balances,
-        "EPF Balance (RM)": epf_balances,
-        "Cumulative Rent (RM)": cum_rent
-    })
+    "Year": np.arange(0, years + 1),
+    "Property Value (RM)": property_values,
+    "Mortgage Balance (RM)": mortgage_balances,
+    "Buy Wealth (RM)": buy_wealth,
+    "EPF Wealth (RM)": epf_wealth,
+    "Cumulative Rent (RM)": cum_rent
+})
 
 def calculate_cagr(initial, final, years):
     if years <=0 or final<=0 or initial<=0:
