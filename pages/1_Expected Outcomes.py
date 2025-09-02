@@ -90,7 +90,6 @@ def plot_outcomes_interactive(df, years, PMT):
 
     fig = go.Figure()
 
-    # Hover text using iterrows() to avoid KeyError
     hover_text = [
         f"<b>Year:</b> {row['Year']}<br>"
         f"<b>Buy Property:</b> RM {row['Buy Wealth (RM)']:,.0f}<br>"
@@ -99,11 +98,10 @@ def plot_outcomes_interactive(df, years, PMT):
         for _, row in df.iterrows()
     ]
 
-    # Identify zero EPF contribution years
+    # Highlight years where EPF = 0 (rent ≥ mortgage)
     zero_epf_years = df.index[df["Annual Rent (RM)"] >= PMT].tolist()
     zero_epf_wealth = df.loc[zero_epf_years, "EPF Wealth (RM)"]
 
-    # Light red shading for zero-EPF years
     for i in zero_epf_years:
         fig.add_vrect(
             x0=df.loc[i, "Year"] - 0.5,
@@ -113,29 +111,18 @@ def plot_outcomes_interactive(df, years, PMT):
             layer="below",
         )
 
-    # Buy Property trace
     fig.add_trace(go.Scatter(
-        x=df["Year"],
-        y=df["Buy Wealth (RM)"],
-        mode='lines',
-        line=dict(color='blue', width=3),
-        name='Buy Property',
-        text=hover_text,
-        hovertemplate='%{text}<extra></extra>'
+        x=df["Year"], y=df["Buy Wealth (RM)"],
+        mode='lines', line=dict(color='blue', width=3),
+        name='Buy Property', text=hover_text, hovertemplate='%{text}<extra></extra>'
     ))
 
-    # Rent+EPF trace
     fig.add_trace(go.Scatter(
-        x=df["Year"],
-        y=df["EPF Wealth (RM)"],
-        mode='lines',
-        line=dict(color='green', width=3),
-        name='Rent+EPF',
-        text=hover_text,
-        hovertemplate='%{text}<extra></extra>'
+        x=df["Year"], y=df["EPF Wealth (RM)"],
+        mode='lines', line=dict(color='green', width=3),
+        name='Rent+EPF', text=hover_text, hovertemplate='%{text}<extra></extra>'
     ))
 
-    # Red markers for zero EPF contribution
     if zero_epf_years:
         fig.add_trace(go.Scatter(
             x=df.loc[zero_epf_years, "Year"],
@@ -147,38 +134,12 @@ def plot_outcomes_interactive(df, years, PMT):
             hovertemplate='%{text}<extra></extra>'
         ))
 
-    # Cumulative Rent trace
     fig.add_trace(go.Scatter(
-        x=df["Year"],
-        y=df["Cumulative Rent (RM)"],
-        mode='lines',
-        line=dict(color='red', width=2, dash='dash'),
-        name='Cumulative Rent',
-        text=hover_text,
-        hovertemplate='%{text}<extra></extra>'
+        x=df["Year"], y=df["Cumulative Rent (RM)"],
+        mode='lines', line=dict(color='red', width=2, dash='dash'),
+        name='Cumulative Rent', text=hover_text, hovertemplate='%{text}<extra></extra>'
     ))
 
-    # Shaded winner area
-    if winner_name == "Buy Property":
-        fig.add_trace(go.Scatter(
-            x=df["Year"].tolist() + df["Year"].tolist()[::-1],
-            y=df["Buy Wealth (RM)"].tolist() + df["EPF Wealth (RM)"].tolist()[::-1],
-            fill='toself',
-            fillcolor='rgba(0,0,255,0.08)',
-            line=dict(color='rgba(255,255,255,0)'),
-            hoverinfo='skip', showlegend=False
-        ))
-    else:
-        fig.add_trace(go.Scatter(
-            x=df["Year"].tolist() + df["Year"].tolist()[::-1],
-            y=df["EPF Wealth (RM)"].tolist() + df["Buy Wealth (RM)"].tolist()[::-1],
-            fill='toself',
-            fillcolor='rgba(0,128,0,0.08)',
-            line=dict(color='rgba(255,255,255,0)'),
-            hoverinfo='skip', showlegend=False
-        ))
-
-    # Break-even year
     break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy > epf), None)
     if break_even_year is not None:
         fig.add_vline(
@@ -189,13 +150,19 @@ def plot_outcomes_interactive(df, years, PMT):
             annotation_font=dict(color='orange', size=12)
         )
 
-    # Layout
+    winner_area = df["Buy Wealth (RM)"] if winner_name=="Buy Property" else df["EPF Wealth (RM)"]
+    loser_area = df["EPF Wealth (RM)"] if winner_name=="Buy Property" else df["Buy Wealth (RM)"]
+    fig.add_trace(go.Scatter(
+        x=df["Year"].tolist()+df["Year"].tolist()[::-1],
+        y=winner_area.tolist()+loser_area.tolist()[::-1],
+        fill='toself', fillcolor='rgba(0,0,255,0.08)' if winner_name=="Buy Property" else 'rgba(0,128,0,0.08)',
+        line=dict(color='rgba(255,255,255,0)'), hoverinfo='skip', showlegend=False
+    ))
+
     fig.update_layout(
         title=f"Comparison Over {years} Years – Winner: {winner_name}",
-        xaxis_title="Year",
-        yaxis_title="Wealth / Rent (RM)",
-        template="plotly_white",
-        legend=dict(x=0.01, y=0.99),
+        xaxis_title="Year", yaxis_title="Wealth / Rent (RM)",
+        template="plotly_white", legend=dict(x=0.01, y=0.99),
         hovermode='x unified'
     )
 
@@ -205,17 +172,13 @@ def format_table(df):
     df_fmt = df.copy()
     for col in ["Property (RM)", "Mortgage (RM)", "Buy Wealth (RM)", "EPF Wealth (RM)", "Annual Rent (RM)", "Cumulative Rent (RM)"]:
         df_fmt[col] = df_fmt[col].apply(lambda x: f"RM {x:,.0f}")
-
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     winner_col = "Buy Wealth (RM)" if buy_final > epf_final else "EPF Wealth (RM)"
-
     def highlight_winner(row):
         if row.name == df.index[-1]:
             return ['background-color: lightgreen' if col==winner_col else '' for col in df_fmt.columns]
         return ['' for _ in df_fmt.columns]
-
-    styled_df = df_fmt.style.apply(highlight_winner, axis=1).set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
-    return styled_df
+    return df_fmt.style.apply(highlight_winner, axis=1).set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
 
 def calculate_cagr(initial, final, years):
     if years <=0 or final<=0 or initial<=0:
@@ -226,36 +189,24 @@ def generate_summary(df, years):
     buy_final = df["Buy Wealth (RM)"].iloc[-1]
     epf_final = df["EPF Wealth (RM)"].iloc[-1]
     rent_final = df["Cumulative Rent (RM)"].iloc[-1]
-
     buy_initial = next((x for x in df["Buy Wealth (RM)"] if x>0),1)
     epf_initial = next((x for x in df["EPF Wealth (RM)"] if x>0),1)
-
     buy_cagr = calculate_cagr(buy_initial, buy_final, years)
     epf_cagr = calculate_cagr(epf_initial, epf_final, years)
-
     winner = "Buy Property" if buy_final>epf_final else "Rent+EPF"
     ratio = buy_final/epf_final if epf_final>0 else float('inf')
-
     break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
-
-    PMT = calculate_mortgage_payment(df["Property (RM)"].iloc[0], 0.04, 30)
-    zero_epf_years = df.index[df["Annual Rent (RM)"] >= PMT].tolist()
-
     summary = f"""
-    ### 📊 Expected Outcomes after {years} Years  
+### 📊 Expected Outcomes after {years} Years  
 
-    - **Buy Property Wealth**: RM {buy_final:,.0f}  (CAGR: {buy_cagr*100:.2f}%)  
-    - **Rent+EPF Wealth**: RM {epf_final:,.0f}  (CAGR: {epf_cagr*100:.2f}%)  
-    - **Cumulative Rent Paid**: RM {rent_final:,.0f}  
-    - **Wealth Ratio (Buy ÷ Rent+EPF)**: {ratio:.2f}x  
-    - **Zero EPF Contribution Years**: {len(zero_epf_years)}  
-    """
-
+- **Buy Property Wealth**: RM {buy_final:,.0f}  (CAGR: {buy_cagr*100:.2f}%)  
+- **Rent+EPF Wealth**: RM {epf_final:,.0f}  (CAGR: {epf_cagr*100:.2f}%)  
+- **Cumulative Rent Paid**: RM {rent_final:,.0f}  
+- **Wealth Ratio (Buy ÷ Rent+EPF)**: {ratio:.2f}x  
+"""
     if break_even_year is not None:
-        summary += f"- **Break-even Year**: Year {break_even_year} (Buy Property surpasses Rent+EPF)\n"
-
+        summary += f"- **Break-even Year**: Year {break_even_year}\n"
     summary += f"\n🏆 **Winner: {winner}**"
-
     return summary
 
 # --------------------------
@@ -263,17 +214,27 @@ def generate_summary(df, years):
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
-mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
 loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
 property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
 epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
 rent_yield = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005)
 projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
-
 use_custom_rent = st.sidebar.checkbox("Use Custom Starting Rent?")
 custom_rent = None
 if use_custom_rent:
     custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000)
+
+# --------------------------
+# Dynamic Mortgage Slider
+# --------------------------
+st.sidebar.subheader("🔧 Sensitivity: Mortgage Rate")
+mortgage_rate_slider = st.sidebar.slider(
+    "Adjust Mortgage Rate (%)",
+    min_value=1.0,
+    max_value=10.0,
+    value=4.0,
+    step=0.25
+)/100
 
 # --------------------------
 # 4. Link EDA Insights
@@ -301,7 +262,6 @@ st.markdown(
     |-----------|----------------|----------------------|
     | Initial Property Price | RM 500,000 | Typical property price in target area |
     | Annual Property Growth Rate | 5% | Historical market appreciation (10–20 yrs) |
-    | Mortgage Rate | 4% | Current average bank home loan rate |
     | Loan Term | 30 years | Standard mortgage duration |
     | EPF Annual Growth Rate | 6% | Historical EPF dividend trends |
     | Projection Years | 30 | Long-term wealth accumulation horizon |
@@ -311,8 +271,11 @@ st.markdown(
 # --------------------------
 # 6. Projection
 # --------------------------
-df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, rent_yield, projection_years, custom_rent)
-PMT = calculate_mortgage_payment(initial_property_price, mortgage_rate, loan_term_years)
+PMT_slider = calculate_mortgage_payment(initial_property_price, mortgage_rate_slider, loan_term_years)
+df_slider = project_outcomes(
+    initial_property_price, mortgage_rate_slider, loan_term_years,
+    property_growth, epf_rate, rent_yield, projection_years, custom_rent
+)
 
 # --------------------------
 # 7. Tabs
@@ -320,22 +283,22 @@ PMT = calculate_mortgage_payment(initial_property_price, mortgage_rate, loan_ter
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.plotly_chart(plot_outcomes_interactive(df, projection_years, PMT), use_container_width=True)
-    
+    st.plotly_chart(plot_outcomes_interactive(df_slider, projection_years, PMT_slider), use_container_width=True)
+
 with tab2:
-    st.dataframe(format_table(df), use_container_width=True)
+    st.dataframe(format_table(df_slider), use_container_width=True)
 
 with tab3:
-    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
+    break_even_year = next((year for year, buy, epf in zip(df_slider["Year"], df_slider["Buy Wealth (RM)"], df_slider["EPF Wealth (RM)"]) if buy>epf), None)
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Buy Property Wealth", f"RM {df['Buy Wealth (RM)'].iloc[-1]:,.0f}")
-    col2.metric("Rent+EPF Wealth", f"RM {df['EPF Wealth (RM)'].iloc[-1]:,.0f}")
-    col3.metric("Cumulative Rent Paid", f"RM {df['Cumulative Rent (RM)'].iloc[-1]:,.0f}")
+    col1.metric("Buy Property Wealth", f"RM {df_slider['Buy Wealth (RM)'].iloc[-1]:,.0f}")
+    col2.metric("Rent+EPF Wealth", f"RM {df_slider['EPF Wealth (RM)'].iloc[-1]:,.0f}")
+    col3.metric("Cumulative Rent Paid", f"RM {df_slider['Cumulative Rent (RM)'].iloc[-1]:,.0f}")
     col4.metric("Break-even Year", f"Year {break_even_year}" if break_even_year else "N/A")
-    st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
+    st.markdown(generate_summary(df_slider, projection_years))
 
 # --------------------------
 # 8. Download CSV
 # --------------------------
-csv = df.to_csv(index=False).encode('utf-8')
+csv = df_slider.to_csv(index=False).encode('utf-8')
 st.download_button("📥 Download Projection Data (CSV)", csv, "projection.csv", "text/csv", key='download-csv')
