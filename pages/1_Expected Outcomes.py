@@ -256,7 +256,7 @@ st.download_button(
 )
 
 # --------------------------
-# Interactive Sensitivity Analysis
+# Interactive Sensitivity Analysis (Fully Integrated)
 # --------------------------
 st.subheader("🧩 Interactive Sensitivity Analysis")
 
@@ -408,17 +408,14 @@ st.markdown(f"""
 # --------------------------
 # 5. Automated Recommendation
 # --------------------------
-st.subheader("💡 Sensitivity Recommendation")
-
-# Identify the largest single driver per scenario
 largest_buy = top_buy_drivers.iloc[0]
 largest_epf = top_epf_drivers.iloc[0]
 
+st.subheader("💡 Sensitivity Recommendation")
 st.markdown(f"""
 - 🏡 **Buy Property:** The most sensitive factor is **{largest_buy['Parameter']}**, with an impact of **RM {largest_buy['Buy Impact']:,.0f}**.  
-  ⚠️ Recommendation: Monitor this parameter closely; small changes here can significantly affect your long-term wealth.
+  ⚠️ Recommendation: Monitor this parameter closely; small changes can significantly affect long-term wealth.
 
 - 💰 **Rent+EPF:** The most sensitive factor is **{largest_epf['Parameter']}**, with an impact of **RM {largest_epf['EPF Impact']:,.0f}**.  
-  ⚠️ Recommendation: This parameter largely drives your EPF wealth outcome; adjust contributions or strategy if necessary.
+  ⚠️ Recommendation: Adjust strategy if needed; this factor drives your EPF wealth outcome most.
 """)
-
