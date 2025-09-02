@@ -10,11 +10,23 @@ import plotly.graph_objects as go
 # --------------------------
 st.set_page_config(page_title='Expected Outcomes – Fair Comparison', layout='wide')
 
-# Times New Roman font for Streamlit
+# --------------------------
+# 1a. Global CSS: Times New Roman
+# --------------------------
 st.markdown(
     """
     <style>
-    .streamlit-expanderContent, .css-1d391kg p, h1, h2, h3, h4, h5, h6 {
+    html, body, [class*="css"] {
+        font-family: 'Times New Roman', serif !important;
+    }
+    .streamlit-expanderContent, 
+    .css-1d391kg p, 
+    .css-1d391kg h1, 
+    .css-1d391kg h2, 
+    .css-1d391kg h3, 
+    .css-1d391kg h4, 
+    .css-1d391kg h5, 
+    .css-1d391kg h6 {
         font-family: 'Times New Roman', serif;
     }
     </style>
