@@ -8,7 +8,7 @@ import nltk
 from nltk.corpus import stopwords
 import os
 import re
-import io  # for StringIO
+from io import StringIO
 
 # ----------------------------
 # NLTK Setup
@@ -27,7 +27,7 @@ st.sidebar.title("🔍 Navigation")
 page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
 
 # ----------------------------
-# Load dataset helper
+# Load dataset
 # ----------------------------
 @st.cache_data
 def load_csv(path):
@@ -55,13 +55,14 @@ if page == "📊 EDA":
         st.error("❌ No dataset found. Please upload a CSV file or place 'Data.csv' in working directory.")
         st.stop()
 
-    # Dataset preview
+    # Dataset overview
     st.subheader("📋 Dataset Preview")
-    st.dataframe(df.head(10))
+    num_preview = st.slider("Number of rows to preview", min_value=5, max_value=min(1000, len(df)), value=10)
+    st.dataframe(df.head(num_preview))
 
     # Dataset info
     st.subheader("ℹ️ Dataset Info")
-    buffer = io.StringIO()
+    buffer = StringIO()
     df.info(buf=buffer)
     s = buffer.getvalue()
     st.text(s)
@@ -70,7 +71,7 @@ if page == "📊 EDA":
     st.subheader("❗ Missing Values Summary")
     st.write(df.isna().sum())
 
-    # Numeric descriptive statistics
+    # Descriptive statistics
     st.subheader("📊 Numeric Descriptive Statistics")
     st.write(df.describe(include=[np.number]))
 
@@ -78,7 +79,9 @@ if page == "📊 EDA":
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
-    # Numeric distributions
+    # ----------------------------
+    # Distributions for numeric columns
+    # ----------------------------
     st.subheader("📈 Numeric Distributions")
     for col in numeric_cols:
         fig, ax = plt.subplots()
@@ -94,7 +97,9 @@ if page == "📊 EDA":
         ax.set_title(f"Boxplot of {col}")
         st.pyplot(fig)
 
-    # Categorical variables
+    # ----------------------------
+    # Categorical variables analysis
+    # ----------------------------
     if categorical_cols:
         st.subheader("📊 Categorical Columns Analysis")
         for col in categorical_cols:
@@ -103,12 +108,15 @@ if page == "📊 EDA":
             ax.set_title(f"Counts of {col}")
             st.pyplot(fig)
 
-    # Trends over years
+    # ----------------------------
+    # Trends over years (if Year exists)
+    # ----------------------------
     if "Year" in df.columns:
         st.subheader("📈 Trends Over Years")
         df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
         df = df.dropna(subset=["Year"])
         df["Year"] = df["Year"].astype(int)
+
         year_min, year_max = int(df["Year"].min()), int(df["Year"].max())
         y0, y1 = st.slider("Select Year Range", year_min, year_max, (year_min, year_max))
 
@@ -124,7 +132,9 @@ if page == "📊 EDA":
             ax.grid(alpha=0.2)
             st.pyplot(fig)
 
-    # Correlation heatmap
+    # ----------------------------
+    # Correlation Heatmap
+    # ----------------------------
     if numeric_cols:
         st.subheader("🧩 Correlation Matrix")
         corr = df[numeric_cols].corr()
@@ -181,3 +191,4 @@ elif page == "☁️ WordCloud":
             else:
                 ax_bar.text(0.5, 0.5, "No words found", ha="center")
             st.pyplot(fig_bar)
+
