@@ -316,19 +316,31 @@ df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, pr
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.plotly_chart(plot_outcomes_interactive(df, projection_years), use_container_width=True)
+    # Interactive / animated Plotly chart
+    st.plotly_chart(plot_outcomes_animated_bounce_flash(df), use_container_width=True)
 
 with tab2:
+    # Formatted DataFrame table
     st.dataframe(format_table(df), use_container_width=True)
 
 with tab3:
-    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy > epf), None)
+    # Calculate break-even year
+    break_even_year = None
+    for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]):
+        if buy > epf:
+            break_even_year = year
+            break
+
+    # Display key metrics
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Buy Property Wealth", f"RM {df['Buy Wealth (RM)'].iloc[-1]:,.0f}")
     col2.metric("Rent+EPF Wealth", f"RM {df['EPF Wealth (RM)'].iloc[-1]:,.0f}")
     col3.metric("Cumulative Rent Paid", f"RM {df['Cumulative Rent (RM)'].iloc[-1]:,.0f}")
     col4.metric("Break-even Year", f"Year {break_even_year}" if break_even_year is not None else "N/A")
+
+    # Display summary markdown
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
+
 
 # --------------------------
 # 6. Download CSV
