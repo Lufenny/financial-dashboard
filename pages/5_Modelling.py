@@ -8,7 +8,7 @@ st.set_page_config(page_title="Buy vs Rent Model", layout="wide")
 st.title("🏡 Buy vs Rent Modelling and Sensitivity Analysis")
 
 # --------------------------
-# Sidebar Inputs
+# 1. Sidebar Inputs
 # --------------------------
 st.sidebar.header("📌 Assumptions")
 
@@ -24,7 +24,7 @@ rent_yield = st.sidebar.slider("Rental Yield (%)", 2.0, 6.0, 4.0, step=0.1)
 investment_return = st.sidebar.slider("Investment Return (%)", 2.0, 12.0, 6.0, step=0.1)
 
 # --------------------------
-# Functions
+# 2. Functions
 # --------------------------
 def mortgage_payment(principal, annual_rate, n_years):
     r = annual_rate / 12
@@ -41,7 +41,7 @@ def outstanding_balance(principal, annual_rate, n_years, months_elapsed):
     return balance
 
 # --------------------------
-# Base-case Buy vs Rent Simulation
+# 3. Base-case Buy vs Rent Simulation
 # --------------------------
 dp = purchase_price * down_payment_pct
 loan = purchase_price - dp
@@ -69,7 +69,7 @@ df_base = pd.DataFrame({
 })
 
 # --------------------------
-# Base-case Charts
+# 4. Base-case Charts
 # --------------------------
 st.subheader("📊 Wealth Accumulation Over Time (Base-case)")
 st.line_chart(df_base.set_index("Year")[["BuyEquity","RentPortfolio"]])
@@ -81,7 +81,7 @@ st.write(f"- Rent & Invest Portfolio: RM{rent_portfolio[-1]:,.0f}")
 st.write(f"- Difference: RM{df_base['Difference'].iloc[-1]:,.0f}")
 
 # --------------------------
-# Sensitivity Analysis (4 Parameters)
+# 5. Sensitivity Analysis (4 Parameters)
 # --------------------------
 st.subheader("🧮 Sensitivity Analysis (4 Parameters)")
 
@@ -113,7 +113,7 @@ df_sens = pd.DataFrame(
 )
 
 # --------------------------
-# Download CSV
+# 6. Download CSV
 # --------------------------
 csv = df_sens.to_csv(index=False).encode("utf-8")
 st.download_button(
@@ -124,7 +124,7 @@ st.download_button(
 )
 
 # --------------------------
-# Interactive Heatmap (Final Year)
+# 7. Interactive Heatmap (Final Year)
 # --------------------------
 st.subheader("📊 Interactive Heatmap – Final Year Scenarios (Plotly)")
 
