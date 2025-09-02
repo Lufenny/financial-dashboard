@@ -78,30 +78,27 @@ def plot_outcomes_interactive(df, years, PMT):
 
     fig = go.Figure()
 
-    # Hover text using namedtuples
+    # Hover text using iterrows() to avoid KeyError
     hover_text = [
-        f"<b>Year:</b> {row.Year}<br>"
-        f"<b>Buy Property:</b> RM {row._asdict()['Buy Wealth (RM)']:,.0f}<br>"
-        f"<b>Rent+EPF:</b> RM {row._asdict()['EPF Wealth (RM)']:,.0f}<br>"
-        f"<b>Cumulative Rent:</b> RM {row._asdict()['Cumulative Rent (RM)']:,.0f}"
-        for row in df.itertuples(index=False, name="Row")
+        f"<b>Year:</b> {row['Year']}<br>"
+        f"<b>Buy Property:</b> RM {row['Buy Wealth (RM)']:,.0f}<br>"
+        f"<b>Rent+EPF:</b> RM {row['EPF Wealth (RM)']:,.0f}<br>"
+        f"<b>Cumulative Rent:</b> RM {row['Cumulative Rent (RM)']:,.0f}"
+        for _, row in df.iterrows()
     ]
 
     # Identify zero EPF contribution years
     zero_epf_years = df.index[df["Annual Rent (RM)"] >= PMT].tolist()
     zero_epf_wealth = df.loc[zero_epf_years, "EPF Wealth (RM)"]
 
-    # Add shaded regions for zero EPF contribution
+    # Light red shading for zero-EPF years
     for i in zero_epf_years:
         fig.add_vrect(
             x0=df.loc[i, "Year"] - 0.5,
             x1=df.loc[i, "Year"] + 0.5,
-            fillcolor="rgba(255,0,0,0.05)",
+            fillcolor="rgba(255,0,0,0.08)",
             line_width=0,
             layer="below",
-            annotation_text="No EPF Contribution" if i == zero_epf_years[0] else "",
-            annotation_position="top left",
-            annotation_font=dict(color="red", size=12)
         )
 
     # Buy Property trace
@@ -132,8 +129,8 @@ def plot_outcomes_interactive(df, years, PMT):
             x=df.loc[zero_epf_years, "Year"],
             y=zero_epf_wealth,
             mode='markers',
-            marker=dict(color='red', size=8, symbol='x'),
-            name='No EPF Contribution',
+            marker=dict(color='red', size=10, symbol='x'),
+            name='EPF = 0',
             text=[f"Year {y}: Rent ≥ Mortgage" for y in df.loc[zero_epf_years, "Year"]],
             hovertemplate='%{text}<extra></extra>'
         ))
@@ -142,7 +139,7 @@ def plot_outcomes_interactive(df, years, PMT):
     fig.add_trace(go.Scatter(
         x=df["Year"],
         y=df["Cumulative Rent (RM)"],
-        mode='lines+markers',
+        mode='lines',
         line=dict(color='red', width=2, dash='dash'),
         name='Cumulative Rent',
         text=hover_text,
@@ -154,7 +151,8 @@ def plot_outcomes_interactive(df, years, PMT):
         fig.add_trace(go.Scatter(
             x=df["Year"].tolist() + df["Year"].tolist()[::-1],
             y=df["Buy Wealth (RM)"].tolist() + df["EPF Wealth (RM)"].tolist()[::-1],
-            fill='toself', fillcolor='rgba(0,0,255,0.1)',
+            fill='toself',
+            fillcolor='rgba(0,0,255,0.08)',
             line=dict(color='rgba(255,255,255,0)'),
             hoverinfo='skip', showlegend=False
         ))
@@ -162,7 +160,8 @@ def plot_outcomes_interactive(df, years, PMT):
         fig.add_trace(go.Scatter(
             x=df["Year"].tolist() + df["Year"].tolist()[::-1],
             y=df["EPF Wealth (RM)"].tolist() + df["Buy Wealth (RM)"].tolist()[::-1],
-            fill='toself', fillcolor='rgba(0,128,0,0.1)',
+            fill='toself',
+            fillcolor='rgba(0,128,0,0.08)',
             line=dict(color='rgba(255,255,255,0)'),
             hoverinfo='skip', showlegend=False
         ))
@@ -227,8 +226,7 @@ def generate_summary(df, years):
 
     break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
 
-    # Count zero EPF contribution years
-    PMT = calculate_mortgage_payment(df["Property (RM)"].iloc[0], 0.04, 30)  # you can adjust r and n if needed
+    PMT = calculate_mortgage_payment(df["Property (RM)"].iloc[0], 0.04, 30)
     zero_epf_years = df.index[df["Annual Rent (RM)"] >= PMT].tolist()
 
     summary = f"""
