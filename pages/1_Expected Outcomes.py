@@ -166,22 +166,54 @@ def plot_outcomes_interactive(df, years, PMT):
             f"<b>Cumulative Rent:</b> 💸 RM {row['Cumulative Rent (RM)']:,.0f}"
         )
 
-    fig.add_trace(go.Scatter(x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines',
-                             line=dict(color='blue', width=3), name='Buy Property',
-                             text=hover_text, hovertemplate='%{text}<extra></extra>'))
+    # Buy Property trace
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines',
+        line=dict(color='blue', width=3), name='Buy Property',
+        text=hover_text, hovertemplate='%{text}<extra></extra>'
+    ))
 
-    fig.add_trace(go.Scatter(x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines',
-                             line=dict(color='green', width=3), name='Rent+EPF',
-                             text=hover_text, hovertemplate='%{text}<extra></extra>'))
+    # Rent+EPF trace
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines',
+        line=dict(color='green', width=3), name='Rent+EPF',
+        text=hover_text, hovertemplate='%{text}<extra></extra>'
+    ))
 
-    fig.add_trace(go.Scatter(x=df["Year"], y=df["Cumulative Rent (RM)"], mode='lines',
-                             line=dict(color='red', width=2, dash='dash'), name='Cumulative Rent',
-                             text=hover_text, hovertemplate='%{text}<extra></extra>'))
+    # Cumulative Rent trace
+    fig.add_trace(go.Scatter(
+        x=df["Year"], y=df["Cumulative Rent (RM)"], mode='lines',
+        line=dict(color='red', width=2, dash='dash'), name='Cumulative Rent',
+        text=hover_text, hovertemplate='%{text}<extra></extra>'
+    ))
 
-    fig.update_layout(title=f"Comparison Over {years} Years – Winner: {winner_name}",
-                      xaxis_title="Year", yaxis_title="Wealth / Rent (RM)",
-                      template="plotly_white", legend=dict(x=0.01, y=0.99),
-                      hovermode='x unified')
+    # Dynamic shaded area for leader
+    fig.add_trace(go.Scatter(
+        x=df["Year"].tolist() + df["Year"].tolist()[::-1],
+        y=df[["Buy Wealth (RM)", "EPF Wealth (RM)"]].max(axis=1).tolist() +
+          df[["Buy Wealth (RM)", "EPF Wealth (RM)"]].min(axis=1).tolist()[::-1],
+        fill='toself',
+        fillcolor='rgba(0,255,0,0.1)',
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo='skip',
+        showlegend=False
+    ))
+
+    if break_even_year is not None:
+        fig.add_vline(
+            x=break_even_year,
+            line=dict(color='orange', dash='dash', width=2),
+            annotation_text=f"🟡 Break-even: Year {break_even_year}",
+            annotation_position="top right",
+            annotation_font=dict(color='orange', size=12)
+        )
+
+    fig.update_layout(
+        title=f"Comparison Over {years} Years – Winner: {winner_name}",
+        xaxis_title="Year", yaxis_title="Wealth / Rent (RM)",
+        template="plotly_white", legend=dict(x=0.01, y=0.99),
+        hovermode='x unified'
+    )
 
     return fig
 
