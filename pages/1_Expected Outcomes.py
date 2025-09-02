@@ -329,8 +329,13 @@ df = project_outcomes(
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.plotly_chart(plot_outcomes_interactive(df, projection_years,
-                                              calculate_mortgage_payment(initial_property_price, mortgage_rate_pct, loan_term_years)
+    st.plotly_chart(
+        plot_outcomes_interactive(
+            df,
+            projection_years,
+            calculate_mortgage_payment(initial_property_price, mortgage_rate_pct, loan_term_years)
+        )
+    )
 
 with tab2:
     st.dataframe(format_table(df), use_container_width=True)
