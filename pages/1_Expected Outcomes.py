@@ -289,13 +289,25 @@ with tab3:
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
 
 # --------------------------
-# Inline Sensitivity Note
+# Sensitivity Analysis Mention with Link
 # --------------------------
-st.markdown(
-    "_Note: The baseline projections shown here are influenced by default assumptions. "
-    "For a deeper view of how outcomes vary under different parameters (mortgage rates, "
-    "EPF/investment returns, property appreciation, rental yields), see the **Modelling** page "
-    "with sensitivity analysis and tipping-point detection._"
+st.subheader("🧩 Sensitivity Analysis Note")
+
+st.info(
+    """
+    While this page presents the baseline expected outcomes, a **detailed sensitivity analysis** 
+    is available in the [**Modelling**](./Modelling) page.  
+
+    The sensitivity analysis examines how variations in key parameters affect the long-term wealth 
+    accumulation of **buying property vs renting and investing**:
+
+    - Mortgage Rates
+    - Property Appreciation
+    - Rental Yield
+    - Investment Returns  
+
+    📌 This helps identify tipping points and understand which assumptions most influence the outcome.
+    """
 )
 
 # --------------------------
