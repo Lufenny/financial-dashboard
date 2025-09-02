@@ -48,7 +48,7 @@ def project_outcomes(P, loan_amount, annual_mortgage_rate, loan_years, property_
         new_property_value = property_values[-1] * (1 + property_growth)
         property_values.append(new_property_value)
 
-        # Mortgage (annualized from monthly PMT)
+        # Mortgage (annualized)
         interest_payment = mortgage_balances[-1] * annual_mortgage_rate
         principal_payment = monthly_PMT*12 - interest_payment
         new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
@@ -85,21 +85,25 @@ def project_outcomes(P, loan_amount, annual_mortgage_rate, loan_years, property_
     })
 
 # --------------------------
-# 3. Sidebar Inputs
+# 3. Sidebar Inputs with Sensitivity Sliders
 # --------------------------
-st.sidebar.header("⚙️ Baseline Assumptions")
+st.sidebar.header("⚙️ Baseline Assumptions & Sensitivity")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
 down_payment = st.sidebar.number_input("Down Payment (RM)", value=100_000, step=10_000)
 loan_amount = initial_property_price - down_payment
-mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
+
+# Sensitivity sliders
+mortgage_rate = st.sidebar.slider("Mortgage Rate (Annual)", 0.01, 0.08, 0.04, 0.005)
+property_growth = st.sidebar.slider("Property Growth Rate (Annual)", 0.01, 0.10, 0.05, 0.005)
+rent_yield = st.sidebar.slider("Rent Yield", 0.01, 0.10, 0.04, 0.005)
+epf_rate = st.sidebar.slider("EPF Return Rate (Annual)", 0.01, 0.10, 0.06, 0.005)
+
 loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
-property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
-epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
-rent_yield = st.sidebar.number_input("Rent Yield", value=0.04, step=0.005)
 projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
+
+# Optional custom rent
 use_custom_rent = st.sidebar.checkbox("Use Custom Starting Rent?")
 custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000) if use_custom_rent else None
-
 if custom_rent and custom_rent > calculate_monthly_mortgage(loan_amount, mortgage_rate, loan_term_years)*12:
     st.warning("⚠️ Custom rent exceeds annual mortgage payment. EPF investable cash will be zero.")
 
@@ -119,22 +123,34 @@ with st.expander("📊 How EDA Informs Expected Outcomes"):
 # 5. Baseline Assumptions Table
 # --------------------------
 st.subheader("📌 Baseline Assumptions")
-st.markdown("""
+st.markdown(f"""
 | Parameter | Baseline Value | Source / Justification |
 |-----------|----------------|----------------------|
-| Initial Property Price | RM 500,000 | Typical local property |
-| Annual Property Growth | 5% | Historical appreciation |
-| Mortgage Rate | 4% | Current bank rates |
-| Loan Term | 30 yrs | Standard mortgage |
-| EPF Annual Growth | 6% | Historical dividend trends |
-| Projection Years | 30 | Long-term horizon |
+| Initial Property Price | RM {initial_property_price:,.0f} | Typical local property |
+| Down Payment | RM {down_payment:,.0f} | User-defined |
+| Annual Property Growth | {property_growth*100:.1f}% | Historical appreciation |
+| Mortgage Rate | {mortgage_rate*100:.1f}% | Current bank rates |
+| Loan Term | {loan_term_years} yrs | Standard mortgage |
+| EPF Annual Growth | {epf_rate*100:.1f}% | Historical dividend trends |
+| Projection Years | {projection_years} | Long-term horizon |
+| Rent Yield | {rent_yield*100:.1f}% | From EDA or user |
 """)
 
 # --------------------------
 # 6. Projection
 # --------------------------
-df = project_outcomes(initial_property_price, loan_amount, mortgage_rate, loan_term_years,
-                      property_growth, epf_rate, rent_yield, projection_years, down_payment, custom_rent)
+df = project_outcomes(
+    P=initial_property_price,
+    loan_amount=loan_amount,
+    annual_mortgage_rate=mortgage_rate,
+    loan_years=loan_term_years,
+    property_growth=property_growth,
+    epf_rate=epf_rate,
+    rent_yield=rent_yield,
+    years=projection_years,
+    down_payment=down_payment,
+    custom_rent=custom_rent
+)
 
 # Break-even
 break_even_year = next((row.Year for i,row in df.iterrows() if row["Buy Wealth (RM)"]>row["EPF Wealth (RM)"]), None)
@@ -146,39 +162,27 @@ tab1, tab2, tab3 = st.tabs(["📈 Chart", "📊 Table", "📝 Summary"])
 
 # ----- Tab 1: Chart -----
 with tab1:
-    st.subheader("📈 Scenario Comparison – Wealth Accumulation")
-    fig_wealth = go.Figure()
-    fig_wealth.add_trace(go.Scatter(x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines+markers',
-                                    name='🏡 Buy Property', line=dict(color='blue', width=3)))
-    fig_wealth.add_trace(go.Scatter(x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines+markers',
-                                    name='💰 Rent+EPF', line=dict(color='green', width=3)))
-    fig_wealth.add_trace(go.Scatter(x=df["Year"], y=df["Cumulative Rent"], mode='lines',
-                                    name='💸 Cumulative Rent', line=dict(color='red', width=2, dash='dash')))
+    st.subheader("📈 Scenario Comparison")
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines+markers',
+                             name='🏡 Buy Property', line=dict(color='blue', width=3)))
+    fig.add_trace(go.Scatter(x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines+markers',
+                             name='💰 Rent+EPF', line=dict(color='green', width=3)))
+    fig.add_trace(go.Scatter(x=df["Year"], y=df["Cumulative Rent"], mode='lines', 
+                             name='💸 Cumulative Rent', line=dict(color='red', width=2, dash='dash')))
     if break_even_year:
-        fig_wealth.add_vline(x=break_even_year, line=dict(color='orange', dash='dash', width=2))
-        fig_wealth.add_annotation(
-            x=break_even_year, y=max(df["Buy Wealth (RM)"].max(), df["EPF Wealth (RM)"].max()),
-            text=f"📍 Break-even: Year {break_even_year}", showarrow=False, yanchor="bottom",
-            font=dict(color="orange", size=12)
-        )
-    fig_wealth.update_layout(title=f"Comparison Over {projection_years} Years",
-                             xaxis_title="Year", yaxis_title="Wealth / Rent (RM)",
-                             template="simple_white", legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"))
-    st.plotly_chart(fig_wealth, use_container_width=True)
+        fig.add_vline(x=break_even_year, line=dict(color='orange', dash='dash', width=2))
+        fig.add_annotation(x=break_even_year, y=max(df["Buy Wealth (RM)"].max(), df["EPF Wealth (RM)"].max()),
+                           text=f"📍 Break-even: Year {break_even_year}", showarrow=False, yanchor="bottom",
+                           font=dict(color="orange", size=12))
+    # Year 0 annotation
+    fig.add_annotation(x=0, y=df["Buy Wealth (RM)"].iloc[0], text=f"🏡 Start: RM {df['Buy Wealth (RM)'].iloc[0]:,.0f}", showarrow=True, arrowhead=2, ay=-40, font=dict(color="blue"))
+    fig.add_annotation(x=0, y=df["EPF Wealth (RM)"].iloc[0], text=f"💰 Start: RM {df['EPF Wealth (RM)'].iloc[0]:,.0f}", showarrow=True, arrowhead=2, ay=-40, font=dict(color="green"))
 
-    # --------------------------
-    # Flow Chart: Yearly Cash Flows
-    # --------------------------
-    st.subheader("🔹 Yearly Cash Flow – Buy vs Rent+EPF (Break-even Highlighted)")
-    fig_flow = go.Figure()
-    mortgage_paid = (df["Mortgage Balance"].shift(1).fillna(loan_amount) - df["Mortgage Balance"]).clip(lower=0)
-    fig_flow.add_trace(go.Bar(x=df["Year"], y=mortgage_paid, name="🏦 Mortgage Paid (Buy)", marker_color='lightblue'))
-    fig_flow.add_trace(go.Scatter(x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines+markers',
-                                  name="🏡 Buy Wealth", line=dict(color='blue', width=3)))
-    fig_flow.add_trace(go.Bar(x=df["Year"], y=df["Annual Rent"], name="💸 Rent Paid (Rent+EPF)", marker_color='lightgreen'))
-    fig_flow.add_trace(go.Scatter(x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines+markers',
-                                  name="💰 EPF Wealth", line=dict(color='green', width=3)))
-    st.plotly_chart(fig_flow, use_container_width=True)
+    fig.update_layout(title=f"Comparison Over {projection_years} Years",
+                      xaxis_title="Year", yaxis_title="Wealth / Rent (RM)",
+                      template="simple_white", legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"))
+    st.plotly_chart(fig, use_container_width=True)
 
 # ----- Tab 2: Table -----
 with tab2:
@@ -232,10 +236,7 @@ with tab3:
 # 8. Sensitivity Analysis Note
 # --------------------------
 st.subheader("🧩 Sensitivity Analysis Note")
-st.info("""
-Detailed sensitivity analysis is available on the Modelling page.  
-It examines how variations in mortgage rates, property growth, rental yield, and EPF returns affect long-term outcomes.
-""")
+st.info("Adjust sliders in the sidebar to see real-time impact on wealth outcomes, break-even, and CAGR.")
 
 # --------------------------
 # 9. Download CSV
@@ -246,7 +247,6 @@ csv_export = csv_export[[
     "Annual Rent", "Cumulative Rent", "Property Value", "Mortgage Balance"
 ]]
 csv_bytes = csv_export.to_csv(index=False).encode('utf-8')
-
 st.download_button(
     label="📥 Download Projection Data (CSV)",
     data=csv_bytes,
