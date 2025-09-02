@@ -90,50 +90,45 @@ def plot_outcomes(df, years):
     ax.plot(df["Year"], df["Cumulative Rent (RM)"], label="Cumulative Rent", color="red", linestyle="--", linewidth=2)
 
     # Highlight winner area
-    if winner_name == "Buy Property":
-        ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], color="blue", alpha=0.1)
-    else:
-        ax.fill_between(df["Year"], df["EPF Wealth (RM)"], df["Buy Wealth (RM)"], color="green", alpha=0.1)
+    ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], 
+                    where=df["Buy Wealth (RM)"]>=df["EPF Wealth (RM)"],
+                    color="blue", alpha=0.08, interpolate=True)
+    ax.fill_between(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"], 
+                    where=df["Buy Wealth (RM)"]<df["EPF Wealth (RM)"],
+                    color="green", alpha=0.08, interpolate=True)
+
+    # Offset for final annotations
+    offset = max(df["Buy Wealth (RM)"].max(), df["EPF Wealth (RM)"].max()) * 0.02
 
     # Annotate final values
-    offset = 0.3
-    ax.text(years + offset, buy_final, f"RM {buy_final:,.0f}",
-            color="white" if winner_name == "Buy Property" else "blue",
-            fontsize=12, weight="bold",
-            bbox=dict(facecolor="blue" if winner_name == "Buy Property" else "none", alpha=0.7, edgecolor="none"),
-            ha="left", va="bottom")
-
-    ax.text(years + offset, epf_final, f"RM {epf_final:,.0f}",
-            color="white" if winner_name == "Rent+EPF" else "green",
-            fontsize=12, weight="bold",
-            bbox=dict(facecolor="green" if winner_name == "Rent+EPF" else "none", alpha=0.7, edgecolor="none"),
-            ha="left", va="bottom")
-
-    ax.text(years + offset, rent_final, f"RM {rent_final:,.0f}",
+    ax.text(years + 0.3, buy_final + offset, f"RM {buy_final:,.0f}",
+            color="blue", fontsize=11, weight="bold", ha="left", va="bottom")
+    ax.text(years + 0.3, epf_final + offset, f"RM {epf_final:,.0f}",
+            color="green", fontsize=11, weight="bold", ha="left", va="bottom")
+    ax.text(years + 0.3, rent_final + offset, f"RM {rent_final:,.0f}",
             color="red", fontsize=11, weight="bold", ha="left", va="bottom")
 
-    # Find break-even year
+    # Break-even year
     break_even_year = None
     for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]):
         if buy > epf:
             break_even_year = year
             break
-
-    # Draw break-even marker
     if break_even_year is not None:
         ax.axvline(x=break_even_year, color="orange", linestyle="--", linewidth=1.5, alpha=0.8)
-        ax.text(break_even_year, max(buy_final, epf_final) * 0.05,  # near bottom of chart
+        ax.text(break_even_year, -offset*5,  # below x-axis for visibility
                 f"Break-even: Year {break_even_year}", 
-                color="orange", fontsize=11, weight="bold", ha="center", va="bottom",
-                bbox=dict(facecolor="white", alpha=0.6, edgecolor="orange"))
+                color="orange", fontsize=10, weight="bold", ha="center", va="bottom",
+                bbox=dict(facecolor="white", alpha=0.7, edgecolor="orange"))
 
     ax.set_title(f"Comparison Over {years} Years – Winner: {winner_name}", fontsize=14, weight="bold")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Wealth / Rent (RM)")
+    ax.set_xlabel("Year", fontsize=12)
+    ax.set_ylabel("Wealth / Rent (RM)", fontsize=12)
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"RM {x:,.0f}"))
     ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.6)
+    ax.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
+    plt.tight_layout()
     return fig
 
 def format_table(df):
