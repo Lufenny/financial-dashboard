@@ -28,65 +28,40 @@ st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
 # --------------------------
 # 2. Helper Functions
 # --------------------------
-def calculate_mortgage_payment(P, annual_rate, years):
-    """
-    Calculate monthly mortgage payment (standard amortization).
-    
-    P : principal loan (RM)
-    annual_rate : annual interest rate (e.g., 0.04 for 4%)
-    years : loan term in years
-    """
-    r = annual_rate / 12          # monthly interest rate
-    n = years * 12                # number of months
-    if r > 0:
-        return P * (r * (1 + r)**n) / ((1 + r)**n - 1)
-    else:
-        return P / n
+def calculate_mortgage_payment(P, r, n):
+    return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
 
-def project_outcomes(P, annual_rate, years, g, epf_rate, rent_yield, projection_years, custom_rent=None):
-    """
-    Projects outcomes of buying property vs renting + investing.
-    Amortization is monthly, but projection results are yearly.
-    """
-    PMT = calculate_mortgage_payment(P, annual_rate, years)  # monthly mortgage payment
-    
+def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
+    PMT = calculate_mortgage_payment(P, r, n)
     property_values, mortgage_balances = [P], [P]
     buy_wealth, epf_wealth, rents, cum_rent = [0], [0], [], []
 
-    # first year rent
     initial_rent = custom_rent if custom_rent is not None else P * rent_yield
     rents.append(initial_rent)
     cum_rent.append(initial_rent)
 
-    for t in range(1, projection_years + 1):  # yearly loop
-        # property appreciation
+    for t in range(1, years + 1):
         new_property_value = property_values[-1] * (1 + g)
         property_values.append(new_property_value)
 
-        # amortization over 12 months
-        mortgage_balance = mortgage_balances[-1]
-        for _ in range(12):
-            interest_payment = mortgage_balance * (annual_rate / 12)
-            principal_payment = PMT - interest_payment
-            mortgage_balance = max(0, mortgage_balance - principal_payment)
-        mortgage_balances.append(mortgage_balance)
+        interest_payment = mortgage_balances[-1] * r
+        principal_payment = PMT - interest_payment
+        new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
+        mortgage_balances.append(new_mortgage_balance)
 
-        # buy wealth
-        new_buy_wealth = new_property_value - mortgage_balance
+        new_buy_wealth = new_property_value - new_mortgage_balance
         buy_wealth.append(new_buy_wealth)
 
-        # rent path
         rent_payment = custom_rent if custom_rent is not None else new_property_value * rent_yield
         rents.append(rent_payment)
         cum_rent.append(cum_rent[-1] + rent_payment)
 
-        # EPF path (annual compounding)
-        investable = max(0, PMT * 12 - rent_payment)  # annual surplus = 12 months of PMT - rent
+        investable = max(0, PMT - rent_payment)
         new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
         epf_wealth.append(new_epf_wealth)
 
     return pd.DataFrame({
-        "Year": np.arange(0, projection_years + 1),
+        "Year": np.arange(0, years + 1),
         "Property (RM)": property_values,
         "Mortgage (RM)": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
@@ -246,41 +221,17 @@ def plot_outcomes_interactive(df, years, PMT):
 # 6. Sidebar Inputs
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
-
-initial_property_price = st.sidebar.number_input(
-    "Initial Property Price (RM)", value=500_000, step=50_000
-)
-
-mortgage_rate_pct = (
-    st.sidebar.number_input("Mortgage Rate (Annual, %)", value=4.0, step=0.1) / 100
-)
-
-loan_term_years = st.sidebar.number_input(
-    "Loan Term (Years)", value=30, step=5
-)
-
-property_growth_pct = (
-    st.sidebar.number_input("Property Growth Rate (Annual, %)", value=5.0, step=0.1) / 100
-)
-
-epf_rate_pct = (
-    st.sidebar.number_input("EPF Return Rate (Annual, %)", value=6.0, step=0.1) / 100
-)
-
-rent_yield_pct = (
-    st.sidebar.number_input("Rent Yield (from EDA, %)", value=4.0, step=0.1) / 100
-)
-
-projection_years = st.sidebar.number_input(
-    "Projection Years", value=30, step=5
-)
-
+initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
+mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
+loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
+property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
+epf_rate = st.sidebar.number_input("EPF Return Rate (Annual)", value=0.06, step=0.01)
+rent_yield = st.sidebar.number_input("Rent Yield (from EDA)", value=0.04, step=0.005)
+projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
 use_custom_rent = st.sidebar.checkbox("Use Custom Starting Rent?")
 custom_rent = None
 if use_custom_rent:
-    custom_rent = st.sidebar.number_input(
-        "Custom Starting Annual Rent (RM)", value=20000, step=1000
-    )
+    custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000)
 
 # --------------------------
 # 7. Link EDA Insights
@@ -312,16 +263,8 @@ st.markdown("""
 # --------------------------
 # 9. Projection
 # --------------------------
-df = project_outcomes(
-    initial_property_price,
-    mortgage_rate_pct,
-    loan_term_years,
-    property_growth_pct,
-    epf_rate_pct,
-    rent_yield_pct,
-    projection_years,
-    custom_rent
-)
+df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years,
+                      property_growth, epf_rate, rent_yield, projection_years, custom_rent)
 
 # --------------------------
 # 10. Tabs: Chart / Table / Summary
@@ -329,51 +272,21 @@ df = project_outcomes(
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.plotly_chart(
-        plot_outcomes_interactive(
-            df,
-            projection_years,
-            calculate_mortgage_payment(initial_property_price, mortgage_rate_pct, loan_term_years)
-        )
-    )
+    st.plotly_chart(plot_outcomes_interactive(df, projection_years,
+                                              calculate_mortgage_payment(initial_property_price, mortgage_rate, loan_term_years)),
+                    use_container_width=True)
 
 with tab2:
-    st.subheader("Baseline Assumptions")
-    assumptions = {
-        "Property Price (RM)": f"RM{initial_property_price:,.0f}",
-        "Annual Price Growth": f"{price_growth_pct}%",
-        "Mortgage Rate": f"{mortgage_rate_pct}%",
-        "Loan Term (years)": loan_term_years,
-        "Monthly Rent": f"RM{monthly_rent:,.0f}",
-        "Annual Rent Yield Growth": f"{rent_growth_pct}%",
-        "Investment Return Rate": f"{investment_return_pct}%",
-        "EPF Dividend Rate": f"{epf_dividend_pct}%",
-        "Projection Years": projection_years,
-    }
-    st.table(pd.DataFrame(assumptions.items(), columns=["Assumption", "Value"]))
-
+    st.dataframe(format_table(df), use_container_width=True)
 
 with tab3:
-    st.subheader("📊 Baseline Assumptions Table")
-    st.table({
-        "Parameter": [
-            "Property Price", 
-            "Mortgage Rate", 
-            "Investment Return", 
-            "Inflation Rate", 
-            "Annual Price Growth"
-        ],
-        "Baseline (EDA)": [
-            "RM500,000", "5%", "4%", "3%", "5%"
-        ]
-    })
-    st.markdown(
-        """
-        ✅ **Note:** Baseline assumptions are derived from EDA trend analysis.  
-        Use the **sidebar inputs** to test alternative scenarios and compare against this baseline.
-        """
-    )
-
+    break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Buy Property Wealth", f"RM {df['Buy Wealth (RM)'].iloc[-1]:,.0f}")
+    col2.metric("Rent+EPF Wealth", f"RM {df['EPF Wealth (RM)'].iloc[-1]:,.0f}")
+    col3.metric("Cumulative Rent Paid", f"RM {df['Cumulative Rent (RM)'].iloc[-1]:,.0f}")
+    col4.metric("Break-even Year", f"Year {break_even_year}" if break_even_year else "N/A")
+    st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
 
 # --------------------------
 # Sensitivity Analysis Mention with Link
