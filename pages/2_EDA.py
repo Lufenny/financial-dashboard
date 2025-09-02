@@ -8,6 +8,7 @@ import nltk
 from nltk.corpus import stopwords
 import os
 import re
+import io  # for StringIO
 
 # ----------------------------
 # NLTK Setup
@@ -26,7 +27,7 @@ st.sidebar.title("🔍 Navigation")
 page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
 
 # ----------------------------
-# Load dataset
+# Load dataset helper
 # ----------------------------
 @st.cache_data
 def load_csv(path):
@@ -54,18 +55,22 @@ if page == "📊 EDA":
         st.error("❌ No dataset found. Please upload a CSV file or place 'Data.csv' in working directory.")
         st.stop()
 
-    # Dataset overview
+    # Dataset preview
     st.subheader("📋 Dataset Preview")
     st.dataframe(df.head(10))
 
+    # Dataset info
     st.subheader("ℹ️ Dataset Info")
-    buffer = []
+    buffer = io.StringIO()
     df.info(buf=buffer)
-    st.text(buffer)
+    s = buffer.getvalue()
+    st.text(s)
 
+    # Missing values
     st.subheader("❗ Missing Values Summary")
     st.write(df.isna().sum())
 
+    # Numeric descriptive statistics
     st.subheader("📊 Numeric Descriptive Statistics")
     st.write(df.describe(include=[np.number]))
 
@@ -73,66 +78,41 @@ if page == "📊 EDA":
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
-    # ----------------------------
-    # Data Filtering
-    # ----------------------------
-    st.subheader("⚙️ Filter Data Before Plotting")
-    filtered_df = df.copy()
-
-    # Numeric filters
-    for col in numeric_cols:
-        min_val, max_val = float(df[col].min()), float(df[col].max())
-        user_min, user_max = st.slider(f"Filter {col}", min_val, max_val, (min_val, max_val))
-        filtered_df = filtered_df[(filtered_df[col] >= user_min) & (filtered_df[col] <= user_max)]
-
-    # Categorical filters
-    for col in categorical_cols:
-        options = st.multiselect(f"Select {col} categories", df[col].unique(), default=list(df[col].unique()))
-        filtered_df = filtered_df[filtered_df[col].isin(options)]
-
-    st.write(f"Filtered dataset: {len(filtered_df)} rows remaining")
-
-    # ----------------------------
-    # Numeric Distributions & Boxplots
-    # ----------------------------
+    # Numeric distributions
     st.subheader("📈 Numeric Distributions")
     for col in numeric_cols:
         fig, ax = plt.subplots()
-        ax.hist(filtered_df[col].dropna(), bins=15, color="skyblue", edgecolor="black")
+        ax.hist(df[col].dropna(), bins=15, color="skyblue", edgecolor="black")
         ax.set_title(f"Distribution of {col}")
         st.pyplot(fig)
 
+    # Boxplots to detect outliers
     st.subheader("📦 Boxplots (Outliers)")
     for col in numeric_cols:
         fig, ax = plt.subplots()
-        ax.boxplot(filtered_df[col].dropna(), vert=True)
+        ax.boxplot(df[col].dropna(), vert=True)
         ax.set_title(f"Boxplot of {col}")
         st.pyplot(fig)
 
-    # ----------------------------
-    # Categorical Analysis
-    # ----------------------------
+    # Categorical variables
     if categorical_cols:
         st.subheader("📊 Categorical Columns Analysis")
         for col in categorical_cols:
             fig, ax = plt.subplots()
-            filtered_df[col].value_counts().plot(kind="bar", ax=ax, color="lightgreen")
+            df[col].value_counts().plot(kind="bar", ax=ax, color="lightgreen")
             ax.set_title(f"Counts of {col}")
             st.pyplot(fig)
 
-    # ----------------------------
-    # Trends Over Years
-    # ----------------------------
+    # Trends over years
     if "Year" in df.columns:
         st.subheader("📈 Trends Over Years")
-        filtered_df["Year"] = pd.to_numeric(filtered_df["Year"], errors="coerce")
-        filtered_df = filtered_df.dropna(subset=["Year"])
-        filtered_df["Year"] = filtered_df["Year"].astype(int)
-
-        year_min, year_max = int(filtered_df["Year"].min()), int(filtered_df["Year"].max())
+        df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
+        df = df.dropna(subset=["Year"])
+        df["Year"] = df["Year"].astype(int)
+        year_min, year_max = int(df["Year"].min()), int(df["Year"].max())
         y0, y1 = st.slider("Select Year Range", year_min, year_max, (year_min, year_max))
 
-        df_year = filtered_df[(filtered_df["Year"] >= y0) & (filtered_df["Year"] <= y1)]
+        df_year = df[(df["Year"] >= y0) & (df["Year"] <= y1)]
 
         chart_cols = st.multiselect("Select numeric columns to plot trends", numeric_cols, default=numeric_cols)
         for col in chart_cols:
@@ -144,33 +124,15 @@ if page == "📊 EDA":
             ax.grid(alpha=0.2)
             st.pyplot(fig)
 
-    # ----------------------------
-    # Correlation Heatmap
-    # ----------------------------
+    # Correlation heatmap
     if numeric_cols:
         st.subheader("🧩 Correlation Matrix")
-        corr = filtered_df[numeric_cols].corr()
+        corr = df[numeric_cols].corr()
         fig, ax = plt.subplots(figsize=(8, 6))
         cax = ax.matshow(corr, cmap="coolwarm")
         plt.xticks(range(len(numeric_cols)), numeric_cols, rotation=45)
         plt.yticks(range(len(numeric_cols)), numeric_cols)
         fig.colorbar(cax)
-        st.pyplot(fig)
-
-    # ----------------------------
-    # Scatter Plot between numeric variables
-    # ----------------------------
-    if len(numeric_cols) >= 2:
-        st.subheader("📉 Scatter Plots Between Numeric Variables")
-        x_col = st.selectbox("Select X-axis", numeric_cols, index=0)
-        y_col = st.selectbox("Select Y-axis", numeric_cols, index=1)
-
-        fig, ax = plt.subplots()
-        ax.scatter(filtered_df[x_col], filtered_df[y_col], alpha=0.7, color="teal")
-        ax.set_xlabel(x_col)
-        ax.set_ylabel(y_col)
-        ax.set_title(f"Scatter Plot: {y_col} vs {x_col}")
-        ax.grid(alpha=0.3)
         st.pyplot(fig)
 
 # ----------------------------
