@@ -35,35 +35,32 @@ def calculate_mortgage_payment(P, r, n):
 
 def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
     PMT = calculate_mortgage_payment(P, r, n)
-    property_values = np.zeros(years + 1)
-    mortgage_balances = np.zeros(years + 1)
-    buy_wealth = np.zeros(years + 1)
-    epf_wealth = np.zeros(years + 1)
-    rents = np.zeros(years + 1)
-    cum_rent = np.zeros(years + 1)
-
-    property_values[0] = P
-    mortgage_balances[0] = P
+    property_values, mortgage_balances = [P], [P]
+    buy_wealth, epf_wealth, rents, cum_rent = [0], [0], [], []
 
     initial_rent = custom_rent if custom_rent is not None else P * rent_yield
-    rents[0] = initial_rent
-    cum_rent[0] = initial_rent
-    epf_wealth[0] = 0
+    rents.append(initial_rent)
+    cum_rent.append(initial_rent)
 
     for t in range(1, years + 1):
-        # Property & mortgage
-        property_values[t] = property_values[t-1] * (1 + g)
-        interest_payment = mortgage_balances[t-1] * r
-        principal_payment = PMT - interest_payment
-        mortgage_balances[t] = max(0, mortgage_balances[t-1] - principal_payment)
-        buy_wealth[t] = property_values[t] - mortgage_balances[t]
+        new_property_value = property_values[-1] * (1 + g)
+        property_values.append(new_property_value)
 
-        # Rent & EPF
-        rent_payment = custom_rent if custom_rent is not None else property_values[t] * rent_yield
-        rents[t] = rent_payment
-        cum_rent[t] = cum_rent[t-1] + rent_payment
+        interest_payment = mortgage_balances[-1] * r
+        principal_payment = PMT - interest_payment
+        new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
+        mortgage_balances.append(new_mortgage_balance)
+
+        new_buy_wealth = new_property_value - new_mortgage_balance
+        buy_wealth.append(new_buy_wealth)
+
+        rent_payment = custom_rent if custom_rent is not None else new_property_value * rent_yield
+        rents.append(rent_payment)
+        cum_rent.append(cum_rent[-1] + rent_payment)
+
         investable = max(0, PMT - rent_payment)
-        epf_wealth[t] = epf_wealth[t-1] * (1 + epf_rate) + investable
+        new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
+        epf_wealth.append(new_epf_wealth)
 
     return pd.DataFrame({
         "Year": np.arange(0, years + 1),
@@ -75,53 +72,111 @@ def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
         "Cumulative Rent (RM)": cum_rent
     })
 
-def plot_outcomes_interactive(df, years):
+def plot_outcomes_interactive(df, years, PMT):
     buy_final, epf_final = df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]
     winner_name = "Buy Property" if buy_final > epf_final else "Rent+EPF"
 
     fig = go.Figure()
 
-    # Prepare hover text once
+    # Hover text using namedtuples
     hover_text = [
         f"<b>Year:</b> {row.Year}<br>"
-        f"<b>Buy Property:</b> RM {row['Buy Wealth (RM)']:,.0f}<br>"
-        f"<b>Rent+EPF:</b> RM {row['EPF Wealth (RM)']:,.0f}<br>"
-        f"<b>Cumulative Rent:</b> RM {row['Cumulative Rent (RM)']:,.0f}"
-        for row in df.itertuples()
+        f"<b>Buy Property:</b> RM {row._asdict()['Buy Wealth (RM)']:,.0f}<br>"
+        f"<b>Rent+EPF:</b> RM {row._asdict()['EPF Wealth (RM)']:,.0f}<br>"
+        f"<b>Cumulative Rent:</b> RM {row._asdict()['Cumulative Rent (RM)']:,.0f}"
+        for row in df.itertuples(index=False, name="Row")
     ]
 
-    # Add traces
-    fig.add_trace(go.Scatter(x=df["Year"], y=df["Buy Wealth (RM)"], mode='lines',
-                             line=dict(color='blue', width=3), name='Buy Property',
-                             text=hover_text, hovertemplate='%{text}<extra></extra>'))
-    fig.add_trace(go.Scatter(x=df["Year"], y=df["EPF Wealth (RM)"], mode='lines',
-                             line=dict(color='green', width=3), name='Rent+EPF',
-                             text=hover_text, hovertemplate='%{text}<extra></extra>'))
-    fig.add_trace(go.Scatter(x=df["Year"], y=df["Cumulative Rent (RM)"], mode='lines+markers',
-                             line=dict(color='red', width=2, dash='dash'), name='Cumulative Rent',
-                             text=hover_text, hovertemplate='%{text}<extra></extra>'))
+    # Identify zero EPF contribution years
+    zero_epf_years = df.index[df["Annual Rent (RM)"] >= PMT].tolist()
+    zero_epf_wealth = df.loc[zero_epf_years, "EPF Wealth (RM)"]
+
+    # Add shaded regions for zero EPF contribution
+    for i in zero_epf_years:
+        fig.add_vrect(
+            x0=df.loc[i, "Year"] - 0.5,
+            x1=df.loc[i, "Year"] + 0.5,
+            fillcolor="rgba(255,0,0,0.05)",
+            line_width=0,
+            layer="below",
+            annotation_text="No EPF Contribution" if i == zero_epf_years[0] else "",
+            annotation_position="top left",
+            annotation_font=dict(color="red", size=12)
+        )
+
+    # Buy Property trace
+    fig.add_trace(go.Scatter(
+        x=df["Year"],
+        y=df["Buy Wealth (RM)"],
+        mode='lines',
+        line=dict(color='blue', width=3),
+        name='Buy Property',
+        text=hover_text,
+        hovertemplate='%{text}<extra></extra>'
+    ))
+
+    # Rent+EPF trace
+    fig.add_trace(go.Scatter(
+        x=df["Year"],
+        y=df["EPF Wealth (RM)"],
+        mode='lines',
+        line=dict(color='green', width=3),
+        name='Rent+EPF',
+        text=hover_text,
+        hovertemplate='%{text}<extra></extra>'
+    ))
+
+    # Red markers for zero EPF contribution
+    if zero_epf_years:
+        fig.add_trace(go.Scatter(
+            x=df.loc[zero_epf_years, "Year"],
+            y=zero_epf_wealth,
+            mode='markers',
+            marker=dict(color='red', size=8, symbol='x'),
+            name='No EPF Contribution',
+            text=[f"Year {y}: Rent ≥ Mortgage" for y in df.loc[zero_epf_years, "Year"]],
+            hovertemplate='%{text}<extra></extra>'
+        ))
+
+    # Cumulative Rent trace
+    fig.add_trace(go.Scatter(
+        x=df["Year"],
+        y=df["Cumulative Rent (RM)"],
+        mode='lines+markers',
+        line=dict(color='red', width=2, dash='dash'),
+        name='Cumulative Rent',
+        text=hover_text,
+        hovertemplate='%{text}<extra></extra>'
+    ))
 
     # Shaded winner area
     if winner_name == "Buy Property":
         fig.add_trace(go.Scatter(
             x=df["Year"].tolist() + df["Year"].tolist()[::-1],
             y=df["Buy Wealth (RM)"].tolist() + df["EPF Wealth (RM)"].tolist()[::-1],
-            fill='toself', fillcolor='rgba(0,0,255,0.1)', line=dict(color='rgba(255,255,255,0)'),
-            hoverinfo='skip', showlegend=False))
+            fill='toself', fillcolor='rgba(0,0,255,0.1)',
+            line=dict(color='rgba(255,255,255,0)'),
+            hoverinfo='skip', showlegend=False
+        ))
     else:
         fig.add_trace(go.Scatter(
             x=df["Year"].tolist() + df["Year"].tolist()[::-1],
             y=df["EPF Wealth (RM)"].tolist() + df["Buy Wealth (RM)"].tolist()[::-1],
-            fill='toself', fillcolor='rgba(0,128,0,0.1)', line=dict(color='rgba(255,255,255,0)'),
-            hoverinfo='skip', showlegend=False))
+            fill='toself', fillcolor='rgba(0,128,0,0.1)',
+            line=dict(color='rgba(255,255,255,0)'),
+            hoverinfo='skip', showlegend=False
+        ))
 
     # Break-even year
     break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy > epf), None)
     if break_even_year is not None:
-        fig.add_vline(x=break_even_year, line=dict(color='orange', dash='dash', width=2),
-                      annotation_text=f"Break-even: Year {break_even_year}",
-                      annotation_position="top right",
-                      annotation_font=dict(color='orange', size=12))
+        fig.add_vline(
+            x=break_even_year,
+            line=dict(color='orange', dash='dash', width=2),
+            annotation_text=f"Break-even: Year {break_even_year}",
+            annotation_position="top right",
+            annotation_font=dict(color='orange', size=12)
+        )
 
     # Layout
     fig.update_layout(
@@ -148,7 +203,8 @@ def format_table(df):
             return ['background-color: lightgreen' if col==winner_col else '' for col in df_fmt.columns]
         return ['' for _ in df_fmt.columns]
 
-    return df_fmt.style.apply(highlight_winner, axis=1).set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
+    styled_df = df_fmt.style.apply(highlight_winner, axis=1).set_properties(**{'font-family':'Times New Roman','font-size':'14px'})
+    return styled_df
 
 def calculate_cagr(initial, final, years):
     if years <=0 or final<=0 or initial<=0:
@@ -171,6 +227,10 @@ def generate_summary(df, years):
 
     break_even_year = next((year for year, buy, epf in zip(df["Year"], df["Buy Wealth (RM)"], df["EPF Wealth (RM)"]) if buy>epf), None)
 
+    # Count zero EPF contribution years
+    PMT = calculate_mortgage_payment(df["Property (RM)"].iloc[0], 0.04, 30)  # you can adjust r and n if needed
+    zero_epf_years = df.index[df["Annual Rent (RM)"] >= PMT].tolist()
+
     summary = f"""
     ### 📊 Expected Outcomes after {years} Years  
 
@@ -178,12 +238,14 @@ def generate_summary(df, years):
     - **Rent+EPF Wealth**: RM {epf_final:,.0f}  (CAGR: {epf_cagr*100:.2f}%)  
     - **Cumulative Rent Paid**: RM {rent_final:,.0f}  
     - **Wealth Ratio (Buy ÷ Rent+EPF)**: {ratio:.2f}x  
+    - **Zero EPF Contribution Years**: {len(zero_epf_years)}  
     """
 
     if break_even_year is not None:
         summary += f"- **Break-even Year**: Year {break_even_year} (Buy Property surpasses Rent+EPF)\n"
 
     summary += f"\n🏆 **Winner: {winner}**"
+
     return summary
 
 # --------------------------
@@ -202,14 +264,12 @@ use_custom_rent = st.sidebar.checkbox("Use Custom Starting Rent?")
 custom_rent = None
 if use_custom_rent:
     custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000)
-    if custom_rent > calculate_mortgage_payment(initial_property_price, mortgage_rate, loan_term_years):
-        st.sidebar.warning("⚠️ Custom rent exceeds mortgage payment; EPF contribution may be zero in early years.")
 
 # --------------------------
 # 4. Projection
 # --------------------------
-df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years,
-                      property_growth, epf_rate, rent_yield, projection_years, custom_rent)
+df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years, property_growth, epf_rate, rent_yield, projection_years, custom_rent)
+PMT = calculate_mortgage_payment(initial_property_price, mortgage_rate, loan_term_years)
 
 # --------------------------
 # 5. Tabs
@@ -217,8 +277,8 @@ df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years,
 tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
-    st.plotly_chart(plot_outcomes_interactive(df, projection_years), use_container_width=True)
-
+    st.plotly_chart(plot_outcomes_interactive(df, projection_years, PMT), use_container_width=True)
+    
 with tab2:
     st.dataframe(format_table(df), use_container_width=True)
 
