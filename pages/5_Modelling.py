@@ -1,176 +1,174 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import plotly.express as px
 
-st.set_page_config(page_title="Buy vs Rent Modelling", layout="wide")
-st.title("🏡 Buy vs Rent Modelling and Sensitivity Analysis (Fair Comparison)")
+st.set_page_config(page_title="Buy vs Rent – Fair Comparison", layout="wide")
+st.title("🏡 Buy vs Rent – Modelling & Sensitivity Analysis (Fair Comparison)")
 
 # --------------------------
-# 1. Sidebar Inputs
+# 1. Helper Functions
 # --------------------------
-st.sidebar.header("📌 Assumptions")
-
-purchase_price = st.sidebar.number_input("Property Price (RM)", value=500000, step=10000)
-down_payment_pct = st.sidebar.slider("Down Payment (%)", 0.0, 0.5, 0.1)
-mortgage_term = st.sidebar.slider("Mortgage Term (years)", 10, 35, 30)
-projection_years = st.sidebar.slider("Projection Horizon (years)", 5, 40, 20)
-
-# Base-case rates
-mortgage_rate = st.sidebar.slider("Mortgage Rate (%)", 2.0, 8.0, 4.0, step=0.1)
-prop_appreciation = st.sidebar.slider("Property Appreciation (%)", 0.0, 6.0, 3.0, step=0.1)
-rent_yield = st.sidebar.slider("Rental Yield (%)", 2.0, 6.0, 4.0, step=0.1)
-investment_return = st.sidebar.slider("Investment Return (%)", 2.0, 12.0, 6.0, step=0.1)
-
-# --------------------------
-# 2. Functions
-# --------------------------
-def mortgage_payment(principal, annual_rate, n_years):
+def calculate_monthly_mortgage(P, annual_rate, years):
     r = annual_rate / 12
-    n = n_years * 12
-    if r == 0:
-        return principal / n
-    return principal * r / (1 - (1 + r) ** -n)
+    n = years * 12
+    return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
 
-def outstanding_balance(principal, annual_rate, n_years, months_elapsed):
-    r = annual_rate / 12
-    n = n_years * 12
-    pmt = mortgage_payment(principal, annual_rate, n_years)
-    balance = principal * (1 + r)**months_elapsed - pmt * ((1 + r)**months_elapsed - 1) / r
-    return balance
+def project_buy_rent(P, loan_amount, mortgage_rate, mortgage_term, property_growth,
+                     epf_rate, rent_yield, years, custom_rent=None):
+    monthly_PMT = calculate_monthly_mortgage(loan_amount, mortgage_rate, mortgage_term)
+    property_values = [P]
+    mortgage_balances = [loan_amount]
+    buy_wealth = [P - loan_amount]  # down payment as Year 0
+    epf_wealth = [P - loan_amount]
+    rents = []
+    cum_rent = []
 
-def project_buy_rent(price, dp_pct, mortgage_rate, mortgage_term, prop_growth,
-                     rent_yield, invest_return, years):
-    dp = price * dp_pct
-    loan = price - dp
-    pmt = mortgage_payment(loan, mortgage_rate, mortgage_term)
+    # Initial rent
+    annual_rent = custom_rent if custom_rent is not None else P * rent_yield
+    rents.append(annual_rent)
+    cum_rent.append(annual_rent)
 
-    buy_wealth, rent_wealth = [dp], [dp]
-    years_list = np.arange(1, years+1)
+    for t in range(1, years + 1):
+        # Property growth
+        new_property_value = property_values[-1] * (1 + property_growth)
+        property_values.append(new_property_value)
 
-    for t in years_list:
-        # Buy
-        Vt = price * (1 + prop_growth)**t
-        bal = outstanding_balance(loan, mortgage_rate, mortgage_term, t*12)
-        eq = Vt - bal
-        buy_wealth.append(eq)
+        # Mortgage
+        interest_payment = mortgage_balances[-1] * mortgage_rate
+        principal_payment = monthly_PMT*12 - interest_payment
+        new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
+        mortgage_balances.append(new_mortgage_balance)
 
-        # Rent + Invest
-        annual_rent = price * rent_yield * (1.02**(t-1))  # rent grows 2% p.a.
-        invested = rent_wealth[-1] * (1 + invest_return) + (pmt*12 - annual_rent)
-        rent_wealth.append(invested)
+        # Buy wealth
+        new_buy_wealth = new_property_value - new_mortgage_balance
+        buy_wealth.append(new_buy_wealth)
 
-    df = pd.DataFrame({
-        "Year": np.arange(0, years+1),
-        "Buy Wealth (RM)": buy_wealth,
-        "EPF Wealth (RM)": rent_wealth
-    })
+        # Rent & EPF
+        annual_rent = custom_rent if custom_rent is not None else new_property_value * rent_yield
+        rents.append(annual_rent)
+        cum_rent.append(cum_rent[-1] + annual_rent)
+        investable = max(0, monthly_PMT*12 - annual_rent)
+        new_epf_wealth = epf_wealth[-1]*(1 + epf_rate/12)**12 + investable
+        epf_wealth.append(new_epf_wealth)
 
     # CAGR
-    df["Buy CAGR"] = [( (df["Buy Wealth (RM)"].iloc[i]/df["Buy Wealth (RM)"].iloc[0])**(1/i)-1 if i>0 else 0)
-                      for i in range(len(df))]
-    df["EPF CAGR"] = [( (df["EPF Wealth (RM)"].iloc[i]/df["EPF Wealth (RM)"].iloc[0])**(1/i)-1 if i>0 else 0)
-                      for i in range(len(df))]
+    buy_cagr = [( (buy_wealth[i]/buy_wealth[0])**(1/i) - 1 if i>0 else 0) for i in range(len(buy_wealth))]
+    epf_cagr = [( (epf_wealth[i]/epf_wealth[0])**(1/i) - 1 if i>0 else 0) for i in range(len(epf_wealth))]
 
-    return df
-
-# --------------------------
-# 3. Base-case Projection
-# --------------------------
-df_base = project_buy_rent(
-    purchase_price, down_payment_pct, mortgage_rate/100, mortgage_term,
-    prop_appreciation/100, rent_yield/100, investment_return/100, projection_years
-)
-
-break_even_year = next((row.Year for i,row in df_base.iterrows()
-                        if row["Buy Wealth (RM)"]>row["EPF Wealth (RM)"]), None)
+    return pd.DataFrame({
+        "Year": np.arange(0, years+1),
+        "Property Value": property_values,
+        "Mortgage Balance": mortgage_balances,
+        "Buy Wealth (RM)": buy_wealth,
+        "EPF Wealth (RM)": epf_wealth,
+        "Annual Rent": rents,
+        "Cumulative Rent": cum_rent,
+        "Buy CAGR": buy_cagr,
+        "EPF CAGR": epf_cagr
+    })
 
 # --------------------------
-# 4. Base-case Charts & Table
+# 2. Sidebar Inputs
 # --------------------------
-st.subheader("📊 Wealth Accumulation Over Time – Base-case")
-st.line_chart(df_base.set_index("Year")[["Buy Wealth (RM)", "EPF Wealth (RM)"]])
+st.sidebar.header("📌 Baseline Assumptions")
+purchase_price = st.sidebar.number_input("Property Price (RM)", value=500_000, step=50_000)
+down_payment = st.sidebar.number_input("Down Payment (RM)", value=100_000, step=10_000)
+loan_amount = purchase_price - down_payment
 
-st.subheader("📈 Base-case Summary")
-final_buy = df_base["Buy Wealth (RM)"].iloc[-1]
-final_epf = df_base["EPF Wealth (RM)"].iloc[-1]
-cagr_buy = df_base["Buy CAGR"].iloc[-1]*100
-cagr_epf = df_base["EPF CAGR"].iloc[-1]*100
-
-st.markdown(f"""
-- **Final Wealth:** Buy RM {final_buy:,.0f} vs Rent+Invest RM {final_epf:,.0f}  
-- **CAGR:** Buy {cagr_buy:.2f}% vs Rent+Invest {cagr_epf:.2f}%  
-- **Break-even Year:** {break_even_year if break_even_year else 'No break-even'}
-""")
-
-# --------------------------
-# 5. Sensitivity Analysis
-# --------------------------
-st.subheader("🧮 Sensitivity Analysis – Final Year Outcomes")
-
-mortgage_rates = [0.03, 0.04, 0.05, 0.06, 0.07]
-investment_returns = [0.04, 0.05, 0.06, 0.07, 0.08]
-appreciations = [0.02, 0.03, 0.04]
-rent_yields = [0.03, 0.04, 0.05]
-
-records = []
-
-for mr in mortgage_rates:
-    for ir in investment_returns:
-        for g in appreciations:
-            for ry in rent_yields:
-                df_temp = project_buy_rent(purchase_price, down_payment_pct, mr, mortgage_term,
-                                           g, ry, ir, projection_years)
-                final_buy = df_temp["Buy Wealth (RM)"].iloc[-1]
-                final_epf = df_temp["EPF Wealth (RM)"].iloc[-1]
-                diff = final_buy - final_epf
-                records.append([mr, ir, g, ry, final_buy, final_epf, diff])
-
-df_sens = pd.DataFrame(records, columns=["MortgageRate","InvestReturn","Appreciation","RentYield",
-                                         "BuyWealth","EPFWealth","Difference"])
-
-st.dataframe(df_sens, use_container_width=True)
+mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual %)", value=4.0, step=0.5)/100
+loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
+property_growth = st.sidebar.number_input("Property Growth Rate (Annual %)", value=5.0, step=0.5)/100
+epf_rate = st.sidebar.number_input("EPF Return Rate (Annual %)", value=6.0, step=0.5)/100
+rent_yield = st.sidebar.number_input("Rent Yield (%)", value=4.0, step=0.5)/100
+projection_years = st.sidebar.number_input("Projection Years", value=30, step=5)
+use_custom_rent = st.sidebar.checkbox("Use Custom Starting Rent?")
+custom_rent = st.sidebar.number_input("Custom Starting Annual Rent (RM)", value=20000, step=1000) if use_custom_rent else None
 
 # --------------------------
-# 6. Interactive Heatmap
+# 3. Tabs: Base-case / Fair Comparison / Sensitivity
 # --------------------------
-st.subheader("📊 Heatmap – Impact of Parameters on Buy vs Rent")
+tab1, tab2, tab3 = st.tabs(["📊 Base-case", "📈 Fair Comparison", "🧮 Sensitivity Analysis"])
 
-param_x = st.selectbox("X-axis parameter", ["MortgageRate", "InvestReturn", "Appreciation", "RentYield"], index=0)
-param_y = st.selectbox("Y-axis parameter", ["MortgageRate", "InvestReturn", "Appreciation", "RentYield"], index=1)
+# ----- Tab 1: Base-case -----
+with tab1:
+    st.subheader("📊 Base-case Wealth Accumulation")
+    df_base = project_buy_rent(purchase_price, loan_amount, mortgage_rate, loan_term_years,
+                               property_growth, epf_rate, rent_yield, projection_years, custom_rent)
 
-pivot_heatmap = df_sens.pivot_table(
-    index=param_y,
-    columns=param_x,
-    values="Difference",
-    aggfunc="mean"
-).fillna(0)
+    # Plot
+    fig_base = go.Figure()
+    fig_base.add_trace(go.Scatter(x=df_base["Year"], y=df_base["Buy Wealth (RM)"], mode='lines+markers', name='🏡 Buy Property'))
+    fig_base.add_trace(go.Scatter(x=df_base["Year"], y=df_base["EPF Wealth (RM)"], mode='lines+markers', name='💰 Rent+EPF'))
+    st.plotly_chart(fig_base, use_container_width=True)
 
-fig_heatmap = px.imshow(
-    pivot_heatmap.values,
-    x=pivot_heatmap.columns,
-    y=pivot_heatmap.index,
-    color_continuous_scale="RdBu_r",
-    text_auto=True,
-    aspect="auto"
-)
+    st.write(f"Final Buy Wealth: RM {df_base['Buy Wealth (RM)'].iloc[-1]:,.0f}")
+    st.write(f"Final Rent+EPF Wealth: RM {df_base['EPF Wealth (RM)'].iloc[-1]:,.0f}")
 
-fig_heatmap.update_layout(
-    title=f"Tipping Map – Buy vs Rent Difference (RM)",
-    xaxis_title=param_x,
-    yaxis_title=param_y,
-    coloraxis_colorbar=dict(title="Buy - Rent (RM)")
-)
+# ----- Tab 2: Fair Comparison -----
+with tab2:
+    st.subheader("📈 Fair Comparison – Year 0 Starting Wealth Included")
+    df_fair = df_base.copy()  # already includes down payment as Year 0
+    # Add break-even year
+    break_even_year = next((row.Year for i,row in df_fair.iterrows() if row["Buy Wealth (RM)"]>row["EPF Wealth (RM)"]), None)
+    
+    fig_fair = go.Figure()
+    fig_fair.add_trace(go.Scatter(x=df_fair["Year"], y=df_fair["Buy Wealth (RM)"], mode='lines+markers', name='🏡 Buy Property'))
+    fig_fair.add_trace(go.Scatter(x=df_fair["Year"], y=df_fair["EPF Wealth (RM)"], mode='lines+markers', name='💰 Rent+EPF'))
+    
+    if break_even_year:
+        fig_fair.add_vline(x=break_even_year, line=dict(color='orange', dash='dash', width=2))
+    
+    st.plotly_chart(fig_fair, use_container_width=True)
+    st.write(f"Break-even Year: {break_even_year if break_even_year else 'No break-even within horizon'}")
 
-st.plotly_chart(fig_heatmap, use_container_width=True)
+# ----- Tab 3: Sensitivity Analysis -----
+with tab3:
+    st.subheader("🧮 Sensitivity Analysis – Multiple Scenarios")
+    # Parameter ranges
+    mortgage_rates = [3, 4, 5, 6, 7]
+    epf_returns = [4, 5, 6, 7, 8]
+    appreciations = [2, 3, 4]
+    rent_yields = [3, 4, 5]
 
-# --------------------------
-# 7. Download CSV
-# --------------------------
-csv = df_sens.to_csv(index=False).encode("utf-8")
-st.download_button(
-    "⬇️ Download Sensitivity Results (CSV)",
-    data=csv,
-    file_name="buy_vs_rent_sensitivity.csv",
-    mime="text/csv"
-)
+    records = []
+    for mr in mortgage_rates:
+        for ir in epf_returns:
+            for g in appreciations:
+                for ry in rent_yields:
+                    df_proj = project_buy_rent(
+                        P=purchase_price,
+                        loan_amount=loan_amount,
+                        mortgage_rate=mr/100,
+                        mortgage_term=loan_term_years,
+                        property_growth=g/100,
+                        epf_rate=ir/100,
+                        rent_yield=ry/100,
+                        years=projection_years
+                    )
+                    final_buy = df_proj["Buy Wealth (RM)"].iloc[-1]
+                    final_epf = df_proj["EPF Wealth (RM)"].iloc[-1]
+                    records.append({
+                        "MortgageRate": mr, "InvestReturn": ir,
+                        "Appreciation": g, "RentYield": ry,
+                        "FinalBuyWealth": final_buy, "FinalEPFWealth": final_epf,
+                        "Difference": final_buy - final_epf
+                    })
+    df_sens = pd.DataFrame(records)
+    st.write(f"Total scenarios evaluated: {len(df_sens)}")
+
+    # Interactive heatmap
+    param_x = st.selectbox("X-axis parameter", ["MortgageRate","InvestReturn","Appreciation","RentYield"], index=0)
+    param_y = st.selectbox("Y-axis parameter", ["MortgageRate","InvestReturn","Appreciation","RentYield"], index=1)
+
+    pivot_heatmap = df_sens.pivot_table(index=param_y, columns=param_x, values="Difference", aggfunc="mean").fillna(0)
+
+    fig_heatmap = px.imshow(pivot_heatmap.values, x=pivot_heatmap.columns, y=pivot_heatmap.index,
+                            color_continuous_scale='RdBu_r', text_auto=True, aspect="auto")
+    fig_heatmap.update_layout(xaxis_title=param_x, yaxis_title=param_y, coloraxis_colorbar=dict(title="Buy - Rent (RM)"))
+    st.plotly_chart(fig_heatmap, use_container_width=True)
+
+    # CSV download
+    csv_sens = df_sens.to_csv(index=False).encode("utf-8")
+    st.download_button("⬇️ Download Sensitivity Analysis (CSV)", data=csv_sens, file_name="buy_vs_rent_sensitivity_fair.csv", mime="text/csv")
