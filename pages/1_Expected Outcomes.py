@@ -74,7 +74,7 @@ def calculate_cagr(initial, final, years):
     if years <=0 or final<=0 or initial<=0:
         return 0
     return (final/initial)**(1/years)-1
-
+    
 # --------------------------
 # 3. Format Table with Highlights & CAGR Colors
 # --------------------------
@@ -281,21 +281,20 @@ tab1, tab2, tab3 = st.tabs(["📈 Chart","📊 Table","📝 Summary"])
 
 with tab1:
     st.subheader("📈 Scenario Comparison")
-
     fig = go.Figure()
 
-    # Property line (blue)
+    # Buy Wealth line
     fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["Property Value"],
+        x=df["Year"], y=df["Buy Wealth (RM)"],
         mode="lines+markers",
         name="🏡 Property",
         line=dict(color="royalblue", width=3),
         marker=dict(size=6)
     ))
 
-    # Investment line (orange)
+    # EPF Wealth line
     fig.add_trace(go.Scatter(
-        x=df["Year"], y=df["Investment Value"],
+        x=df["Year"], y=df["EPF Wealth (RM)"],
         mode="lines+markers",
         name="💰 Investment",
         line=dict(color="darkorange", width=3),
@@ -303,7 +302,7 @@ with tab1:
     ))
 
     # Break-even vertical line
-    break_even = df[df["Property Value"] > df["Investment Value"]]
+    break_even = df[df["Buy Wealth (RM)"] > df["EPF Wealth (RM)"]]
     if not break_even.empty:
         break_year = int(break_even.iloc[0]["Year"])
         fig.add_vline(
@@ -321,126 +320,62 @@ with tab1:
         legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"),
         template="simple_white"
     )
-
     st.plotly_chart(fig, use_container_width=True)
-
-    # Unified Legend / Explanation
-    st.markdown("""
-    ### Legend & Color Mapping
-    - **🏡 Royal Blue — Property:** Wealth accumulation through homeownership  
-    - **💰 Dark Orange — Investment:** Wealth accumulation through renting & investing  
-    - **📍 Green Dashed Line — Break-even:** Year when property wealth surpasses investment wealth  
-    """)
 
 with tab2:
     st.subheader("📊 Key Metrics Table")
+    years = df["Year"].iloc[-1]
+    property_cagr = calculate_cagr(next(x for x in df["Buy Wealth (RM)"] if x>0),
+                                   df["Buy Wealth (RM)"].iloc[-1], years)
+    investment_cagr = calculate_cagr(next(x for x in df["EPF Wealth (RM)"] if x>0),
+                                     df["EPF Wealth (RM)"].iloc[-1], years)
 
-    # Build metrics dataframe (numeric first)
     metrics = pd.DataFrame({
         "Scenario": ["🏡 Property", "💰 Investment"],
-        "Final Value (RM)": [
-            df["Property Value"].iloc[-1],
-            df["Investment Value"].iloc[-1]
-        ],
-        "CAGR (%)": [
-            df["Property CAGR"].iloc[-1],
-            df["Investment CAGR"].iloc[-1]
-        ]
+        "Final Value (RM)": [df["Buy Wealth (RM)"].iloc[-1], df["EPF Wealth (RM)"].iloc[-1]],
+        "CAGR (%)": [property_cagr*100, investment_cagr*100]
     })
 
-    # Format Final Value nicely (RM)
     metrics["Final Value (RM)"] = metrics["Final Value (RM)"].map("RM {:,.0f}".format)
     metrics["CAGR (%)"] = metrics["CAGR (%)"].round(2)
 
-    # Highlight winners with same palette (blue/orange)
     style = (
         metrics.style
         .highlight_max(subset=["Final Value (RM)"], color="royalblue", props="color:white;")
         .highlight_max(subset=["CAGR (%)"], color="darkorange", props="color:white;")
     )
-
-    # Display styled dataframe
     st.dataframe(style, use_container_width=True)
-
-    st.markdown("""
-    ✅ **Interpretation**  
-    - *Final Value* (RM) represents projected wealth after the full forecast.  
-    - *CAGR (%)* shows annual growth efficiency.  
-    - **🏡 Royal Blue — Property:** Higher final value in blue indicates stronger property performance  
-    - **💰 Dark Orange — Investment:** Higher CAGR in orange indicates stronger investment efficiency
-    - Highlights now align visually with chart colors and Tab 3 interpretation
-    """)
-    
 
 with tab3:
     st.subheader("📝 Interpretation")
+    final_property = df["Buy Wealth (RM)"].iloc[-1]
+    final_investment = df["EPF Wealth (RM)"].iloc[-1]
 
-    # Determine winners
-    final_property = df["Property Value"].iloc[-1]
-    final_investment = df["Investment Value"].iloc[-1]
+    winner_value = "🏡 Property" if final_property > final_investment else "💰 Investment"
+    winner_cagr = "🏡 Property" if property_cagr > investment_cagr else "💰 Investment"
 
-    cagr_property = df["Property CAGR"].iloc[-1]
-    cagr_investment = df["Investment CAGR"].iloc[-1]
+    break_text = f"Break-even occurs at Year {int(break_even.iloc[0]['Year'])}" if not break_even.empty else "No break-even within horizon."
 
-    # Decide best scenario by Final Value
-    if final_property > final_investment:
-        winner_value = "🏡 <span style='color:royalblue'>Property</span>"
-    else:
-        winner_value = "💰 <span style='color:darkorange'>Investment</span>"
-
-    # Decide best scenario by CAGR
-    if cagr_property > cagr_investment:
-        winner_cagr = "🏡 <span style='color:royalblue'>Property</span>"
-    else:
-        winner_cagr = "💰 <span style='color:darkorange'>Investment</span>"
-
-    # Find break-even year if it exists
-    break_even = df[df["Property Value"] > df["Investment Value"]]
-    if not break_even.empty:
-        break_year = int(break_even.iloc[0]["Year"])
-        break_text = f"📍 Break-even occurs at **Year {break_year}** when property value overtakes investment."
-    else:
-        break_text = "📍 No break-even within the time horizon — one scenario stays ahead throughout."
-
-    # Show adaptive interpretation
     st.markdown(f"""
-    ### Key Insights  
-    - By the end of the projection, **{winner_value}** achieves the higher **final wealth**.  
-    - In terms of growth efficiency, **{winner_cagr}** demonstrates the stronger **CAGR performance**.  
-    - {break_text}  
-
-    ### Color & Icon Reference
-    - **🏡 Royal Blue — Property**
-    - **💰 Dark Orange — Investment**
-    - - **📍 Green Dashed Line — Break-even**
-    """, unsafe_allow_html=True)
-
-    ### Recommendation  
-    - If your priority is **long-term wealth accumulation**, the better performer (highlighted above) may be the preferred option.  
-    - If your priority is **higher growth efficiency (CAGR)**, consider the scenario with stronger annual compounding.  
-    - Always weigh in personal factors such as **risk tolerance, liquidity needs, and housing preferences**.
-    """, unsafe_allow_html=True)
-
+- 🏦 **Final Wealth Winner**: {winner_value}  
+- 📈 **CAGR Winner**: {winner_cagr}  
+- 🟡 **Break-even**: {break_text}
+""")
 
 # --------------------------
 # Sensitivity Analysis Mention with Link
 # --------------------------
 st.subheader("🧩 Sensitivity Analysis Note")
-
 st.info(
     """
-    While this page presents the baseline expected outcomes, a **detailed sensitivity analysis** 
-    is available in the [**Modelling**](./Modelling) page.  
+    Detailed sensitivity analysis is available in the [**Modelling**](./Modelling) page.  
 
-    The sensitivity analysis examines how variations in key parameters affect the long-term wealth 
-    accumulation of **buying property vs renting and investing**:
+    It examines how variations in key parameters affect wealth accumulation:
 
     - Mortgage Rates
     - Property Appreciation
     - Rental Yield
-    - Investment Returns  
-
-    📌 This helps identify tipping points and understand which assumptions most influence the outcome.
+    - Investment Returns
     """
 )
 
