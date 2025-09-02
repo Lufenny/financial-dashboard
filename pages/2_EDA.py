@@ -8,6 +8,7 @@ import nltk
 from nltk.corpus import stopwords
 import os
 import re
+import io
 from fpdf import FPDF
 
 # ----------------------------
@@ -20,14 +21,14 @@ except LookupError:
     nltk.download('stopwords')
 
 # ----------------------------
-# App config
+# Streamlit App Config
 # ----------------------------
 st.set_page_config(page_title="Full EDA Dashboard", layout="wide")
 st.sidebar.title("🔍 Navigation")
 page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
 
 # ----------------------------
-# Load dataset
+# Load Dataset
 # ----------------------------
 @st.cache_data
 def load_csv(path):
@@ -47,6 +48,7 @@ def get_dataset(uploaded_file=None, fallback_path="Data.csv"):
 # ----------------------------
 if page == "📊 EDA":
     st.title("🔎 Exploratory Data Analysis (EDA)")
+
     uploaded_file = st.file_uploader("Upload your dataset (CSV)", type=["csv"])
     df = get_dataset(uploaded_file)
 
@@ -54,36 +56,28 @@ if page == "📊 EDA":
         st.error("❌ No dataset found. Please upload a CSV file or place 'Data.csv' in working directory.")
         st.stop()
 
-    # Dataset Preview with row control
+    # Dataset preview
     st.subheader("📋 Dataset Preview")
-    num_rows = st.slider("Select number of rows to display", min_value=5, max_value=min(500, len(df)), value=10)
-    st.dataframe(df.head(num_rows))
+    st.dataframe(df)
 
-    # Dataset Info
+    # Dataset info
     st.subheader("ℹ️ Dataset Info")
-    buffer = []
+    buffer = io.StringIO()
     df.info(buf=buffer)
-    st.text(buffer)
+    st.text(buffer.getvalue())
 
-    # Missing Values
+    # Missing values
     st.subheader("❗ Missing Values Summary")
     st.write(df.isna().sum())
 
-    # Numeric & Categorical Summaries
+    # Numeric statistics
+    st.subheader("📊 Numeric Descriptive Statistics")
+    st.write(df.describe(include=[np.number]))
+
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
-    if st.checkbox("Show full dataset summary"):
-        st.write("### Numeric Columns Summary")
-        st.write(df[numeric_cols].describe(include=[np.number]))
-
-        if categorical_cols:
-            st.write("### Categorical Columns Summary")
-            for col in categorical_cols:
-                st.write(f"**{col}**")
-                st.write(df[col].value_counts())
-
-    # Numeric Distributions
+    # Numeric distributions
     st.subheader("📈 Numeric Distributions")
     for col in numeric_cols:
         fig, ax = plt.subplots()
@@ -91,7 +85,7 @@ if page == "📊 EDA":
         ax.set_title(f"Distribution of {col}")
         st.pyplot(fig)
 
-    # Boxplots for outliers
+    # Boxplots
     st.subheader("📦 Boxplots (Outliers)")
     for col in numeric_cols:
         fig, ax = plt.subplots()
@@ -99,7 +93,7 @@ if page == "📊 EDA":
         ax.set_title(f"Boxplot of {col}")
         st.pyplot(fig)
 
-    # Categorical Analysis
+    # Categorical analysis
     if categorical_cols:
         st.subheader("📊 Categorical Columns Analysis")
         for col in categorical_cols:
@@ -111,13 +105,9 @@ if page == "📊 EDA":
     # Trends over years
     if "Year" in df.columns:
         st.subheader("📈 Trends Over Years")
-        df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
-        df = df.dropna(subset=["Year"])
-        df["Year"] = df["Year"].astype(int)
-
+        df["Year"] = pd.to_numeric(df["Year"], errors="coerce").dropna().astype(int)
         year_min, year_max = int(df["Year"].min()), int(df["Year"].max())
         y0, y1 = st.slider("Select Year Range", year_min, year_max, (year_min, year_max))
-
         df_year = df[(df["Year"] >= y0) & (df["Year"] <= y1)]
 
         chart_cols = st.multiselect("Select numeric columns to plot trends", numeric_cols, default=numeric_cols)
@@ -130,7 +120,7 @@ if page == "📊 EDA":
             ax.grid(alpha=0.2)
             st.pyplot(fig)
 
-    # Correlation Heatmap
+    # Correlation heatmap
     if numeric_cols:
         st.subheader("🧩 Correlation Matrix")
         corr = df[numeric_cols].corr()
@@ -141,17 +131,31 @@ if page == "📊 EDA":
         fig.colorbar(cax)
         st.pyplot(fig)
 
-    # Download filtered/exported data
+    # Download filtered dataset
     st.subheader("⬇️ Download Data")
     csv_bytes = df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download Full Dataset (CSV)", data=csv_bytes, file_name="EDA_data_full.csv", mime="text/csv")
+    st.download_button("Download Dataset (CSV)", data=csv_bytes, file_name="EDA_data.csv", mime="text/csv")
+
+    # Optional PDF export
+    if st.button("Export Dataset Info as PDF"):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Dataset Info", ln=True)
+        pdf.set_font("Arial", "", 12)
+        for col in df.columns:
+            pdf.cell(0, 8, f"{col} ({str(df[col].dtype)})", ln=True)
+        pdf_file = "EDA_dataset_info.pdf"
+        pdf.output(pdf_file)
+        with open(pdf_file, "rb") as f:
+            st.download_button("Download PDF", f, file_name=pdf_file, mime="application/pdf")
 
 # ----------------------------
 # WordCloud Page
 # ----------------------------
 elif page == "☁️ WordCloud":
     st.title("📝 Text Analysis & WordCloud")
-    uploaded_file = st.file_uploader("Upload blog dataset (CSV with 'Content')", type=["csv"], key="wc")
+    uploaded_file = st.file_uploader("Upload your blog dataset (CSV with 'Content' column)", type=["csv"], key="wc")
     if uploaded_file is not None:
         df_text = pd.read_csv(uploaded_file)
     elif os.path.exists("Rent_vs_Buy_Blogs.csv"):
