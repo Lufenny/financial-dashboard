@@ -9,6 +9,7 @@ from nltk.corpus import stopwords
 import os
 import re
 import io
+import seaborn as sns
 
 # ----------------------------
 # NLTK Setup
@@ -24,7 +25,7 @@ except LookupError:
 # ----------------------------
 st.set_page_config(page_title="Interactive EDA Dashboard", layout="wide")
 st.sidebar.title("🔍 Navigation")
-page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
+page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud", "📌 Scatter Matrix"])
 
 # ----------------------------
 # Load dataset helper
@@ -201,3 +202,24 @@ elif page == "☁️ WordCloud":
             else:
                 ax_bar.text(0.5, 0.5, "No words found", ha="center")
             st.pyplot(fig_bar)
+
+# ----------------------------
+# Scatter Matrix Page
+# ----------------------------
+elif page == "📌 Scatter Matrix":
+    st.title("📊 Scatter Matrix / Pairplot")
+
+    uploaded_file = st.file_uploader("Upload your dataset (CSV)", type=["csv"], key="sm")
+    df = get_dataset(uploaded_file)
+
+    if df is None:
+        st.error("❌ No dataset found. Please upload a CSV file.")
+        st.stop()
+
+    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+    selected_cols = st.multiselect("Select numeric columns for scatter matrix", numeric_cols, default=numeric_cols)
+
+    if selected_cols:
+        st.subheader("📌 Scatter Matrix Plot")
+        fig = sns.pairplot(df[selected_cols])
+        st.pyplot(fig)
