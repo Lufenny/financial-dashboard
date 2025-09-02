@@ -289,6 +289,16 @@ with tab3:
     st.markdown(generate_summary(df, projection_years), unsafe_allow_html=True)
 
 # --------------------------
+# Inline Sensitivity Note
+# --------------------------
+st.markdown(
+    "_Note: The baseline projections shown here are influenced by default assumptions. "
+    "For a deeper view of how outcomes vary under different parameters (mortgage rates, "
+    "EPF/investment returns, property appreciation, rental yields), see the **Modelling** page "
+    "with sensitivity analysis and tipping-point detection._"
+)
+
+# --------------------------
 # 11. Download CSV
 # --------------------------
 csv = df.to_csv(index=False).encode('utf-8')
