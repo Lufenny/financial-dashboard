@@ -29,54 +29,44 @@ st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
 # 2. Helper Functions
 # --------------------------
 def calculate_mortgage_payment(P, r, n):
-    """Monthly mortgage payment given principal P, monthly rate r, and total months n"""
     return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
 
-def project_outcomes(initial_property_price, down_payment_pct, mortgage_rate, loan_term_years,
-                     property_growth, epf_rate, rent_yield, years, custom_rent):
-    loan_amount = initial_property_price * (1 - down_payment_pct / 100)
-    annual_payment = np.pmt(mortgage_rate, loan_term_years, -loan_amount)
+def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
+    PMT = calculate_mortgage_payment(P, r, n)
+    property_values, mortgage_balances = [P], [P]
+    buy_wealth, epf_wealth, rents, cum_rent = [0], [0], [], []
 
-    property_values = [initial_property_price]
-    mortgage_balances = [loan_amount]
-    buy_wealth = [initial_property_price * (down_payment_pct / 100)]  # starts at down payment
-    epf_wealth = [initial_property_price * (down_payment_pct / 100)]  # starts at down payment
-    cum_rent = [0]
+    initial_rent = custom_rent if custom_rent is not None else P * rent_yield
+    rents.append(initial_rent)
+    cum_rent.append(initial_rent)
 
-    for year in range(1, years + 1):
-        # Property appreciation
-        property_value = property_values[-1] * (1 + property_growth)
-        property_values.append(property_value)
+    for t in range(1, years + 1):
+        new_property_value = property_values[-1] * (1 + g)
+        property_values.append(new_property_value)
 
-        # Mortgage balance declines
-        if year <= loan_term_years:
-            interest_payment = mortgage_balances[-1] * mortgage_rate
-            principal_payment = annual_payment - interest_payment
-            mortgage_balance = mortgage_balances[-1] - principal_payment
-        else:
-            mortgage_balance = 0
-        mortgage_balances.append(mortgage_balance)
+        interest_payment = mortgage_balances[-1] * r
+        principal_payment = PMT - interest_payment
+        new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
+        mortgage_balances.append(new_mortgage_balance)
 
-        # Buy wealth = property value - remaining mortgage
-        net_home_equity = property_value - mortgage_balance
-        buy_wealth.append(net_home_equity)
+        new_buy_wealth = new_property_value - new_mortgage_balance
+        buy_wealth.append(new_buy_wealth)
 
-        # EPF investment (initial down payment + reinvest rent savings)
-        annual_rent = custom_rent if custom_rent > 0 else initial_property_price * rent_yield
-        annual_mortgage_cost = annual_payment if year <= loan_term_years else 0
-        annual_difference = annual_rent - annual_mortgage_cost
-        epf_balance = (epf_wealth[-1] + max(annual_difference, 0)) * (1 + epf_rate)
-        epf_wealth.append(epf_balance)
+        rent_payment = custom_rent if custom_rent is not None else new_property_value * rent_yield
+        rents.append(rent_payment)
+        cum_rent.append(cum_rent[-1] + rent_payment)
 
-        # Rent cumulative
-        cum_rent.append(cum_rent[-1] + annual_rent)
+        investable = max(0, PMT - rent_payment)
+        new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
+        epf_wealth.append(new_epf_wealth)
 
     return pd.DataFrame({
         "Year": np.arange(0, years + 1),
-        "Property Value (RM)": property_values,
-        "Mortgage Balance (RM)": mortgage_balances,
+        "Property (RM)": property_values,
+        "Mortgage (RM)": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
         "EPF Wealth (RM)": epf_wealth,
+        "Annual Rent (RM)": rents,
         "Cumulative Rent (RM)": cum_rent
     })
 
@@ -232,7 +222,6 @@ def plot_outcomes_interactive(df, years, PMT):
 # --------------------------
 st.sidebar.header("⚙️ Baseline Assumptions")
 initial_property_price = st.sidebar.number_input("Initial Property Price (RM)", value=500_000, step=50_000)
-down_payment_pct = st.sidebar.slider("Down Payment (%)", 0.0, 0.5, 0.1)
 mortgage_rate = st.sidebar.number_input("Mortgage Rate (Annual)", value=0.04, step=0.01)
 loan_term_years = st.sidebar.number_input("Loan Term (Years)", value=30, step=5)
 property_growth = st.sidebar.number_input("Property Growth Rate (Annual)", value=0.05, step=0.01)
@@ -274,10 +263,8 @@ st.markdown("""
 # --------------------------
 # 9. Projection
 # --------------------------
-df = project_outcomes(initial_property_price, down_payment_pct, mortgage_rate, loan_term_years,
+df = project_outcomes(initial_property_price, mortgage_rate, loan_term_years,
                       property_growth, epf_rate, rent_yield, projection_years, custom_rent)
-
-# (keep your existing Chart / Table / Summary tabs and CSV download sections here…)
 
 # --------------------------
 # 10. Tabs: Chart / Table / Summary
