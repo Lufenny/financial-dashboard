@@ -8,7 +8,7 @@ import nltk
 from nltk.corpus import stopwords
 import os
 import re
-import seaborn as sns
+import io
 
 # ----------------------------
 # NLTK Setup
@@ -24,10 +24,10 @@ except LookupError:
 # ----------------------------
 st.set_page_config(page_title="Full EDA Dashboard", layout="wide")
 st.sidebar.title("🔍 Navigation")
-page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud", "📌 Scatter Matrix"])
+page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
 
 # ----------------------------
-# Dataset loader
+# Load dataset
 # ----------------------------
 @st.cache_data
 def load_csv(path):
@@ -43,7 +43,7 @@ def get_dataset(uploaded_file=None, fallback_path="Data.csv"):
     return df
 
 # ----------------------------
-# Page 1: EDA
+# EDA Page
 # ----------------------------
 if page == "📊 EDA":
     st.title("🔎 Exploratory Data Analysis (EDA)")
@@ -52,48 +52,50 @@ if page == "📊 EDA":
     df = get_dataset(uploaded_file)
 
     if df is None:
-        st.error("❌ No dataset found. Upload CSV or place 'Data.csv' in working directory.")
+        st.error("❌ No dataset found. Please upload a CSV file or place 'Data.csv' in working directory.")
         st.stop()
 
-    # Dataset preview
+    # Dataset overview
     st.subheader("📋 Dataset Preview")
     st.dataframe(df.head(10))
 
-    # Dataset info
     st.subheader("ℹ️ Dataset Info")
-    buffer = []
+    buffer = io.StringIO()
     df.info(buf=buffer)
-    st.text(str(buffer))
+    st.text(buffer.getvalue())
 
-    # Missing values
     st.subheader("❗ Missing Values Summary")
     st.write(df.isna().sum())
 
-    # Numeric descriptive statistics
     st.subheader("📊 Numeric Descriptive Statistics")
     st.write(df.describe(include=[np.number]))
 
-    # Separate numeric/categorical columns
+    # Separate numeric and categorical columns
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
-    # Numeric distributions
-    st.subheader("📈 Numeric Distributions")
-    for col in numeric_cols:
-        fig, ax = plt.subplots()
-        ax.hist(df[col].dropna(), bins=15, color="skyblue", edgecolor="black")
-        ax.set_title(f"Distribution of {col}")
-        st.pyplot(fig)
+    # ----------------------------
+    # Distributions for numeric columns
+    # ----------------------------
+    if numeric_cols:
+        st.subheader("📈 Numeric Distributions")
+        for col in numeric_cols:
+            fig, ax = plt.subplots()
+            ax.hist(df[col].dropna(), bins=15, color="skyblue", edgecolor="black")
+            ax.set_title(f"Distribution of {col}")
+            st.pyplot(fig)
 
-    # Boxplots for outliers
-    st.subheader("📦 Boxplots (Outliers)")
-    for col in numeric_cols:
-        fig, ax = plt.subplots()
-        ax.boxplot(df[col].dropna(), vert=True)
-        ax.set_title(f"Boxplot of {col}")
-        st.pyplot(fig)
+        # Boxplots to detect outliers
+        st.subheader("📦 Boxplots (Outliers)")
+        for col in numeric_cols:
+            fig, ax = plt.subplots()
+            ax.boxplot(df[col].dropna(), vert=True)
+            ax.set_title(f"Boxplot of {col}")
+            st.pyplot(fig)
 
-    # Categorical variables
+    # ----------------------------
+    # Categorical variables analysis
+    # ----------------------------
     if categorical_cols:
         st.subheader("📊 Categorical Columns Analysis")
         for col in categorical_cols:
@@ -102,14 +104,21 @@ if page == "📊 EDA":
             ax.set_title(f"Counts of {col}")
             st.pyplot(fig)
 
-    # Trends over years
+    # ----------------------------
+    # Trends over years (if Year exists)
+    # ----------------------------
     if "Year" in df.columns:
         st.subheader("📈 Trends Over Years")
-        df["Year"] = pd.to_numeric(df["Year"], errors="coerce").astype(int)
+        df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
+        df = df.dropna(subset=["Year"])
+        df["Year"] = df["Year"].astype(int)
+
         year_min, year_max = int(df["Year"].min()), int(df["Year"].max())
         y0, y1 = st.slider("Select Year Range", year_min, year_max, (year_min, year_max))
+
         df_year = df[(df["Year"] >= y0) & (df["Year"] <= y1)]
 
+        # Line charts for numeric columns
         chart_cols = st.multiselect("Select numeric columns to plot trends", numeric_cols, default=numeric_cols)
         for col in chart_cols:
             fig, ax = plt.subplots()
@@ -120,7 +129,9 @@ if page == "📊 EDA":
             ax.grid(alpha=0.2)
             st.pyplot(fig)
 
-    # Correlation heatmap
+    # ----------------------------
+    # Correlation Heatmap
+    # ----------------------------
     if numeric_cols:
         st.subheader("🧩 Correlation Matrix")
         corr = df[numeric_cols].corr()
@@ -131,12 +142,20 @@ if page == "📊 EDA":
         fig.colorbar(cax)
         st.pyplot(fig)
 
+    # ----------------------------
+    # Download filtered/exported data
+    # ----------------------------
+    st.subheader("⬇️ Download Dataset")
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download CSV", data=csv_bytes, file_name="EDA_data.csv", mime="text/csv")
+
 # ----------------------------
-# Page 2: WordCloud
+# WordCloud Page
 # ----------------------------
 elif page == "☁️ WordCloud":
     st.title("📝 Text Analysis & WordCloud")
-    uploaded_file = st.file_uploader("Upload blog CSV with 'Content' column", type=["csv"], key="wc")
+
+    uploaded_file = st.file_uploader("Upload your blog dataset (CSV with 'Content' column)", type=["csv"], key="wc")
     if uploaded_file is not None:
         df_text = pd.read_csv(uploaded_file)
     elif os.path.exists("Rent_vs_Buy_Blogs.csv"):
@@ -176,30 +195,3 @@ elif page == "☁️ WordCloud":
             else:
                 ax_bar.text(0.5, 0.5, "No words found", ha="center")
             st.pyplot(fig_bar)
-
-# ----------------------------
-# Page 3: Scatter Matrix
-# ----------------------------
-elif page == "📌 Scatter Matrix":
-    st.title("📊 Scatter Matrix / Pairplot with Hue")
-
-    uploaded_file = st.file_uploader("Upload dataset CSV", type=["csv"], key="sm")
-    df = get_dataset(uploaded_file)
-
-    if df is None:
-        st.error("❌ No dataset found. Please upload a CSV file.")
-        st.stop()
-
-    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-    selected_cols = st.multiselect("Select numeric columns for scatter matrix", numeric_cols, default=numeric_cols)
-
-    categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
-    categorical_cols.insert(0, "None")
-    hue_col = st.selectbox("Select categorical column for coloring (hue)", categorical_cols, index=0)
-    hue_col = None if hue_col == "None" else hue_col
-
-    if selected_cols:
-        st.subheader("📌 Scatter Matrix Plot")
-        fig = sns.pairplot(df[selected_cols + ([hue_col] if hue_col else [])], hue=hue_col, diag_kind="kde")
-        st.pyplot(fig)
-
