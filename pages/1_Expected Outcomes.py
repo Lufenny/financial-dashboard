@@ -28,40 +28,65 @@ st.title("📌 Expected Outcomes – Buy Property vs Rent+EPF")
 # --------------------------
 # 2. Helper Functions
 # --------------------------
-def calculate_mortgage_payment(P, r, n):
-    return P * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else P / n
+def calculate_mortgage_payment(P, annual_rate, years):
+    """
+    Calculate monthly mortgage payment (standard amortization).
+    
+    P : principal loan (RM)
+    annual_rate : annual interest rate (e.g., 0.04 for 4%)
+    years : loan term in years
+    """
+    r = annual_rate / 12          # monthly interest rate
+    n = years * 12                # number of months
+    if r > 0:
+        return P * (r * (1 + r)**n) / ((1 + r)**n - 1)
+    else:
+        return P / n
 
-def project_outcomes(P, r, n, g, epf_rate, rent_yield, years, custom_rent=None):
-    PMT = calculate_mortgage_payment(P, r, n)
+def project_outcomes(P, annual_rate, years, g, epf_rate, rent_yield, projection_years, custom_rent=None):
+    """
+    Projects outcomes of buying property vs renting + investing.
+    Amortization is monthly, but projection results are yearly.
+    """
+    PMT = calculate_mortgage_payment(P, annual_rate, years)  # monthly mortgage payment
+    
     property_values, mortgage_balances = [P], [P]
     buy_wealth, epf_wealth, rents, cum_rent = [0], [0], [], []
 
+    # first year rent
     initial_rent = custom_rent if custom_rent is not None else P * rent_yield
     rents.append(initial_rent)
     cum_rent.append(initial_rent)
 
-    for t in range(1, years + 1):
+    for t in range(1, projection_years + 1):  # yearly loop
+        # property appreciation
         new_property_value = property_values[-1] * (1 + g)
         property_values.append(new_property_value)
 
-        interest_payment = mortgage_balances[-1] * r
-        principal_payment = PMT - interest_payment
-        new_mortgage_balance = max(0, mortgage_balances[-1] - principal_payment)
-        mortgage_balances.append(new_mortgage_balance)
+        # amortization over 12 months
+        mortgage_balance = mortgage_balances[-1]
+        for _ in range(12):
+            interest_payment = mortgage_balance * (annual_rate / 12)
+            principal_payment = PMT - interest_payment
+            mortgage_balance = max(0, mortgage_balance - principal_payment)
+        mortgage_balances.append(mortgage_balance)
 
-        new_buy_wealth = new_property_value - new_mortgage_balance
+        # buy wealth
+        new_buy_wealth = new_property_value - mortgage_balance
         buy_wealth.append(new_buy_wealth)
 
+        # rent path
         rent_payment = custom_rent if custom_rent is not None else new_property_value * rent_yield
         rents.append(rent_payment)
         cum_rent.append(cum_rent[-1] + rent_payment)
 
-        investable = max(0, PMT - rent_payment)
+        # EPF path (annual compounding)
+        investable = max(0, PMT * 12 - rent_payment)  # annual surplus = 12 months of PMT - rent
         new_epf_wealth = epf_wealth[-1] * (1 + epf_rate) + investable
         epf_wealth.append(new_epf_wealth)
 
     return pd.DataFrame({
-        "Year": np.arange(0, years + 1),
+        "Year": np.arange(0, projection_years + 1),
         "Property (RM)": property_values,
         "Mortgage (RM)": mortgage_balances,
         "Buy Wealth (RM)": buy_wealth,
