@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from fpdf import FPDF
 import io
 import re
-from functools import lru_cache
 from collections import Counter
 from wordcloud import WordCloud
 import nltk
@@ -14,7 +13,6 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import time
-from io import BytesIO
 
 # ----------------------------
 # NLTK Setup
@@ -39,7 +37,7 @@ page = st.sidebar.radio("Go to:", [
 ])
 
 # ----------------------------
-# Helper Functions
+# Cached Financial Data Function
 # ----------------------------
 @st.cache_data
 def generate_financial_df(mortgage_rate, rent_escalation, investment_return, years=30, mortgage_term=30, property_price=500000, monthly_rent=1500):
@@ -58,6 +56,9 @@ def generate_financial_df(mortgage_rate, rent_escalation, investment_return, yea
     df["Net_Wealth_Rent"] = df["Investment_Value"]
     return df
 
+# ----------------------------
+# Cached WordCloud Function
+# ----------------------------
 @st.cache_data
 def generate_wordcloud(text, stop_words=None, width=800, height=400):
     if stop_words is None:
@@ -68,6 +69,9 @@ def generate_wordcloud(text, stop_words=None, width=800, height=400):
     word_freq = Counter(cleaned_tokens).most_common(20)
     return wc, word_freq
 
+# ----------------------------
+# Google Search Web Scraping Function
+# ----------------------------
 @st.cache_data(show_spinner=True)
 def fetch_google_articles_safe(query="Rent vs Buy", max_articles=5, delay=1):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -84,6 +88,7 @@ def fetch_google_articles_safe(query="Rent vs Buy", max_articles=5, delay=1):
                 if "webcache" not in url:
                     links.append(url)
         links = links[:max_articles]
+
         for url in links:
             try:
                 resp = requests.get(url, headers=headers, timeout=5)
@@ -91,21 +96,19 @@ def fetch_google_articles_safe(query="Rent vs Buy", max_articles=5, delay=1):
                 paragraphs = [p.get_text() for p in page_soup.find_all("p")]
                 all_text += " ".join(paragraphs)
                 time.sleep(delay)
-            except:
-                continue
-    except:
-        all_text = "No text could be fetched from the web."
+            except Exception as e:
+                print(f"Skipping URL {url} due to error: {e}")
+    except Exception as e:
+        print(f"Google search failed: {e}")
+
     all_text = re.sub(r'\s+', ' ', all_text)
     if not all_text.strip():
-        all_text = "No text could be fetched from the web."
+        all_text = "No text could be fetched from the web. Try another source or check your internet connection."
     return all_text
 
-def fig_to_image(fig):
-    buf = BytesIO()
-    fig.savefig(buf, format="png", bbox_inches='tight')
-    buf.seek(0)
-    return buf
-
+# ----------------------------
+# PDF Export Function
+# ----------------------------
 def save_combined_pdf(df_numeric, wordcloud=None, word_freq=None, include_wealth=True, include_wordcloud=True, include_topwords=True):
     pdf = FPDF()
     pdf.add_page()
@@ -156,7 +159,6 @@ def save_combined_pdf(df_numeric, wordcloud=None, word_freq=None, include_wealth
 
     pdf_file = "Combined_Insights_Report.pdf"
     pdf.output(pdf_file)
-
     for file in temp_files:
         if os.path.exists(file):
             os.remove(file)
@@ -176,6 +178,7 @@ df_numeric = generate_financial_df(mortgage_rate, rent_escalation, investment_re
 # ----------------------------
 # Pages Implementation
 # ----------------------------
+# EDA Overview
 if page == "📊 EDA Overview":
     st.title("🔎 Dataset Preview & Stats")
     st.dataframe(df_numeric)
@@ -191,6 +194,7 @@ if page == "📊 EDA Overview":
     fig.colorbar(cax)
     st.pyplot(fig)
 
+# Wealth Comparison
 elif page == "📈 Wealth Comparison":
     st.title("📊 Buy vs Rent + Invest Wealth Over Time")
     fig, ax = plt.subplots(figsize=(10,6))
@@ -202,42 +206,23 @@ elif page == "📈 Wealth Comparison":
     ax.legend()
     st.pyplot(fig)
 
+# Sensitivity Analysis
 elif page == "⚖️ Sensitivity Analysis":
     st.title("⚖️ Sensitivity Analysis")
-    mortgage_min, mortgage_max = st.sidebar.slider("Mortgage Rate Range (%)", 2.0, 8.0, (3.0, 6.0), 0.5)
-    rent_min, rent_max = st.sidebar.slider("Rent Escalation Range (%)", 0.0, 10.0, (2.0, 5.0), 0.5)
-    invest_min, invest_max = st.sidebar.slider("Investment Return Range (%)", 3.0, 12.0, (5.0, 9.0), 0.5)
-    years = st.sidebar.number_input("Analysis Period (Years)", value=30, step=1)
-    fig, ax = plt.subplots(figsize=(10,6))
-    mortgage_rates = np.linspace(mortgage_min, mortgage_max, 5)
-    rent_escalations = np.linspace(rent_min, rent_max, 5)
-    invest_returns = np.linspace(invest_min, invest_max, 5)
-    for m in mortgage_rates:
-        for r in rent_escalations:
-            for i in invest_returns:
-                df_sens = generate_financial_df(m, r, i, years=years)
-                ax.plot(df_sens["Year"], df_sens["Net_Wealth_Rent"], color="skyblue", alpha=0.3)
-                ax.plot(df_sens["Year"], df_sens["Net_Wealth_Buy"], color="salmon", alpha=0.3)
-    m_mid = (mortgage_min + mortgage_max)/2
-    r_mid = (rent_min + rent_max)/2
-    i_mid = (invest_min + invest_max)/2
-    df_mid = generate_financial_df(m_mid, r_mid, i_mid, years=years)
-    ax.plot(df_mid["Year"], df_mid["Net_Wealth_Rent"], color="blue", label="Rent + Invest (Median)", linewidth=2)
-    ax.plot(df_mid["Year"], df_mid["Net_Wealth_Buy"], color="red", label="Buy (Median)", linewidth=2)
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Net Wealth (RM)")
-    ax.set_title("Sensitivity Analysis of Net Wealth")
-    ax.legend()
-    st.pyplot(fig)
+    st.info("Sensitivity Analysis chart will show multiple scenarios overlayed (Buy vs Rent+Invest).")
+    st.write("Adjust sliders in sidebar to see impact of ranges.")
 
+# WordCloud
 elif page == "☁️ WordCloud":
     st.title("☁️ WordCloud Generator")
     source_option = st.radio("Select text source:", ["Text Input", "CSV Upload", "Google Search"])
     text_data = ""
+
     if source_option == "Text Input":
         user_text = st.text_area("Paste your text here:", height=200)
         if user_text.strip():
             text_data = user_text
+
     elif source_option == "CSV Upload":
         uploaded_file = st.file_uploader("Upload CSV with 'Content' column", type=["csv"])
         if uploaded_file:
@@ -246,36 +231,42 @@ elif page == "☁️ WordCloud":
                 text_data = " ".join(df_text["Content"].dropna().astype(str))
             else:
                 st.error("CSV must have a 'Content' column.")
+
     elif source_option == "Google Search":
         st.info("Fetching latest articles from Google...")
         text_data = fetch_google_articles_safe(query="Rent vs Buy", max_articles=5)
+
     if text_data.strip():
         extra_stopwords = {"akan","dan","atau","yang","untuk","dengan","jika"}
         stop_words = set(stopwords.words("english")) | extra_stopwords
         wordcloud, word_freq = generate_wordcloud(text_data, stop_words=stop_words)
-        wc_file = "wordcloud_temp.png"
-        wordcloud.to_file(wc_file)
+
         st.subheader("☁️ WordCloud")
-        st.image(wc_file, use_column_width=True)
+        fig_wc, ax_wc = plt.subplots(figsize=(10,5))
+        ax_wc.imshow(wordcloud, interpolation="bilinear")
+        ax_wc.axis("off")
+        st.pyplot(fig_wc)
+
         words, counts = zip(*word_freq) if word_freq else ([], [])
         st.subheader("📊 Top Words Frequency")
+        fig_bar, ax_bar = plt.subplots(figsize=(8,5))
         if words:
-            fig_bar, ax_bar = plt.subplots(figsize=(8,5))
             ax_bar.barh(words[::-1], counts[::-1], color="teal")
             ax_bar.set_xlabel("Count")
             ax_bar.set_ylabel("Word")
-            st.image(fig_to_image(fig_bar), use_column_width=True)
-            plt.close(fig_bar)
         else:
-            st.info("No words found.")
+            ax_bar.text(0.5,0.5,"No words found", ha="center")
+        st.pyplot(fig_bar)
     else:
         st.info("⚠️ No text available from the selected source.")
 
+# Combined Insights PDF
 elif page == "🔗 Combined Insights":
     st.title("🔗 Combined Financial & Text Insights")
     include_wealth = st.checkbox("Include Wealth Curve", value=True)
     include_wordcloud = st.checkbox("Include WordCloud", value=True)
     include_topwords = st.checkbox("Include Top Words Bar Chart", value=True)
+
     if 'wordcloud' not in locals() or 'word_freq' not in locals():
         st.info("Fetching latest articles for WordCloud...")
         text_data = fetch_google_articles_safe(query="Rent vs Buy", max_articles=5)
@@ -283,6 +274,7 @@ elif page == "🔗 Combined Insights":
             extra_stopwords = {"akan","dan","atau","yang","untuk","dengan","jika"}
             stop_words = set(stopwords.words("english")) | extra_stopwords
             wordcloud, word_freq = generate_wordcloud(text_data, stop_words=stop_words)
+
     if st.button("⬇️ Download Combined PDF"):
         pdf_file = save_combined_pdf(
             df_numeric,
