@@ -53,10 +53,8 @@ def generate_financial_df(mortgage_rate, rent_escalation, investment_return, yea
     return df
 
 # ----------------------------
-# PDF Export Function for Combined Insights
+# PDF Export Function with Cleanup
 # ----------------------------
-import os
-
 def save_combined_pdf(df_numeric, wordcloud, word_freq):
     pdf = FPDF()
     pdf.add_page()
@@ -243,7 +241,7 @@ elif page == "☁️ WordCloud":
 # Page 5: Combined Insights with PDF
 # ----------------------------
 elif page == "🔗 Combined Insights":
-    st.title("🔗 Interactive Combined Text & Financial Insights")
+    st.title("🔗 Combined Financial & Text Insights")
     uploaded_text = st.file_uploader("Upload CSV with 'Content' column", type=["csv"], key="text_combined")
     if uploaded_text:
         df_text = pd.read_csv(uploaded_text)
@@ -251,7 +249,6 @@ elif page == "🔗 Combined Insights":
             st.error("CSV must have a 'Content' column")
         else:
             st.success("✅ Text Data Loaded")
-            has_year = "Year" in df_text.columns
             # Financial sliders
             st.sidebar.header("💰 Financial Inputs")
             mortgage_rate = st.sidebar.slider("Mortgage Rate (%)", 1.0, 10.0, 4.0, 0.1)
@@ -292,21 +289,6 @@ elif page == "🔗 Combined Insights":
             else:
                 ax_bar.text(0.5,0.5,"No words found",ha="center")
             st.pyplot(fig_bar)
-
-            # Year-wise trend
-            if has_year:
-                st.subheader("📊 Year-wise Keyword Trend")
-                df_text_grouped = df_text.groupby("Year")["Content"].apply(lambda x: " ".join(x))
-                top_words = [w for w, _ in word_freq[:5]]
-                word_trend = {}
-                for year, text in df_text_grouped.items():
-                    tokens_year = re.findall(r"\b[a-zA-Z]+\b", text.lower())
-                    cleaned_year = [w for w in tokens_year if w not in stop_words]
-                    counts_year = Counter(cleaned_year)
-                    word_trend[year] = [counts_year.get(w,0) for w in top_words]
-                df_word_trend = pd.DataFrame(word_trend, index=top_words).T
-                df_combined = df_numeric.set_index("Year").join(df_word_trend, how="left").fillna(0)
-                st.line_chart(df_combined)
 
             # PDF Export Button
             if st.button("⬇️ Download Combined Insights PDF"):
