@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from fpdf import FPDF
 import io
 import re
-from functools import lru_cache
 from collections import Counter
 from wordcloud import WordCloud
 import nltk
@@ -14,7 +13,6 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import time
-
 
 # ----------------------------
 # NLTK Setup
@@ -76,13 +74,7 @@ def generate_wordcloud(text, stop_words=None, width=800, height=400):
 # ----------------------------
 @st.cache_data(show_spinner=True)
 def fetch_google_articles_safe(query="Rent vs Buy", max_articles=5, delay=1):
-    """
-    Safely fetch article paragraphs from Google search with caching and polite delay.
-    Returns combined text for WordCloud.
-    """
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     search_url = f"https://www.google.com/search?q={query.replace(' ','+')}&num={max_articles}"
     all_text = ""
     try:
@@ -103,7 +95,7 @@ def fetch_google_articles_safe(query="Rent vs Buy", max_articles=5, delay=1):
                 page_soup = BeautifulSoup(resp.text, "html.parser")
                 paragraphs = [p.get_text() for p in page_soup.find_all("p")]
                 all_text += " ".join(paragraphs)
-                time.sleep(delay)  # polite delay between requests
+                time.sleep(delay)
             except Exception as e:
                 print(f"Skipping URL {url} due to error: {e}")
     except Exception as e:
@@ -114,7 +106,6 @@ def fetch_google_articles_safe(query="Rent vs Buy", max_articles=5, delay=1):
         all_text = "No text could be fetched from the web. Try another source or check your internet connection."
     return all_text
 
-
 # ----------------------------
 # PDF Export Function
 # ----------------------------
@@ -123,7 +114,6 @@ def save_combined_pdf(df_numeric, wordcloud=None, word_freq=None, include_wealth
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
     pdf.cell(0, 10, "Combined Insights Report", ln=True, align="C")
-
     temp_files = []
 
     if include_wealth:
@@ -169,7 +159,6 @@ def save_combined_pdf(df_numeric, wordcloud=None, word_freq=None, include_wealth
 
     pdf_file = "Combined_Insights_Report.pdf"
     pdf.output(pdf_file)
-
     for file in temp_files:
         if os.path.exists(file):
             os.remove(file)
@@ -220,10 +209,8 @@ elif page == "📈 Wealth Comparison":
 # Sensitivity Analysis
 elif page == "⚖️ Sensitivity Analysis":
     st.title("⚖️ Sensitivity Analysis")
-    mortgage_range = st.sidebar.slider("Mortgage Rate (%)", 2.0, 8.0, (3.0, 6.0), 0.5)
-    rent_range = st.sidebar.slider("Rent Escalation (%)", 0.0, 10.0, (2.0, 5.0), 0.5)
-    invest_range = st.sidebar.slider("Investment Return (%)", 3.0, 12.0, (5.0, 9.0), 0.5)
     st.info("Sensitivity Analysis chart will show multiple scenarios overlayed (Buy vs Rent+Invest).")
+    st.write("Adjust sliders in sidebar to see impact of ranges.")
 
 # WordCloud
 elif page == "☁️ WordCloud":
@@ -247,7 +234,7 @@ elif page == "☁️ WordCloud":
 
     elif source_option == "Google Search":
         st.info("Fetching latest articles from Google...")
-        text_data = fetch_google_articles(query="Rent vs Buy", max_articles=5)
+        text_data = fetch_google_articles_safe(query="Rent vs Buy", max_articles=5)
 
     if text_data.strip():
         extra_stopwords = {"akan","dan","atau","yang","untuk","dengan","jika"}
@@ -282,7 +269,7 @@ elif page == "🔗 Combined Insights":
 
     if 'wordcloud' not in locals() or 'word_freq' not in locals():
         st.info("Fetching latest articles for WordCloud...")
-        text_data = fetch_google_articles(query="Rent vs Buy", max_articles=5)
+        text_data = fetch_google_articles_safe(query="Rent vs Buy", max_articles=5)
         if text_data.strip():
             extra_stopwords = {"akan","dan","atau","yang","untuk","dengan","jika"}
             stop_words = set(stopwords.words("english")) | extra_stopwords
