@@ -12,14 +12,13 @@ import io
 import datetime
 
 # reportlab for PDF
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import inch
 from reportlab.lib import colors
 
-# ----------------------------
-# NLTK stopwords (optional)
-# ----------------------------
+# nltk stopwords
 import nltk
 from nltk.corpus import stopwords
 try:
@@ -64,14 +63,13 @@ def fetch_blog_text_single(url):
         paragraphs = [p.get_text(separator=" ", strip=True) for p in soup.find_all("p")]
         return " ".join(paragraphs)
     except Exception as e:
-        # don't raise — return empty string so other URLs still work
         print(f"Failed to fetch {url}: {e}")
         return ""
 
 # ----------------------------
 # Cached: fetch malaysia blogs (parallel) - cached daily
 # ----------------------------
-@st.cache_data(ttl=24 * 60 * 60)  # cache for 24 hours
+@st.cache_data(ttl=24 * 60 * 60)
 def fetch_malaysia_blogs(urls):
     text_chunks = []
     with concurrent.futures.ThreadPoolExecutor() as ex:
@@ -90,9 +88,7 @@ def fetch_malaysia_blogs(urls):
 # ----------------------------
 @st.cache_data
 def make_wordcloud_and_freq(text, n_top=20):
-    # combine stopwords
     stop_words = set(stopwords.words("english")) | EXTRA_STOPWORDS
-    # tokenise words (letters only), lowercase
     tokens = re.findall(r"\b[a-zA-Z]{2,}\b", text.lower())
     cleaned = [t for t in tokens if t not in stop_words]
     if not cleaned:
@@ -124,36 +120,33 @@ def generate_financial_df(mortgage_rate_pct, rent_escalation_pct, investment_ret
         monthly_payment = property_price * r * (1 + r) ** n / ((1 + r) ** n - 1)
 
     df["Monthly_Mortgage"] = monthly_payment
-    # Cumulative mortgage paid (annual)
     df["Annual_Mortgage_Paid"] = monthly_payment * 12
     df["Cumulative_Mortgage_Paid"] = df["Annual_Mortgage_Paid"].cumsum()
 
-    # Home equity: simple linear principal build approximation (user can refine)
+    # Simple equity approx (linear principal build; you can refine to full amortization later)
     df["Home_Equity"] = property_price * (df["Year"] / mortgage_term).clip(upper=1)
 
     # Annual rent with escalation
     df["Annual_Rent"] = monthly_rent * 12 * (1 + rent_escalation) ** (df["Year"] - 1)
 
-    # Money saved each year = mortgage - rent (if positive) else 0
+    # Rent saved each year (mortgage - rent)
     df["Rent_Saved"] = (df["Annual_Mortgage_Paid"] - df["Annual_Rent"]).clip(lower=0)
 
-    # Investment value: assume each year's saved amount is invested and grows after that
+    # Investment value accumulation
     invest_values = []
     total = 0.0
-    for i, saved in enumerate(df["Rent_Saved"], start=1):
-        # contributions at end of year i grow for remaining years: we'll compute accumulation year-by-year
+    for saved in df["Rent_Saved"]:
         total = (total + saved) * (1 + investment_return)
         invest_values.append(total)
     df["Investment_Value"] = invest_values
 
-    # Net wealth
-    df["Net_Wealth_Buy"] = df["Home_Equity"] - df["Cumulative_Mortgage_Paid"]  # naive: equity minus total paid
+    df["Net_Wealth_Buy"] = df["Home_Equity"] - df["Cumulative_Mortgage_Paid"]
     df["Net_Wealth_Rent"] = df["Investment_Value"]
 
     return df
 
 # ----------------------------
-# Helper: plot to BytesIO for embedding in PDF
+# Helper: convert Matplotlib fig to BytesIO (for reportlab embedding)
 # ----------------------------
 def fig_to_bytes(fig, fmt="png", dpi=150):
     buf = io.BytesIO()
@@ -163,10 +156,9 @@ def fig_to_bytes(fig, fmt="png", dpi=150):
     return buf
 
 # ----------------------------
-# Combined Insights -> create PDF (reportlab)
+# Create report PDF with ReportLab
 # ----------------------------
 def create_report_pdf(df_numeric, wc_buf, wc_freq, wealth_buf, sens_buf, blog_sources_list, recommendation_text, out_buf):
-    # out_buf: BytesIO to write PDF into
     doc = SimpleDocTemplate(out_buf, pagesize=A4)
     styles = getSampleStyleSheet()
     story = []
@@ -175,22 +167,31 @@ def create_report_pdf(df_numeric, wc_buf, wc_freq, wealth_buf, sens_buf, blog_so
     story.append(Paragraph("Buy vs Rent – Combined Insights Report (Malaysia)", styles["Title"]))
     story.append(Spacer(1, 8))
 
-    # Date
+    # Generated datetime
     story.append(Paragraph(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"]))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 8))
 
-    # Sources
+    # Sources (bullet list)
     story.append(Paragraph("Sources (scraped):", styles["Heading2"]))
     for url in blog_sources_list:
         story.append(Paragraph(f"- {url}", styles["Normal"]))
     story.append(Spacer(1, 8))
 
-    # WordCloud
+    # Summary paragraph (short)
+    story.append(Paragraph("Summary:", styles["Heading2"]))
+    summary_paragraph = (
+        "This report compares the trade-off between buying a property and renting while "
+        "investing the difference. It includes a wealth-accumulation model (buy vs rent+invest), "
+        "a sensitivity analysis across investment return scenarios, and textual insights synthesized "
+        "from Malaysian property articles."
+    )
+    story.append(Paragraph(summary_paragraph, styles["Normal"]))
+    story.append(Spacer(1, 8))
+
+    # WordCloud image
     story.append(Paragraph("WordCloud (Malaysia articles)", styles["Heading2"]))
     if wc_buf is not None:
-        # reportlab Image can accept a file-like object
-        img = RLImage(wc_buf, width=450, height=225)  # size in points (approx)
-        story.append(img)
+        story.append(RLImage(wc_buf, width=450, height=225))
     story.append(Spacer(1, 8))
 
     # Top words table
@@ -213,50 +214,47 @@ def create_report_pdf(df_numeric, wc_buf, wc_freq, wealth_buf, sens_buf, blog_so
     # Wealth Chart
     story.append(Paragraph("Wealth Accumulation: Buy vs Rent + Invest", styles["Heading2"]))
     if wealth_buf is not None:
-        img = RLImage(wealth_buf, width=450, height=250)
-        story.append(img)
+        story.append(RLImage(wealth_buf, width=450, height=250))
     story.append(Spacer(1, 8))
 
     # Sensitivity Chart
     story.append(Paragraph("Sensitivity Analysis (varied investment returns)", styles["Heading2"]))
     if sens_buf is not None:
-        img = RLImage(sens_buf, width=450, height=250)
-        story.append(img)
+        story.append(RLImage(sens_buf, width=450, height=250))
     story.append(Spacer(1, 8))
 
-    # Sensitivity results table (final wealth numbers)
-    story.append(Paragraph("Sensitivity Results (final-year wealth)", styles["Heading3"]))
-    # Build data for table (example columns: Scenario, Mortgage Rate, Invest Return, Final Wealth)
-    # We'll assume sens_results is encoded as list of lists stored in df_numeric meta; but we'll compute externally and pass in if desired.
-    # For now we leave a short summary: final row values from df_numeric
+    # Final-year numbers summary
     if not df_numeric.empty:
         last = df_numeric.iloc[-1]
-        # show final values for buy and rent
-        table_data = [["Measure", "Value"]]
-        table_data.append(["Final Net Wealth (Buy)", f"RM {last['Net_Wealth_Buy']:,.2f}"])
-        table_data.append(["Final Net Wealth (Rent + Invest)", f"RM {last['Net_Wealth_Rent']:,.2f}"])
-        tbl2 = Table(table_data, colWidths=[220, 200])
+        table_data = [["Measure", "Value"],
+                      ["Final Net Wealth (Buy)", f"RM {last['Net_Wealth_Buy']:,.2f}"],
+                      ["Final Net Wealth (Rent + Invest)", f"RM {last['Net_Wealth_Rent']:,.2f}"]]
+        tbl2 = Table(table_data, colWidths=[260, 150])
         tbl2.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#2F4F4F")),
-            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-            ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2F4F4F")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
         ]))
         story.append(tbl2)
     story.append(Spacer(1, 12))
 
-    # Recommendation / Insights box (shaded)
+    # Insights & Recommendation (shaded paragraph)
     story.append(Paragraph("Insights & Recommendation", styles["Heading2"]))
-    rec_table = Table([[recommendation_text]], colWidths=[450])
+    # we embed recommendation_text as a multi-line paragraph (string)
+    rec_par = Paragraph(recommendation_text.replace("\n", "<br/>"), styles["Normal"])
+    # put in a light shaded box by using a Table with background color
+    rec_table = Table([[rec_par]], colWidths=[450])
     rec_table.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,-1), colors.HexColor("#E8F5E9")),  # light green
+        ("BACKGROUND", (0,0), (-1,-1), colors.HexColor("#F3F9F1")),  # light green
         ("BOX", (0,0), (-1,-1), 1, colors.grey),
         ("LEFTPADDING", (0,0), (-1,-1), 8),
         ("RIGHTPADDING", (0,0), (-1,-1), 8),
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
     ]))
     story.append(rec_table)
     story.append(Spacer(1, 12))
 
-    # Build
+    # Build PDF into out_buf
     doc.build(story)
 
 # ----------------------------
@@ -280,7 +278,6 @@ with st.spinner("Fetching Malaysia articles (cached daily)..."):
 # WordCloud + frequency
 wc, wc_freq = make_wordcloud_and_freq(scraped_text, n_top=20)
 
-# Show WordCloud and top words in Streamlit pages
 # Build word_freq DataFrame for display
 word_freq_df = pd.DataFrame(wc_freq, columns=["Word", "Frequency"]) if wc_freq else pd.DataFrame(columns=["Word","Frequency"])
 
@@ -294,7 +291,7 @@ df_numeric = generate_financial_df(mortgage_rate, rent_escalation, investment_re
 # ----------------------------
 if page == "📊 EDA Overview":
     st.title("🔎 EDA Overview")
-    st.subheader("Dataset (simulated yearly rows)")
+    st.subheader("Dataset (yearly rows)")
     st.dataframe(df_numeric)
     st.subheader("Descriptive statistics")
     st.write(df_numeric.describe())
@@ -352,7 +349,6 @@ elif page == "⚖️ Sensitivity Analysis":
 
     sens_buf = fig_to_bytes(fig_sens)
 
-    # Summarize a small table of scenario final values (sample best/worst)
     if scenarios:
         sens_df = pd.DataFrame(scenarios, columns=["MortgageRate", "RentEscalation", "InvestReturn", "FinalRentWealth"])
         st.subheader("Sample sensitivity results (final-year rent wealth)")
@@ -363,7 +359,6 @@ elif page == "⚖️ Sensitivity Analysis":
 elif page == "☁️ WordCloud (Malaysia Blogs)":
     st.title("☁️ WordCloud (Malaysia Blogs)")
     st.subheader("WordCloud from scraped Malaysia articles")
-    # show in-streamlit
     fig_wc, ax_wc = plt.subplots(figsize=(10,4.5))
     ax_wc.imshow(wc, interpolation="bilinear")
     ax_wc.axis("off")
@@ -375,13 +370,12 @@ elif page == "☁️ WordCloud (Malaysia Blogs)":
     else:
         st.info("No words available.")
 
-    # also prepare wc buffer for PDF
     wc_buf = fig_to_bytes(fig_wc)
 
 elif page == "🔗 Combined Insights":
     st.title("🔗 Combined Financial & Text Insights")
 
-    # build on already computed df_numeric and word_freq_df
+    # Wealth plot
     st.subheader("Wealth Accumulation")
     fig_w2, ax_w2 = plt.subplots(figsize=(6,4))
     ax_w2.plot(df_numeric["Year"], df_numeric["Net_Wealth_Buy"], label="Buy", marker="o")
@@ -391,8 +385,8 @@ elif page == "🔗 Combined Insights":
     st.pyplot(fig_w2)
     wealth_buf = fig_to_bytes(fig_w2)
 
+    # Sensitivity example
     st.subheader("Sensitivity (example overlay)")
-    # create a quick sensitivity figure (vary invest return)
     fig_sens2, ax_sens2 = plt.subplots(figsize=(6,4))
     invest_rates = [0.03, 0.05, 0.07]
     sens_results = []
@@ -408,6 +402,7 @@ elif page == "🔗 Combined Insights":
     st.pyplot(fig_sens2)
     sens_buf = fig_to_bytes(fig_sens2)
 
+    # WordCloud
     st.subheader("WordCloud (from Malaysia articles)")
     fig_wc2, ax_wc2 = plt.subplots(figsize=(10,4.5))
     ax_wc2.imshow(wc, interpolation="bilinear")
@@ -421,22 +416,47 @@ elif page == "🔗 Combined Insights":
     else:
         st.info("No words available.")
 
-    # Recommendation: compare final-year net wealth
+    # Summary paragraph
+    st.subheader("Summary")
+    st.write(
+        "This analysis compares buying a property vs renting and investing the difference. "
+        "It models yearly wealth accumulation over the selected period, shows sensitivity "
+        "to investment returns, and synthesizes themes from Malaysia-focused articles."
+    )
+
+    # Recommendation & insights
     final_buy = df_numeric.iloc[-1]["Net_Wealth_Buy"]
     final_rent = df_numeric.iloc[-1]["Net_Wealth_Rent"]
     if final_buy > final_rent:
-        recommendation_text = ("Based on the input assumptions, BUYING yields higher final net wealth. "
-                               "Buying gives equity stability but requires upfront & running costs.")
+        recommendation_text = (
+            "Based on the input assumptions, BUYING yields higher final net wealth. "
+            "Buying gives equity stability but requires upfront & running costs.\n\n"
+            "Insights:\n"
+            "- Buying builds long-term equity and suits those seeking stability.\n"
+            "- Renting+Investing could still be preferable if you can consistently invest savings and achieve higher returns."
+        )
         rec_colour = "#DFF0D8"  # light green
         rec_text_display = "✅ Based on these assumptions, BUYING looks better."
     else:
-        recommendation_text = ("Based on the input assumptions, RENTING + INVESTING yields higher final net wealth. "
-                               "Renting + disciplined investing may outperform if investments beat mortgage costs.")
+        recommendation_text = (
+            "Based on the input assumptions, RENTING + INVESTING yields higher final net wealth. "
+            "Renting + disciplined investing may outperform if investments beat mortgage costs.\n\n"
+            "Insights:\n"
+            "- Renting and investing is attractive if you value flexibility and can invest savings reliably.\n"
+            "- Ensure discipline: savings must actually be invested, not spent."
+        )
         rec_colour = "#FFF3CD"  # light orange
         rec_text_display = "🔔 Based on these assumptions, RENTING + INVESTING looks better."
 
-    st.markdown(f"<div style='padding:12px;border-radius:8px;background:{rec_colour}'>{rec_text_display}</div>", unsafe_allow_html=True)
-    st.write(recommendation_text)
+    # Collapsible insights & recommendation
+    with st.expander("💡 Insights & Recommendation", expanded=False):
+        st.markdown(f"<div style='padding:12px;border-radius:8px;background:{rec_colour}'>{rec_text_display}</div>", unsafe_allow_html=True)
+        st.write(recommendation_text)
+
+    # Sources (collapsible)
+    with st.expander("📚 Sources", expanded=False):
+        for url in BLOG_URLS:
+            st.markdown(f"- [{url}]({url})")
 
     # Prepare PDF on demand
     if st.button("📥 Download Combined PDF Report"):
@@ -447,4 +467,4 @@ elif page == "🔗 Combined Insights":
         out_buffer.seek(0)
         st.download_button("Download PDF", data=out_buffer, file_name="combined_insights_report.pdf", mime="application/pdf")
 
-# End of script
+# end of file
