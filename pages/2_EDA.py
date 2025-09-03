@@ -2,230 +2,126 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from wordcloud import WordCloud
-from collections import Counter
-import nltk
-from nltk.corpus import stopwords
-import os
-import re
-import io
 from fpdf import FPDF
-
-# ----------------------------
-# NLTK Setup
-# ----------------------------
-try:
-    stopwords.words("english")
-except LookupError:
-    nltk.download('punkt')
-    nltk.download('stopwords')
+import io
 
 # ----------------------------
 # Streamlit App Config
 # ----------------------------
-st.set_page_config(page_title="Full EDA Dashboard", layout="wide")
-st.sidebar.title("🔍 Navigation")
-page = st.sidebar.radio("Go to:", ["📊 EDA", "☁️ WordCloud"])
+st.set_page_config(page_title="Buy vs Rent EDA Dashboard", layout="wide")
+st.sidebar.title("🏡 Assumptions & Navigation")
+page = st.sidebar.radio("Go to:", ["📊 EDA Overview", "📈 Wealth Comparison", "⚖️ Sensitivity Analysis"])
 
 # ----------------------------
-# Load Dataset
+# Base Financial Inputs
 # ----------------------------
-@st.cache_data
-def load_csv(path):
-    return pd.read_csv(path)
+st.sidebar.header("💰 Base Financial Inputs")
+mortgage_term = st.sidebar.number_input("Mortgage Term (years)", value=30, step=1)
+property_price = st.sidebar.number_input("Property Price (RM)", value=500000, step=1000)
+monthly_rent = st.sidebar.number_input("Monthly Rent (RM)", value=1500, step=100)
+years = st.sidebar.number_input("Analysis Period (Years)", value=30, step=1)
 
-def get_dataset(uploaded_file=None, fallback_path="Data.csv"):
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-    elif os.path.exists(fallback_path):
-        df = load_csv(fallback_path)
-    else:
-        return None
+# ----------------------------
+# Generate Dataset Function
+# ----------------------------
+def generate_financial_df(mortgage_rate, rent_escalation, investment_return):
+    df = pd.DataFrame({"Year": np.arange(1, years + 1)})
+    # Mortgage monthly payment
+    r = mortgage_rate / 100 / 12
+    n = mortgage_term * 12
+    monthly_payment = property_price * r * (1 + r)**n / ((1 + r)**n - 1)
+    df["Monthly_Mortgage"] = monthly_payment
+    df["Cumulative_Mortgage_Paid"] = df["Monthly_Mortgage"].cumsum() * 12 / 12
+    # Home equity (simplified)
+    df["Home_Equity"] = property_price * (df["Year"] / mortgage_term).clip(upper=1)
+    # Rent scenario
+    df["Annual_Rent"] = monthly_rent * 12 * (1 + rent_escalation/100)**(df["Year"]-1)
+    df["Rent_Saved"] = df["Monthly_Mortgage"]*12 - df["Annual_Rent"]
+    df["Rent_Saved"] = df["Rent_Saved"].clip(lower=0)
+    # Investment growth
+    df["Investment_Value"] = df["Rent_Saved"].cumsum() * ((1 + investment_return/100) ** (df["Year"]-1))
+    # Net wealth
+    df["Net_Wealth_Buy"] = df["Home_Equity"] - df["Cumulative_Mortgage_Paid"]
+    df["Net_Wealth_Rent"] = df["Investment_Value"]
     return df
 
 # ----------------------------
-# PDF Helper
+# EDA Overview Page
 # ----------------------------
-def save_eda_pdf(df, numeric_cols, categorical_cols, year_col="Year"):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Exploratory Data Analysis Report", ln=True, align="C")
-    
-    # Dataset info
-    pdf.set_font("Arial", "B", 14)
-    pdf.ln(10)
-    pdf.cell(0, 10, "Dataset Info", ln=True)
-    pdf.set_font("Arial", "", 12)
-    for col in df.columns:
-        pdf.cell(0, 8, f"{col} ({str(df[col].dtype)})", ln=True)
-    
-    # Missing values
-    pdf.ln(5)
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Missing Values", ln=True)
-    pdf.set_font("Arial", "", 12)
-    for col, val in df.isna().sum().items():
-        pdf.cell(0, 8, f"{col}: {val}", ln=True)
-    
-    # Numeric descriptive stats
-    pdf.ln(5)
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Numeric Descriptive Statistics", ln=True)
-    pdf.set_font("Arial", "", 12)
-    desc = df[numeric_cols].describe()
-    for col in numeric_cols:
-        pdf.cell(0, 8, f"{col}: mean={desc[col]['mean']:.2f}, std={desc[col]['std']:.2f}, min={desc[col]['min']}, max={desc[col]['max']}", ln=True)
+if page == "📊 EDA Overview":
+    st.title("🔎 Dataset Preview & Stats")
+    mortgage_rate = st.sidebar.number_input("Mortgage Rate (%)", value=4.0, step=0.1)
+    rent_escalation = st.sidebar.number_input("Annual Rent Growth (%)", value=3.0, step=0.1)
+    investment_return = st.sidebar.number_input("Annual Investment Return (%)", value=7.0, step=0.1)
 
-    # Histograms
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Numeric Column Histograms", ln=True)
-    for col in numeric_cols:
-        fig, ax = plt.subplots()
-        ax.hist(df[col].dropna(), bins=15, color="skyblue", edgecolor="black")
-        ax.set_title(f"Histogram of {col}")
-        hist_file = f"{col}_hist.png"
-        plt.savefig(hist_file)
-        plt.close(fig)
-        pdf.image(hist_file, w=180)
-    
-    # Boxplots
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Numeric Column Boxplots", ln=True)
-    for col in numeric_cols:
-        fig, ax = plt.subplots()
-        ax.boxplot(df[col].dropna())
-        ax.set_title(f"Boxplot of {col}")
-        box_file = f"{col}_box.png"
-        plt.savefig(box_file)
-        plt.close(fig)
-        pdf.image(box_file, w=180)
-    
-    # Categorical charts
-    if categorical_cols:
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "Categorical Columns", ln=True)
-        for col in categorical_cols:
-            fig, ax = plt.subplots()
-            df[col].value_counts().plot(kind="bar", ax=ax, color="lightgreen")
-            ax.set_title(f"Counts of {col}")
-            cat_file = f"{col}_bar.png"
-            plt.savefig(cat_file)
-            plt.close(fig)
-            pdf.image(cat_file, w=180)
-    
-    # Trends over years
-    if year_col in df.columns:
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "Trends Over Years", ln=True)
-        year_data = df.dropna(subset=[year_col])
-        for col in numeric_cols:
-            fig, ax = plt.subplots()
-            ax.plot(year_data[year_col], year_data[col], marker="o", linewidth=1)
-            ax.set_title(f"{col} Trend")
-            trend_file = f"{col}_trend.png"
-            plt.savefig(trend_file)
-            plt.close(fig)
-            pdf.image(trend_file, w=180)
-    
-    # Correlation heatmap
-    if numeric_cols:
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "Correlation Heatmap", ln=True)
-        fig, ax = plt.subplots(figsize=(8,6))
-        cax = ax.matshow(df[numeric_cols].corr(), cmap="coolwarm")
-        plt.xticks(range(len(numeric_cols)), numeric_cols, rotation=45)
-        plt.yticks(range(len(numeric_cols)), numeric_cols)
-        fig_file = "corr.png"
-        plt.colorbar(cax)
-        plt.savefig(fig_file)
-        plt.close(fig)
-        pdf.image(fig_file, w=180)
-
-    pdf_file = "EDA_Full_Report.pdf"
-    pdf.output(pdf_file)
-    return pdf_file
-
-# ----------------------------
-# EDA Page
-# ----------------------------
-if page == "📊 EDA":
-    st.title("🔎 Exploratory Data Analysis (EDA)")
-
-    uploaded_file = st.file_uploader("Upload your dataset (CSV)", type=["csv"])
-    df = get_dataset(uploaded_file)
-
-    if df is None:
-        st.error("❌ No dataset found.")
-        st.stop()
-
-    st.subheader("📋 Dataset Preview")
+    df = generate_financial_df(mortgage_rate, rent_escalation, investment_return)
     st.dataframe(df)
 
-    st.subheader("ℹ️ Dataset Info")
-    buffer = io.StringIO()
-    df.info(buf=buffer)
-    st.text(buffer.getvalue())
+    st.subheader("📊 Numeric Descriptive Statistics")
+    st.write(df.describe())
 
-    st.subheader("❗ Missing Values Summary")
+    st.subheader("❗ Missing Values")
     st.write(df.isna().sum())
 
-    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-    categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
-
-    st.subheader("📊 Numeric Descriptive Statistics")
-    st.write(df.describe(include=[np.number]))
-
-    if st.button("Generate Full EDA PDF Report"):
-        pdf_file = save_eda_pdf(df, numeric_cols, categorical_cols)
-        with open(pdf_file, "rb") as f:
-            st.download_button("⬇️ Download Full EDA PDF", f, file_name=pdf_file, mime="application/pdf")
+    st.subheader("📈 Correlation Heatmap")
+    fig, ax = plt.subplots(figsize=(8,6))
+    cax = ax.matshow(df.corr(), cmap="coolwarm")
+    plt.xticks(range(len(df.columns)), df.columns, rotation=45)
+    plt.yticks(range(len(df.columns)), df.columns)
+    fig.colorbar(cax)
+    st.pyplot(fig)
 
 # ----------------------------
-# WordCloud Page
+# Wealth Comparison Page
 # ----------------------------
-elif page == "☁️ WordCloud":
-    st.title("📝 Text Analysis & WordCloud")
-    uploaded_file = st.file_uploader("Upload your blog dataset (CSV with 'Content' column)", type=["csv"], key="wc")
-    if uploaded_file is not None:
-        df_text = pd.read_csv(uploaded_file)
-    elif os.path.exists("Rent_vs_Buy_Blogs.csv"):
-        df_text = pd.read_csv("Rent_vs_Buy_Blogs.csv")
-    else:
-        st.error("❌ No blog dataset found.")
-        st.stop()
+elif page == "📈 Wealth Comparison":
+    st.title("📊 Buy vs Rent + Invest Wealth Over Time")
+    mortgage_rate = st.sidebar.number_input("Mortgage Rate (%)", value=4.0, step=0.1)
+    rent_escalation = st.sidebar.number_input("Annual Rent Growth (%)", value=3.0, step=0.1)
+    investment_return = st.sidebar.number_input("Annual Investment Return (%)", value=7.0, step=0.1)
 
-    if "Content" not in df_text.columns:
-        st.error("CSV must have 'Content' column.")
-    else:
-        text_data = " ".join(df_text["Content"].dropna().astype(str))
-        tokens = re.findall(r"\b[a-zA-Z]+\b", text_data.lower())
-        stop_words = set(stopwords.words("english")) | {"akan","dan","atau","yang","untuk","dengan","jika"}
-        cleaned_tokens = [w for w in tokens if w not in stop_words]
+    df = generate_financial_df(mortgage_rate, rent_escalation, investment_return)
 
-        wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(cleaned_tokens))
-        word_freq = Counter(cleaned_tokens).most_common(15)
-        words, counts = zip(*word_freq) if word_freq else ([], [])
+    fig, ax = plt.subplots(figsize=(10,6))
+    ax.plot(df["Year"], df["Net_Wealth_Buy"], label="Buy (Home Equity - Mortgage Paid)", marker='o')
+    ax.plot(df["Year"], df["Net_Wealth_Rent"], label="Rent + Invest Savings", marker='o')
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Net Wealth (RM)")
+    ax.set_title("Net Wealth Comparison Over Time")
+    ax.legend()
+    st.pyplot(fig)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("☁️ WordCloud")
-            fig_wc, ax_wc = plt.subplots(figsize=(8,5))
-            ax_wc.imshow(wordcloud, interpolation="bilinear")
-            ax_wc.axis("off")
-            st.pyplot(fig_wc)
-        with col2:
-            st.subheader("📊 Top Words Frequency")
-            fig_bar, ax_bar = plt.subplots(figsize=(6,5))
-            if words:
-                ax_bar.barh(words[::-1], counts[::-1])
-                ax_bar.set_xlabel("Count")
-                ax_bar.set_ylabel("Word")
-            else:
-                ax_bar.text(0.5,0.5,"No words found",ha="center")
-            st.pyplot(fig_bar)
+# ----------------------------
+# Sensitivity Analysis Page
+# ----------------------------
+elif page == "⚖️ Sensitivity Analysis":
+    st.title("⚖️ Sensitivity Analysis: Break-even Analysis")
+
+    # Sliders for scenario ranges
+    st.sidebar.header("Sensitivity Ranges")
+    mortgage_range = st.sidebar.slider("Mortgage Rate (%)", 2.0, 8.0, (3.0, 6.0), 0.5)
+    rent_range = st.sidebar.slider("Rent Escalation (%)", 0.0, 10.0, (2.0, 5.0), 0.5)
+    invest_range = st.sidebar.slider("Investment Return (%)", 3.0, 12.0, (5.0, 9.0), 0.5)
+
+    years_array = np.arange(1, years+1)
+    # Create grid of scenarios
+    mortgage_vals = np.arange(mortgage_range[0], mortgage_range[1]+0.1, 0.5)
+    rent_vals = np.arange(rent_range[0], rent_range[1]+0.1, 0.5)
+    invest_vals = np.arange(invest_range[0], invest_range[1]+0.1, 0.5)
+
+    st.write("### 🧮 Sensitivity Analysis: Net Wealth Over Time for Different Scenarios")
+    fig, ax = plt.subplots(figsize=(10,6))
+
+    for m in mortgage_vals:
+        for r in rent_vals:
+            for i in invest_vals:
+                df_scenario = generate_financial_df(m, r, i)
+                ax.plot(df_scenario["Year"], df_scenario["Net_Wealth_Rent"], color='blue', alpha=0.1)
+                ax.plot(df_scenario["Year"], df_scenario["Net_Wealth_Buy"], color='red', alpha=0.1)
+
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Net Wealth (RM)")
+    ax.set_title("Sensitivity Analysis: Buy (red) vs Rent+Invest (blue)")
+    st.pyplot(fig)
+
+    st.info("💡 Interpretation: Lines show how net wealth changes with different mortgage rates, rent growth, and investment returns. Overlap indicates break-even points where renting+investing may surpass buying.")
