@@ -10,6 +10,8 @@ from wordcloud import WordCloud
 import nltk
 from nltk.corpus import stopwords
 import os
+import requests
+from bs4 import BeautifulSoup
 
 # ----------------------------
 # NLTK Setup
@@ -67,9 +69,9 @@ def generate_wordcloud(text, stop_words=None, width=800, height=400):
     return wc, word_freq
 
 # ----------------------------
-# PDF Export Function with Cleanup
+# PDF Export Function
 # ----------------------------
-def save_combined_pdf(df_numeric, wordcloud, word_freq, include_wealth=True, include_wordcloud=True, include_topwords=True):
+def save_combined_pdf(df_numeric, wordcloud=None, word_freq=None, include_wealth=True, include_wordcloud=True, include_topwords=True):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
@@ -94,7 +96,7 @@ def save_combined_pdf(df_numeric, wordcloud, word_freq, include_wealth=True, inc
         pdf.image(wealth_file, w=180)
         temp_files.append(wealth_file)
 
-    if include_wordcloud:
+    if include_wordcloud and wordcloud:
         pdf.add_page()
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, "WordCloud of Text Data", ln=True)
@@ -212,86 +214,113 @@ elif page == "⚖️ Sensitivity Analysis":
     st.dataframe(df_break_even)
 
 # ----------------------------
-# Page: WordCloud
+# Page: Unified WordCloud
 # ----------------------------
 elif page == "☁️ WordCloud":
-    st.title("☁️ WordCloud Analysis")
-    uploaded_file = st.file_uploader("Upload CSV with 'Content' column", type=["csv"])
-    if uploaded_file:
-        df_text = pd.read_csv(uploaded_file)
-        if "Content" not in df_text.columns:
-            st.error("CSV must have a 'Content' column")
-        else:
-            text_data = " ".join(df_text["Content"].dropna().astype(str))
-            stop_words = set(stopwords.words("english"))
-            wordcloud, word_freq = generate_wordcloud(text_data, stop_words=stop_words)
+    st.title("☁️ WordCloud Generator")
+    
+    source_option = st.radio("Select text source:", ["Text Input", "CSV Upload", "Web Scraping"])
+    text_data = ""
 
-            fig_wc, ax_wc = plt.subplots(figsize=(10,5))
-            ax_wc.imshow(wordcloud, interpolation="bilinear")
-            ax_wc.axis("off")
-            st.pyplot(fig_wc)
+    if source_option == "Text Input":
+        user_text = st.text_area("Paste your text here:", height=200)
+        if user_text.strip():
+            text_data = user_text
 
-            words, counts = zip(*word_freq) if word_freq else ([], [])
-            fig_bar, ax_bar = plt.subplots(figsize=(8,5))
-            if words:
-                ax_bar.barh(words[::-1], counts[::-1], color="teal")
+    elif source_option == "CSV Upload":
+        uploaded_file = st.file_uploader("Upload CSV with 'Content' column", type=["csv"])
+        if uploaded_file:
+            df_text = pd.read_csv(uploaded_file)
+            if "Content" in df_text.columns:
+                text_data = " ".join(df_text["Content"].dropna().astype(str))
             else:
-                ax_bar.text(0.5,0.5,"No words found",ha="center")
-            st.pyplot(fig_bar)
+                st.error("CSV must have a 'Content' column.")
+
+    elif source_option == "Web Scraping":
+        st.info("Fetching latest articles about Rent vs Buy...")
+        num_articles = st.slider("Number of articles to fetch", 1, 5, 3)
+        urls = [
+            "https://www.investopedia.com/articles/pf/08/rent-vs-buy.asp",
+            "https://www.forbes.com/advisor/mortgages/rent-vs-buy/",
+            "https://www.nerdwallet.com/article/mortgages/rent-vs-buy"
+        ][:num_articles]
+
+        all_text = ""
+        for url in urls:
+            try:
+                response = requests.get(url, timeout=5)
+                soup = BeautifulSoup(response.text, "html.parser")
+                paragraphs = [p.get_text() for p in soup.find_all("p")]
+                all_text += " ".join(paragraphs)
+            except Exception as e:
+                st.warning(f"Failed to fetch {url}: {e}")
+        text_data = all_text
+
+    if text_data.strip():
+        extra_stopwords = {"akan","dan","atau","yang","untuk","dengan","jika"}
+        stop_words = set(stopwords.words("english")) | extra_stopwords
+        wordcloud, word_freq = generate_wordcloud(text_data, stop_words=stop_words)
+
+        st.subheader("☁️ WordCloud")
+        fig_wc, ax_wc = plt.subplots(figsize=(10,5))
+        ax_wc.imshow(wordcloud, interpolation="bilinear")
+        ax_wc.axis("off")
+        st.pyplot(fig_wc)
+
+        words, counts = zip(*word_freq) if word_freq else ([], [])
+        st.subheader("📊 Top Words Frequency")
+        fig_bar, ax_bar = plt.subplots(figsize=(8,5))
+        if words:
+            ax_bar.barh(words[::-1], counts[::-1], color="teal")
+            ax_bar.set_xlabel("Count")
+            ax_bar.set_ylabel("Word")
+        else:
+            ax_bar.text(0.5,0.5,"No words found", ha="center")
+        st.pyplot(fig_bar)
+    else:
+        st.info("⚠️ No text available from the selected source.")
 
 # ----------------------------
-# Page: Combined Insights with Customizable PDF
+# Page: Combined Insights PDF
 # ----------------------------
 elif page == "🔗 Combined Insights":
     st.title("🔗 Combined Financial & Text Insights")
-    uploaded_text = st.file_uploader("Upload CSV with 'Content' column", type=["csv"], key="text_combined")
-    
-    if uploaded_text:
-        df_text = pd.read_csv(uploaded_text)
-        if "Content" not in df_text.columns:
-            st.error("CSV must have a 'Content' column")
-        else:
-            st.success("✅ Text Data Loaded")
-            text_data = " ".join(df_text["Content"].dropna().astype(str))
-            stop_words = set(stopwords.words("english"))
-            wordcloud, word_freq = generate_wordcloud(text_data, stop_words=stop_words)
 
-            # Display Wealth Curve
-            st.subheader("📈 Buy vs Rent + Invest Wealth Over Time")
-            fig, ax = plt.subplots(figsize=(10,6))
-            ax.plot(df_numeric["Year"], df_numeric["Net_Wealth_Buy"], label="Buy", marker='o')
-            ax.plot(df_numeric["Year"], df_numeric["Net_Wealth_Rent"], label="Rent + Invest", marker='o')
-            ax.set_xlabel("Year")
-            ax.set_ylabel("Net Wealth (RM)")
-            ax.set_title("Net Wealth Comparison")
-            ax.legend()
-            st.pyplot(fig)
+    include_wealth = st.checkbox("Include Wealth Curve", value=True)
+    include_wordcloud = st.checkbox("Include WordCloud", value=True)
+    include_topwords = st.checkbox("Include Top Words Bar Chart", value=True)
 
-            # Display WordCloud
-            st.subheader("☁️ WordCloud of Text Data")
-            fig_wc, ax_wc = plt.subplots(figsize=(10,5))
-            ax_wc.imshow(wordcloud, interpolation="bilinear")
-            ax_wc.axis("off")
-            st.pyplot(fig_wc)
+    # If WordCloud not generated yet, fetch articles automatically
+    if 'wordcloud' not in locals() or 'word_freq' not in locals():
+        st.info("Fetching latest articles for WordCloud...")
+        urls = [
+            "https://www.investopedia.com/articles/pf/08/rent-vs-buy.asp",
+            "https://www.forbes.com/advisor/mortgages/rent-vs-buy/",
+            "https://www.nerdwallet.com/article/mortgages/rent-vs-buy"
+        ]
+        all_text = ""
+        for url in urls:
+            try:
+                response = requests.get(url, timeout=5)
+                soup = BeautifulSoup(response.text, "html.parser")
+                paragraphs = [p.get_text() for p in soup.find_all("p")]
+                all_text += " ".join(paragraphs)
+            except Exception as e:
+                st.warning(f"Failed to fetch {url}: {e}")
 
-            # Display Top Words Bar Chart
-            words, counts = zip(*word_freq) if word_freq else ([], [])
-            fig_bar, ax_bar = plt.subplots(figsize=(8,5))
-            if words:
-                ax_bar.barh(words[::-1], counts[::-1], color="teal")
-                ax_bar.set_xlabel("Count")
-                ax_bar.set_ylabel("Word")
-            else:
-                ax_bar.text(0.5,0.5,"No words found",ha="center")
-            st.pyplot(fig_bar)
+        if all_text.strip():
+            extra_stopwords = {"akan","dan","atau","yang","untuk","dengan","jika"}
+            stop_words = set(stopwords.words("english")) | extra_stopwords
+            wordcloud, word_freq = generate_wordcloud(all_text, stop_words=stop_words)
 
-            # ✅ Customizable PDF Options
-            st.subheader("📝 Select Charts to Include in PDF")
-            include_wealth = st.checkbox("Include Wealth Curve", value=True)
-            include_wordcloud = st.checkbox("Include WordCloud", value=True)
-            include_topwords = st.checkbox("Include Top Words Bar Chart", value=True)
-
-            if st.button("⬇️ Download Customized PDF"):
-                pdf_file = save_combined_pdf(df_numeric, wordcloud, word_freq, include_wealth, include_wordcloud, include_topwords)
-                with open(pdf_file, "rb") as f:
-                    st.download_button("Download PDF", f, file_name=pdf_file, mime="application/pdf")
+    if st.button("⬇️ Download Combined PDF"):
+        pdf_file = save_combined_pdf(
+            df_numeric, 
+            wordcloud if include_wordcloud and 'wordcloud' in locals() else None, 
+            word_freq if include_topwords and 'word_freq' in locals() else None,
+            include_wealth, 
+            include_wordcloud, 
+            include_topwords
+        )
+        with open(pdf_file, "rb") as f:
+            st.download_button("Download PDF", f, file_name=pdf_file, mime="application/pdf")
