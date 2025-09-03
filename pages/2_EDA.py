@@ -12,6 +12,15 @@ from nltk.corpus import stopwords
 import os
 
 # ----------------------------
+# NLTK Setup
+# ----------------------------
+try:
+    stopwords.words("english")
+except LookupError:
+    nltk.download('punkt')
+    nltk.download('stopwords')
+
+# ----------------------------
 # Streamlit App Config
 # ----------------------------
 st.set_page_config(page_title="Buy vs Rent Dashboard", layout="wide")
@@ -25,18 +34,9 @@ page = st.sidebar.radio("Go to:", [
 ])
 
 # ----------------------------
-# Base Financial Inputs
-# ----------------------------
-st.sidebar.header("💰 Financial Inputs")
-mortgage_term = st.sidebar.number_input("Mortgage Term (years)", value=30, step=1)
-property_price = st.sidebar.number_input("Property Price (RM)", value=500000, step=1000)
-monthly_rent = st.sidebar.number_input("Monthly Rent (RM)", value=1500, step=100)
-years = st.sidebar.number_input("Analysis Period (Years)", value=30, step=1)
-
-# ----------------------------
 # Financial Dataset Function
 # ----------------------------
-def generate_financial_df(mortgage_rate, rent_escalation, investment_return):
+def generate_financial_df(mortgage_rate, rent_escalation, investment_return, years=30, mortgage_term=30, property_price=500000, monthly_rent=1500):
     df = pd.DataFrame({"Year": np.arange(1, years + 1)})
     r = mortgage_rate / 100 / 12
     n = mortgage_term * 12
@@ -53,23 +53,73 @@ def generate_financial_df(mortgage_rate, rent_escalation, investment_return):
     return df
 
 # ----------------------------
-# EDA Overview Page
+# PDF Export Function for Combined Insights
+# ----------------------------
+def save_combined_pdf(df_numeric, wordcloud, word_freq):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, "Combined Insights Report", ln=True, align="C")
+
+    # Wealth Curve
+    pdf.set_font("Arial", "B", 14)
+    pdf.ln(10)
+    pdf.cell(0, 10, "Buy vs Rent + Invest Wealth", ln=True)
+    fig, ax = plt.subplots(figsize=(10,6))
+    ax.plot(df_numeric["Year"], df_numeric["Net_Wealth_Buy"], label="Buy", marker='o')
+    ax.plot(df_numeric["Year"], df_numeric["Net_Wealth_Rent"], label="Rent + Invest", marker='o')
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Net Wealth (RM)")
+    ax.set_title("Net Wealth Over Time")
+    ax.legend()
+    wealth_file = "wealth_curve.png"
+    plt.savefig(wealth_file)
+    plt.close(fig)
+    pdf.image(wealth_file, w=180)
+
+    # WordCloud
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "WordCloud of Text Data", ln=True)
+    wordcloud_file = "wordcloud.png"
+    wordcloud.to_file(wordcloud_file)
+    pdf.image(wordcloud_file, w=180)
+
+    # Top Words Bar Chart
+    pdf.ln(10)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Top Words Frequency", ln=True)
+    if word_freq:
+        words, counts = zip(*word_freq)
+        fig_bar, ax_bar = plt.subplots(figsize=(8,5))
+        ax_bar.barh(words[::-1], counts[::-1], color="teal")
+        ax_bar.set_xlabel("Count")
+        ax_bar.set_ylabel("Word")
+        bar_file = "top_words.png"
+        plt.savefig(bar_file)
+        plt.close(fig_bar)
+        pdf.image(bar_file, w=180)
+
+    pdf_file = "Combined_Insights_Report.pdf"
+    pdf.output(pdf_file)
+    return pdf_file
+
+# ----------------------------
+# Page 1: EDA Overview
 # ----------------------------
 if page == "📊 EDA Overview":
     st.title("🔎 Dataset Preview & Stats")
+    st.sidebar.header("💰 Financial Inputs")
     mortgage_rate = st.sidebar.number_input("Mortgage Rate (%)", value=4.0, step=0.1)
     rent_escalation = st.sidebar.number_input("Annual Rent Growth (%)", value=3.0, step=0.1)
-    investment_return = st.sidebar.number_input("Annual Investment Return (%)", value=7.0, step=0.1)
-
-    df = generate_financial_df(mortgage_rate, rent_escalation, investment_return)
+    investment_return = st.sidebar.number_input("Investment Return (%)", value=7.0, step=0.1)
+    years = st.sidebar.number_input("Analysis Period (Years)", value=30, step=1)
+    df = generate_financial_df(mortgage_rate, rent_escalation, investment_return, years=years)
     st.dataframe(df)
-
     st.subheader("📊 Numeric Descriptive Statistics")
     st.write(df.describe())
-
     st.subheader("❗ Missing Values")
     st.write(df.isna().sum())
-
     st.subheader("📈 Correlation Heatmap")
     fig, ax = plt.subplots(figsize=(8,6))
     cax = ax.matshow(df.corr(), cmap="coolwarm")
@@ -79,19 +129,18 @@ if page == "📊 EDA Overview":
     st.pyplot(fig)
 
 # ----------------------------
-# Wealth Comparison Page
+# Page 2: Wealth Comparison
 # ----------------------------
 elif page == "📈 Wealth Comparison":
     st.title("📊 Buy vs Rent + Invest Wealth Over Time")
     mortgage_rate = st.sidebar.number_input("Mortgage Rate (%)", value=4.0, step=0.1)
     rent_escalation = st.sidebar.number_input("Annual Rent Growth (%)", value=3.0, step=0.1)
-    investment_return = st.sidebar.number_input("Annual Investment Return (%)", value=7.0, step=0.1)
-
-    df = generate_financial_df(mortgage_rate, rent_escalation, investment_return)
-
+    investment_return = st.sidebar.number_input("Investment Return (%)", value=7.0, step=0.1)
+    years = st.sidebar.number_input("Analysis Period (Years)", value=30, step=1)
+    df = generate_financial_df(mortgage_rate, rent_escalation, investment_return, years=years)
     fig, ax = plt.subplots(figsize=(10,6))
-    ax.plot(df["Year"], df["Net_Wealth_Buy"], label="Buy (Home Equity - Mortgage Paid)", marker='o')
-    ax.plot(df["Year"], df["Net_Wealth_Rent"], label="Rent + Invest Savings", marker='o')
+    ax.plot(df["Year"], df["Net_Wealth_Buy"], label="Buy", marker='o')
+    ax.plot(df["Year"], df["Net_Wealth_Rent"], label="Rent + Invest", marker='o')
     ax.set_xlabel("Year")
     ax.set_ylabel("Net Wealth (RM)")
     ax.set_title("Net Wealth Comparison Over Time")
@@ -99,7 +148,7 @@ elif page == "📈 Wealth Comparison":
     st.pyplot(fig)
 
 # ----------------------------
-# Sensitivity Analysis Page
+# Page 3: Sensitivity Analysis
 # ----------------------------
 elif page == "⚖️ Sensitivity Analysis":
     st.title("⚖️ Sensitivity Analysis: Break-even Analysis")
@@ -107,18 +156,17 @@ elif page == "⚖️ Sensitivity Analysis":
     mortgage_range = st.sidebar.slider("Mortgage Rate (%)", 2.0, 8.0, (3.0, 6.0), 0.5)
     rent_range = st.sidebar.slider("Rent Escalation (%)", 0.0, 10.0, (2.0, 5.0), 0.5)
     invest_range = st.sidebar.slider("Investment Return (%)", 3.0, 12.0, (5.0, 9.0), 0.5)
+    years = st.sidebar.number_input("Analysis Period (Years)", value=30, step=1)
 
     mortgage_vals = np.arange(mortgage_range[0], mortgage_range[1]+0.1, 0.5)
     rent_vals = np.arange(rent_range[0], rent_range[1]+0.1, 0.5)
     invest_vals = np.arange(invest_range[0], invest_range[1]+0.1, 0.5)
-
     fig, ax = plt.subplots(figsize=(10,6))
     break_even_records = []
-
     for m in mortgage_vals:
         for r in rent_vals:
             for i in invest_vals:
-                df_scenario = generate_financial_df(m, r, i)
+                df_scenario = generate_financial_df(m, r, i, years=years)
                 ax.plot(df_scenario["Year"], df_scenario["Net_Wealth_Rent"], color='blue', alpha=0.05)
                 ax.plot(df_scenario["Year"], df_scenario["Net_Wealth_Buy"], color='red', alpha=0.05)
                 diff = df_scenario["Net_Wealth_Rent"] - df_scenario["Net_Wealth_Buy"]
@@ -129,16 +177,13 @@ elif page == "⚖️ Sensitivity Analysis":
                     "Investment Return (%)": i,
                     "Break-even Year": breakeven_year
                 })
-
     ax.set_xlabel("Year")
     ax.set_ylabel("Net Wealth (RM)")
     ax.set_title("Sensitivity Analysis: Buy (red) vs Rent+Invest (blue)")
     st.pyplot(fig)
-
     df_break_even = pd.DataFrame(break_even_records)
     fastest_break_even = df_break_even["Break-even Year"].min()
     no_break_even_count = df_break_even["Break-even Year"].isna().sum()
-
     st.subheader("📋 Break-even Year Summary")
     st.write(f"✅ Fastest Break-even Year: {int(fastest_break_even)}")
     st.write(f"⚠️ Number of scenarios with NO break-even: {no_break_even_count}")
@@ -146,27 +191,14 @@ elif page == "⚖️ Sensitivity Analysis":
         lambda x: ['background-color: lightgreen' if x['Break-even Year']==fastest_break_even else '' for _ in x],
         axis=1
     ))
-
     csv = df_break_even.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="⬇️ Download Break-even Table",
-        data=csv,
-        file_name="Break_even_Scenarios.csv",
-        mime="text/csv"
-    )
+    st.download_button("⬇️ Download Break-even Table", data=csv, file_name="Break_even_Scenarios.csv", mime="text/csv")
 
 # ----------------------------
-# WordCloud Page
+# Page 4: WordCloud
 # ----------------------------
 elif page == "☁️ WordCloud":
     st.title("📝 Text Analysis & WordCloud")
-    
-    try:
-        stopwords.words("english")
-    except LookupError:
-        nltk.download('punkt')
-        nltk.download('stopwords')
-
     uploaded_file = st.file_uploader("Upload CSV with 'Content' column", type=["csv"], key="wc")
     if uploaded_file:
         df_text = pd.read_csv(uploaded_file)
@@ -175,7 +207,6 @@ elif page == "☁️ WordCloud":
     else:
         st.error("❌ No dataset found.")
         st.stop()
-
     if "Content" not in df_text.columns:
         st.error("CSV must have a 'Content' column")
     else:
@@ -183,15 +214,11 @@ elif page == "☁️ WordCloud":
         tokens = re.findall(r"\b[a-zA-Z]+\b", text_data.lower())
         stop_words = set(stopwords.words("english"))
         cleaned_tokens = [w for w in tokens if w not in stop_words]
-
-        # WordCloud
         wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(cleaned_tokens))
         fig_wc, ax_wc = plt.subplots(figsize=(10,5))
         ax_wc.imshow(wordcloud, interpolation="bilinear")
         ax_wc.axis("off")
         st.pyplot(fig_wc)
-
-        # Top words frequency
         word_freq = Counter(cleaned_tokens).most_common(20)
         words, counts = zip(*word_freq) if word_freq else ([], [])
         fig_bar, ax_bar = plt.subplots(figsize=(8,5))
@@ -204,19 +231,10 @@ elif page == "☁️ WordCloud":
         st.pyplot(fig_bar)
 
 # ----------------------------
-# Combined Insights Page
+# Page 5: Combined Insights with PDF
 # ----------------------------
 elif page == "🔗 Combined Insights":
-    st.title("🔗 Combined Text & Financial Insights")
-
-    # Upload numeric dataset (optional)
-    uploaded_numeric = st.file_uploader("Upload Buy vs Rent scenario CSV (optional)", type=["csv"], key="numeric")
-    if uploaded_numeric:
-        df_numeric = pd.read_csv(uploaded_numeric)
-        st.write("✅ Numeric Data Preview")
-        st.dataframe(df_numeric.head())
-
-    # Upload text dataset
+    st.title("🔗 Interactive Combined Text & Financial Insights")
     uploaded_text = st.file_uploader("Upload CSV with 'Content' column", type=["csv"], key="text_combined")
     if uploaded_text:
         df_text = pd.read_csv(uploaded_text)
@@ -224,20 +242,37 @@ elif page == "🔗 Combined Insights":
             st.error("CSV must have a 'Content' column")
         else:
             st.success("✅ Text Data Loaded")
+            has_year = "Year" in df_text.columns
+            # Financial sliders
+            st.sidebar.header("💰 Financial Inputs")
+            mortgage_rate = st.sidebar.slider("Mortgage Rate (%)", 1.0, 10.0, 4.0, 0.1)
+            rent_escalation = st.sidebar.slider("Annual Rent Growth (%)", 0.0, 10.0, 3.0, 0.1)
+            investment_return = st.sidebar.slider("Investment Return (%)", 1.0, 15.0, 7.0, 0.1)
+            years = st.sidebar.number_input("Analysis Period (Years)", value=30, step=1)
+            df_numeric = generate_financial_df(mortgage_rate, rent_escalation, investment_return, years=years)
+
+            # Wealth curves
+            st.subheader("📈 Buy vs Rent + Invest Wealth Over Time")
+            fig, ax = plt.subplots(figsize=(10,6))
+            ax.plot(df_numeric["Year"], df_numeric["Net_Wealth_Buy"], label="Buy", marker='o')
+            ax.plot(df_numeric["Year"], df_numeric["Net_Wealth_Rent"], label="Rent + Invest", marker='o')
+            ax.set_xlabel("Year")
+            ax.set_ylabel("Net Wealth (RM)")
+            ax.set_title("Net Wealth Comparison Over Time")
+            ax.legend()
+            st.pyplot(fig)
+
+            # WordCloud
+            st.subheader("☁️ WordCloud of Text Data")
             text_data = " ".join(df_text["Content"].dropna().astype(str))
             tokens = re.findall(r"\b[a-zA-Z]+\b", text_data.lower())
             stop_words = set(stopwords.words("english"))
             cleaned_tokens = [w for w in tokens if w not in stop_words]
-
-            # WordCloud
-            st.subheader("☁️ WordCloud of Text Data")
             wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(cleaned_tokens))
             fig_wc, ax_wc = plt.subplots(figsize=(10,5))
             ax_wc.imshow(wordcloud, interpolation="bilinear")
             ax_wc.axis("off")
             st.pyplot(fig_wc)
-
-            # Top words frequency
             word_freq = Counter(cleaned_tokens).most_common(20)
             words, counts = zip(*word_freq) if word_freq else ([], [])
             fig_bar, ax_bar = plt.subplots(figsize=(8,5))
@@ -249,9 +284,9 @@ elif page == "🔗 Combined Insights":
                 ax_bar.text(0.5,0.5,"No words found",ha="center")
             st.pyplot(fig_bar)
 
-            # Optional: Year-wise numeric-text link
-            if uploaded_numeric and "Year" in df_numeric.columns and "Year" in df_text.columns:
-                st.subheader("📈 Year-wise Numeric vs Text Analysis")
+            # Year-wise trend
+            if has_year:
+                st.subheader("📊 Year-wise Keyword Trend")
                 df_text_grouped = df_text.groupby("Year")["Content"].apply(lambda x: " ".join(x))
                 top_words = [w for w, _ in word_freq[:5]]
                 word_trend = {}
@@ -261,4 +296,11 @@ elif page == "🔗 Combined Insights":
                     counts_year = Counter(cleaned_year)
                     word_trend[year] = [counts_year.get(w,0) for w in top_words]
                 df_word_trend = pd.DataFrame(word_trend, index=top_words).T
-                st.line_chart(df_word_trend)
+                df_combined = df_numeric.set_index("Year").join(df_word_trend, how="left").fillna(0)
+                st.line_chart(df_combined)
+
+            # PDF Export Button
+            if st.button("⬇️ Download Combined Insights PDF"):
+                pdf_file = save_combined_pdf(df_numeric, wordcloud, word_freq)
+                with open(pdf_file, "rb") as f:
+                    st.download_button("Download PDF", f, file_name=pdf_file, mime="application/pdf")
