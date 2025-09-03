@@ -55,13 +55,15 @@ def generate_financial_df(mortgage_rate, rent_escalation, investment_return, yea
 # ----------------------------
 # PDF Export Function for Combined Insights
 # ----------------------------
+import os
+
 def save_combined_pdf(df_numeric, wordcloud, word_freq):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
     pdf.cell(0, 10, "Combined Insights Report", ln=True, align="C")
 
-    # Wealth Curve
+    # --- Wealth Curve ---
     pdf.set_font("Arial", "B", 14)
     pdf.ln(10)
     pdf.cell(0, 10, "Buy vs Rent + Invest Wealth", ln=True)
@@ -77,7 +79,7 @@ def save_combined_pdf(df_numeric, wordcloud, word_freq):
     plt.close(fig)
     pdf.image(wealth_file, w=180)
 
-    # WordCloud
+    # --- WordCloud ---
     pdf.add_page()
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, "WordCloud of Text Data", ln=True)
@@ -85,7 +87,7 @@ def save_combined_pdf(df_numeric, wordcloud, word_freq):
     wordcloud.to_file(wordcloud_file)
     pdf.image(wordcloud_file, w=180)
 
-    # Top Words Bar Chart
+    # --- Top Words Bar Chart ---
     pdf.ln(10)
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, "Top Words Frequency", ln=True)
@@ -100,8 +102,15 @@ def save_combined_pdf(df_numeric, wordcloud, word_freq):
         plt.close(fig_bar)
         pdf.image(bar_file, w=180)
 
+    # --- Save PDF ---
     pdf_file = "Combined_Insights_Report.pdf"
     pdf.output(pdf_file)
+
+    # --- Cleanup temporary images ---
+    for file in [wealth_file, wordcloud_file, "top_words.png"]:
+        if os.path.exists(file):
+            os.remove(file)
+
     return pdf_file
 
 # ----------------------------
