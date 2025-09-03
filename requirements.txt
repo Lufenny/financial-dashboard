@@ -10,3 +10,4 @@ plotly
 fpdf
 beautifulsoup4
 requests
+reportlab
