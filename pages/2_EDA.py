@@ -112,16 +112,45 @@ elif page == "⚖️ Sensitivity Analysis":
     st.write("### 🧮 Sensitivity Analysis: Net Wealth Over Time for Different Scenarios")
     fig, ax = plt.subplots(figsize=(10,6))
 
+    # Store break-even results
+    break_even_records = []
+
     for m in mortgage_vals:
         for r in rent_vals:
             for i in invest_vals:
                 df_scenario = generate_financial_df(m, r, i)
-                ax.plot(df_scenario["Year"], df_scenario["Net_Wealth_Rent"], color='blue', alpha=0.1)
-                ax.plot(df_scenario["Year"], df_scenario["Net_Wealth_Buy"], color='red', alpha=0.1)
+                ax.plot(df_scenario["Year"], df_scenario["Net_Wealth_Rent"], color='blue', alpha=0.05)
+                ax.plot(df_scenario["Year"], df_scenario["Net_Wealth_Buy"], color='red', alpha=0.05)
+                
+                # Find break-even year (first year Rent+Invest > Buy)
+                diff = df_scenario["Net_Wealth_Rent"] - df_scenario["Net_Wealth_Buy"]
+                breakeven_year = df_scenario["Year"][diff > 0].min() if any(diff > 0) else np.nan
+                break_even_records.append({
+                    "Mortgage Rate (%)": m,
+                    "Rent Escalation (%)": r,
+                    "Investment Return (%)": i,
+                    "Break-even Year": breakeven_year
+                })
 
     ax.set_xlabel("Year")
     ax.set_ylabel("Net Wealth (RM)")
     ax.set_title("Sensitivity Analysis: Buy (red) vs Rent+Invest (blue)")
     st.pyplot(fig)
+
+    st.info("💡 Interpretation: Red lines = Buy, Blue lines = Rent+Invest. Transparency shows range of outcomes. Break-even occurs when blue surpasses red.")
+
+    # Display Break-even Summary Table
+    st.subheader("📋 Break-even Year Summary")
+    df_break_even = pd.DataFrame(break_even_records)
+    st.dataframe(df_break_even)
+
+    # Optional: Export break-even table as CSV
+    csv = df_break_even.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="⬇️ Download Break-even Table",
+        data=csv,
+        file_name="Break_even_Scenarios.csv",
+        mime="text/csv"
+    )
 
     st.info("💡 Interpretation: Lines show how net wealth changes with different mortgage rates, rent growth, and investment returns. Overlap indicates break-even points where renting+investing may surpass buying.")
