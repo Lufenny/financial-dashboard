@@ -14,9 +14,15 @@ import os
 # ----------------------------
 # Streamlit App Config
 # ----------------------------
-st.set_page_config(page_title="Buy vs Rent EDA Dashboard", layout="wide")
+st.set_page_config(page_title="Buy vs Rent Dashboard", layout="wide")
 st.sidebar.title("🏡 Navigation")
-page = st.sidebar.radio("Go to:", ["📊 EDA Overview", "📈 Wealth Comparison", "⚖️ Sensitivity Analysis", "☁️ WordCloud"])
+page = st.sidebar.radio("Go to:", [
+    "📊 EDA Overview", 
+    "📈 Wealth Comparison", 
+    "⚖️ Sensitivity Analysis", 
+    "☁️ WordCloud",
+    "🔗 Combined Insights"
+])
 
 # ----------------------------
 # Base Financial Inputs
@@ -28,7 +34,7 @@ monthly_rent = st.sidebar.number_input("Monthly Rent (RM)", value=1500, step=100
 years = st.sidebar.number_input("Analysis Period (Years)", value=30, step=1)
 
 # ----------------------------
-# Generate Dataset Function
+# Financial Dataset Function
 # ----------------------------
 def generate_financial_df(mortgage_rate, rent_escalation, investment_return):
     df = pd.DataFrame({"Year": np.arange(1, years + 1)})
@@ -161,8 +167,8 @@ elif page == "☁️ WordCloud":
         nltk.download('punkt')
         nltk.download('stopwords')
 
-    uploaded_file = st.file_uploader("Upload your CSV with 'Content' column", type=["csv"], key="wc")
-    if uploaded_file is not None:
+    uploaded_file = st.file_uploader("Upload CSV with 'Content' column", type=["csv"], key="wc")
+    if uploaded_file:
         df_text = pd.read_csv(uploaded_file)
     elif os.path.exists("Content.csv"):
         df_text = pd.read_csv("Content.csv")
@@ -178,24 +184,81 @@ elif page == "☁️ WordCloud":
         stop_words = set(stopwords.words("english"))
         cleaned_tokens = [w for w in tokens if w not in stop_words]
 
+        # WordCloud
         wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(cleaned_tokens))
-        word_freq = Counter(cleaned_tokens).most_common(15)
-        words, counts = zip(*word_freq) if word_freq else ([], [])
+        fig_wc, ax_wc = plt.subplots(figsize=(10,5))
+        ax_wc.imshow(wordcloud, interpolation="bilinear")
+        ax_wc.axis("off")
+        st.pyplot(fig_wc)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("☁️ WordCloud")
-            fig_wc, ax_wc = plt.subplots(figsize=(8,5))
+        # Top words frequency
+        word_freq = Counter(cleaned_tokens).most_common(20)
+        words, counts = zip(*word_freq) if word_freq else ([], [])
+        fig_bar, ax_bar = plt.subplots(figsize=(8,5))
+        if words:
+            ax_bar.barh(words[::-1], counts[::-1], color="teal")
+            ax_bar.set_xlabel("Count")
+            ax_bar.set_ylabel("Word")
+        else:
+            ax_bar.text(0.5,0.5,"No words found",ha="center")
+        st.pyplot(fig_bar)
+
+# ----------------------------
+# Combined Insights Page
+# ----------------------------
+elif page == "🔗 Combined Insights":
+    st.title("🔗 Combined Text & Financial Insights")
+
+    # Upload numeric dataset (optional)
+    uploaded_numeric = st.file_uploader("Upload Buy vs Rent scenario CSV (optional)", type=["csv"], key="numeric")
+    if uploaded_numeric:
+        df_numeric = pd.read_csv(uploaded_numeric)
+        st.write("✅ Numeric Data Preview")
+        st.dataframe(df_numeric.head())
+
+    # Upload text dataset
+    uploaded_text = st.file_uploader("Upload CSV with 'Content' column", type=["csv"], key="text_combined")
+    if uploaded_text:
+        df_text = pd.read_csv(uploaded_text)
+        if "Content" not in df_text.columns:
+            st.error("CSV must have a 'Content' column")
+        else:
+            st.success("✅ Text Data Loaded")
+            text_data = " ".join(df_text["Content"].dropna().astype(str))
+            tokens = re.findall(r"\b[a-zA-Z]+\b", text_data.lower())
+            stop_words = set(stopwords.words("english"))
+            cleaned_tokens = [w for w in tokens if w not in stop_words]
+
+            # WordCloud
+            st.subheader("☁️ WordCloud of Text Data")
+            wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(cleaned_tokens))
+            fig_wc, ax_wc = plt.subplots(figsize=(10,5))
             ax_wc.imshow(wordcloud, interpolation="bilinear")
             ax_wc.axis("off")
             st.pyplot(fig_wc)
-        with col2:
-            st.subheader("📊 Top Words Frequency")
-            fig_bar, ax_bar = plt.subplots(figsize=(6,5))
+
+            # Top words frequency
+            word_freq = Counter(cleaned_tokens).most_common(20)
+            words, counts = zip(*word_freq) if word_freq else ([], [])
+            fig_bar, ax_bar = plt.subplots(figsize=(8,5))
             if words:
-                ax_bar.barh(words[::-1], counts[::-1])
+                ax_bar.barh(words[::-1], counts[::-1], color="teal")
                 ax_bar.set_xlabel("Count")
                 ax_bar.set_ylabel("Word")
             else:
                 ax_bar.text(0.5,0.5,"No words found",ha="center")
             st.pyplot(fig_bar)
+
+            # Optional: Year-wise numeric-text link
+            if uploaded_numeric and "Year" in df_numeric.columns and "Year" in df_text.columns:
+                st.subheader("📈 Year-wise Numeric vs Text Analysis")
+                df_text_grouped = df_text.groupby("Year")["Content"].apply(lambda x: " ".join(x))
+                top_words = [w for w, _ in word_freq[:5]]
+                word_trend = {}
+                for year, text in df_text_grouped.items():
+                    tokens_year = re.findall(r"\b[a-zA-Z]+\b", text.lower())
+                    cleaned_year = [w for w in tokens_year if w not in stop_words]
+                    counts_year = Counter(cleaned_year)
+                    word_trend[year] = [counts_year.get(w,0) for w in top_words]
+                df_word_trend = pd.DataFrame(word_trend, index=top_words).T
+                st.line_chart(df_word_trend)
