@@ -30,9 +30,9 @@ except LookupError:
 st.set_page_config(page_title="Buy vs Rent Dashboard", layout="wide")
 st.sidebar.title("🏡 Navigation")
 page = st.sidebar.radio("Go to:", [
-    "📊 EDA Overview", 
-    "📈 Wealth Comparison", 
-    "⚖️ Sensitivity Analysis", 
+    "📊 EDA Overview",
+    "📈 Wealth Comparison",
+    "⚖️ Sensitivity Analysis",
     "☁️ WordCloud",
     "🔗 Combined Insights"
 ])
@@ -41,7 +41,8 @@ page = st.sidebar.radio("Go to:", [
 # Financial Data Function
 # ----------------------------
 @st.cache_data
-def generate_financial_df(mortgage_rate, rent_escalation, investment_return, years=30, mortgage_term=30, property_price=500000, monthly_rent=1500):
+def generate_financial_df(mortgage_rate, rent_escalation, investment_return,
+                          years=30, mortgage_term=30, property_price=500000, monthly_rent=1500):
     df = pd.DataFrame({"Year": np.arange(1, years + 1)})
     r = mortgage_rate / 100 / 12
     n = mortgage_term * 12
@@ -50,33 +51,60 @@ def generate_financial_df(mortgage_rate, rent_escalation, investment_return, yea
     df["Cumulative_Mortgage_Paid"] = df["Monthly_Mortgage"].cumsum() * 12 / 12
     df["Home_Equity"] = property_price * (df["Year"] / mortgage_term).clip(upper=1)
     df["Annual_Rent"] = monthly_rent * 12 * (1 + rent_escalation/100)**(df["Year"]-1)
-    df["Rent_Saved"] = df["Monthly_Mortgage"]*12 - df["Annual_Rent"]
-    df["Rent_Saved"] = df["Rent_Saved"].clip(lower=0)
+    df["Rent_Saved"] = (df["Monthly_Mortgage"]*12 - df["Annual_Rent"]).clip(lower=0)
     df["Investment_Value"] = df["Rent_Saved"].cumsum() * ((1 + investment_return/100) ** (df["Year"]-1))
     df["Net_Wealth_Buy"] = df["Home_Equity"] - df["Cumulative_Mortgage_Paid"]
     df["Net_Wealth_Rent"] = df["Investment_Value"]
     return df
 
 # ----------------------------
-# WordCloud Helper
+# WordCloud Function
 # ----------------------------
-def get_wordcloud_image(text, extra_stopwords=None, width=800, height=400):
-    stop_words = set(stopwords.words("english"))
-    if extra_stopwords:
-        stop_words |= extra_stopwords
+@st.cache_data
+def generate_wordcloud(text, stop_words=None, width=800, height=400):
+    if stop_words is None:
+        stop_words = set(stopwords.words("english"))
     tokens = re.findall(r"\b[a-zA-Z]+\b", text.lower())
     cleaned_tokens = [w for w in tokens if w not in stop_words]
     wc = WordCloud(width=width, height=height, background_color="white").generate(" ".join(cleaned_tokens))
     word_freq = Counter(cleaned_tokens).most_common(20)
-    # Save image to temp file
-    wc_file = "wordcloud_temp.png"
-    wc.to_file(wc_file)
-    return wc_file, word_freq
+    return wc, word_freq
+
+# ----------------------------
+# Fetch Malaysia Blogs
+# ----------------------------
+@st.cache_data(show_spinner=True)
+def fetch_malaysia_articles(max_articles=3):
+    urls = [
+        "https://www.greateasternlife.com/my/en/personal-insurance/greatpedia/live-great-reads/wellbeing-and-success/should-you-buy-or-rent-a-property-in-malaysia.html",
+        "https://www.kwsp.gov.my/en/w/article/buy-vs-rent-malaysia",
+        "https://www.iproperty.com.my/guides/should-buy-or-rent-property-malaysia-30437"
+    ][:max_articles]
+
+    all_text = ""
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
+    for url in urls:
+        try:
+            resp = requests.get(url, headers=headers, timeout=5)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            paragraphs = [p.get_text() for p in soup.find_all("p")]
+            all_text += " ".join(paragraphs)
+        except Exception as e:
+            print(f"Error fetching {url}: {e}")
+
+    all_text = re.sub(r'\s+', ' ', all_text)
+    if not all_text.strip():
+        all_text = "No text could be fetched from Malaysia blogs. Check your internet connection."
+    return all_text, urls
 
 # ----------------------------
 # PDF Export Function
 # ----------------------------
-def save_combined_pdf(df_numeric, wordcloud_file=None, word_freq=None, include_wealth=True, include_wordcloud=True, include_topwords=True):
+def save_combined_pdf(df_numeric, wordcloud=None, word_freq=None,
+                      include_wealth=True, include_wordcloud=True, include_topwords=True,
+                      include_sensitivity=True, mortgage_range=(3,6), rent_range=(2,5),
+                      invest_range=(5,9), steps=3, years=30, blog_sources=None):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
@@ -84,6 +112,7 @@ def save_combined_pdf(df_numeric, wordcloud_file=None, word_freq=None, include_w
 
     temp_files = []
 
+    # Wealth Curve
     if include_wealth:
         pdf.set_font("Arial", "B", 14)
         pdf.ln(10)
@@ -101,13 +130,44 @@ def save_combined_pdf(df_numeric, wordcloud_file=None, word_freq=None, include_w
         pdf.image(wealth_file, w=180)
         temp_files.append(wealth_file)
 
-    if include_wordcloud and wordcloud_file:
+    # Sensitivity Analysis
+    if include_sensitivity:
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Sensitivity Analysis: Buy vs Rent+Invest", ln=True)
+        mortgage_rates = np.linspace(mortgage_range[0], mortgage_range[1], steps)
+        rent_rates = np.linspace(rent_range[0], rent_range[1], steps)
+        invest_returns = np.linspace(invest_range[0], invest_range[1], steps)
+        fig, ax = plt.subplots(figsize=(10,6))
+        for m in mortgage_rates:
+            for r in rent_rates:
+                for i in invest_returns:
+                    df_scenario = generate_financial_df(m, r, i, years=years)
+                    ax.plot(df_scenario["Year"], df_scenario["Net_Wealth_Rent"], color='skyblue', alpha=0.3)
+                    ax.plot(df_scenario["Year"], df_scenario["Net_Wealth_Buy"], color='salmon', alpha=0.3)
+        ax.set_xlabel("Year")
+        ax.set_ylabel("Net Wealth (RM)")
+        ax.set_title("Sensitivity Analysis Across Scenarios")
+        ax.plot([], [], color='salmon', label='Buy')
+        ax.plot([], [], color='skyblue', label='Rent+Invest')
+        ax.legend()
+        sa_file = "sensitivity_analysis.png"
+        plt.savefig(sa_file)
+        plt.close(fig)
+        pdf.image(sa_file, w=180)
+        temp_files.append(sa_file)
+
+    # WordCloud
+    if include_wordcloud and wordcloud:
         pdf.add_page()
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, "WordCloud of Malaysia Blogs", ln=True)
+        wordcloud_file = "wordcloud.png"
+        wordcloud.to_file(wordcloud_file)
         pdf.image(wordcloud_file, w=180)
         temp_files.append(wordcloud_file)
 
+    # Top Words Frequency
     if include_topwords and word_freq:
         pdf.ln(10)
         pdf.set_font("Arial", "B", 14)
@@ -123,10 +183,19 @@ def save_combined_pdf(df_numeric, wordcloud_file=None, word_freq=None, include_w
         pdf.image(bar_file, w=180)
         temp_files.append(bar_file)
 
+    # Sources Page
+    if blog_sources:
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Sources of Malaysia Blogs", ln=True)
+        pdf.set_font("Arial", "", 12)
+        for src in blog_sources:
+            pdf.multi_cell(0, 6, f"- {src}")
+
     pdf_file = "Combined_Insights_Report.pdf"
     pdf.output(pdf_file)
 
-    # Clean up temp files
+    # Clean temp images
     for file in temp_files:
         if os.path.exists(file):
             os.remove(file)
@@ -144,9 +213,8 @@ years = st.sidebar.number_input("Analysis Period (Years)", value=30, step=1)
 df_numeric = generate_financial_df(mortgage_rate, rent_escalation, investment_return, years=years)
 
 # ----------------------------
-# Pages
+# Pages Implementation
 # ----------------------------
-
 # EDA Overview
 if page == "📊 EDA Overview":
     st.title("🔎 Dataset Preview & Stats")
@@ -178,94 +246,81 @@ elif page == "📈 Wealth Comparison":
 # Sensitivity Analysis
 elif page == "⚖️ Sensitivity Analysis":
     st.title("⚖️ Sensitivity Analysis")
-    st.info("Adjust sliders to see how mortgage, rent escalation, and investment returns affect wealth accumulation.")
+    st.write("Compare multiple scenarios of Buy vs Rent+Invest based on varying inputs.")
+    mortgage_min, mortgage_max = st.sidebar.slider("Mortgage Rate Range (%)", 2.0, 8.0, (3.0, 6.0), 0.5)
+    rent_min, rent_max = st.sidebar.slider("Rent Escalation Range (%)", 0.0, 10.0, (2.0, 5.0), 0.5)
+    invest_min, invest_max = st.sidebar.slider("Investment Return Range (%)", 3.0, 12.0, (5.0, 9.0), 0.5)
+    steps = st.sidebar.number_input("Number of Steps per Parameter", min_value=2, max_value=5, value=3)
+    st.info("Sensitivity analysis chart will overlay multiple Buy vs Rent+Invest scenarios.")
 
 # WordCloud
 elif page == "☁️ WordCloud":
-    st.title("☁️ WordCloud Generator (Malaysia Blogs)")
-    with st.spinner("Fetching Malaysia articles and generating WordCloud..."):
-        progress_bar = st.progress(0)
-        text_data, blog_sources = "", []
+    st.title("☁️ WordCloud Generator")
+    source_option = st.radio("Select text source:", ["Text Input", "Malaysia Blogs"])
+    text_data = ""
+    blog_sources = None
 
-        # Malaysia blog URLs
-        urls = [
-            "https://www.greateasternlife.com/my/en/personal-insurance/greatpedia/live-great-reads/wellbeing-and-success/should-you-buy-or-rent-a-property-in-malaysia.html",
-            "https://www.kwsp.gov.my/en/w/article/buy-vs-rent-malaysia",
-            "https://www.iproperty.com.my/guides/should-buy-or-rent-property-malaysia-30437"
-        ]
+    if source_option == "Text Input":
+        user_text = st.text_area("Paste your text here:", height=200)
+        if user_text.strip():
+            text_data = user_text
 
-        total_urls = len(urls)
-        headers = {"User-Agent": "Mozilla/5.0"}
+    elif source_option == "Malaysia Blogs":
+        st.info("Fetching latest Malaysia articles about Rent vs Buy...")
+        text_data, blog_sources = fetch_malaysia_articles(max_articles=3)
 
-        for idx, url in enumerate(urls):
-            try:
-                resp = requests.get(url, headers=headers, timeout=5)
-                soup = BeautifulSoup(resp.text, "html.parser")
-                paragraphs = [p.get_text() for p in soup.find_all("p")]
-                text_data += " ".join(paragraphs) + " "
-                blog_sources.append(url)
-            except Exception as e:
-                print(f"Failed to fetch {url}: {e}")
-            progress_bar.progress((idx + 1) / total_urls)
-
-        text_data = re.sub(r'\s+', ' ', text_data)
-        if not text_data.strip():
-            text_data = "No text could be fetched from the web. Check connection or sources."
-
+    if text_data.strip():
         extra_stopwords = {"akan","dan","atau","yang","untuk","dengan","jika"}
-        wc_file, word_freq = get_wordcloud_image(text_data, extra_stopwords)
-        progress_bar.empty()
+        stop_words = set(stopwords.words("english")) | extra_stopwords
+        wordcloud, word_freq = generate_wordcloud(text_data, stop_words=stop_words)
 
-    st.subheader("☁️ WordCloud")
-    st.image(wc_file)
+        # Display WordCloud as image
+        wc_file = "wordcloud_temp.png"
+        wordcloud.to_file(wc_file)
+        st.subheader("☁️ WordCloud")
+        st.image(wc_file, use_column_width=True)
 
-    words, counts = zip(*word_freq) if word_freq else ([], [])
-    st.subheader("📊 Top Words Frequency")
-    fig_bar, ax_bar = plt.subplots(figsize=(8,5))
-    if words:
-        ax_bar.barh(words[::-1], counts[::-1], color="teal")
-        ax_bar.set_xlabel("Count")
-        ax_bar.set_ylabel("Word")
+        if word_freq:
+            words, counts = zip(*word_freq)
+            st.subheader("📊 Top Words Frequency")
+            fig_bar, ax_bar = plt.subplots(figsize=(8,5))
+            ax_bar.barh(words[::-1], counts[::-1], color="teal")
+            ax_bar.set_xlabel("Count")
+            ax_bar.set_ylabel("Word")
+            st.pyplot(fig_bar)
     else:
-        ax_bar.text(0.5,0.5,"No words found", ha="center")
-    st.pyplot(fig_bar)
+        st.info("⚠️ No text available from the selected source.")
 
-# Combined Insights PDF
+# Combined Insights
 elif page == "🔗 Combined Insights":
     st.title("🔗 Combined Financial & Text Insights")
     include_wealth = st.checkbox("Include Wealth Curve", value=True)
     include_wordcloud = st.checkbox("Include WordCloud", value=True)
     include_topwords = st.checkbox("Include Top Words Bar Chart", value=True)
+    include_sensitivity = st.checkbox("Include Sensitivity Analysis", value=True)
 
-    # Fetch WordCloud if not already
-    if 'wc_file' not in locals() or 'word_freq' not in locals():
+    if 'wordcloud' not in locals() or 'word_freq' not in locals():
         st.info("Fetching Malaysia blogs for WordCloud...")
-        text_data = ""
-        urls = [
-            "https://www.greateasternlife.com/my/en/personal-insurance/greatpedia/live-great-reads/wellbeing-and-success/should-you-buy-or-rent-a-property-in-malaysia.html",
-            "https://www.kwsp.gov.my/en/w/article/buy-vs-rent-malaysia",
-            "https://www.iproperty.com.my/guides/should-buy-or-rent-property-malaysia-30437"
-        ]
-        headers = {"User-Agent": "Mozilla/5.0"}
-        for url in urls:
-            try:
-                resp = requests.get(url, headers=headers, timeout=5)
-                soup = BeautifulSoup(resp.text, "html.parser")
-                paragraphs = [p.get_text() for p in soup.find_all("p")]
-                text_data += " ".join(paragraphs) + " "
-            except:
-                continue
+        text_data, blog_sources = fetch_malaysia_articles(max_articles=3)
         extra_stopwords = {"akan","dan","atau","yang","untuk","dengan","jika"}
-        wc_file, word_freq = get_wordcloud_image(text_data, extra_stopwords)
+        stop_words = set(stopwords.words("english")) | extra_stopwords
+        wordcloud, word_freq = generate_wordcloud(text_data, stop_words=stop_words)
 
     if st.button("⬇️ Download Combined PDF"):
         pdf_file = save_combined_pdf(
             df_numeric,
-            wordcloud_file=wc_file if include_wordcloud else None,
-            word_freq=word_freq if include_topwords else None,
-            include_wealth=include_wealth,
-            include_wordcloud=include_wordcloud,
-            include_topwords=include_topwords
+            wordcloud if include_wordcloud else None,
+            word_freq if include_topwords else None,
+            include_wealth,
+            include_wordcloud,
+            include_topwords,
+            include_sensitivity,
+            mortgage_range=(2,6),
+            rent_range=(2,5),
+            invest_range=(5,9),
+            steps=3,
+            years=years,
+            blog_sources=blog_sources
         )
         with open(pdf_file, "rb") as f:
             st.download_button("Download PDF", f, file_name=pdf_file, mime="application/pdf")
