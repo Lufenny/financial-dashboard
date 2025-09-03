@@ -8,3 +8,5 @@ wordcloud>=1.9.2
 nltk>=3.8.1
 plotly
 fpdf
+beautifulsoup4
+requests
