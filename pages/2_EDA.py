@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from fpdf import FPDF
 import io
 import re
+from functools import lru_cache
 from collections import Counter
 from wordcloud import WordCloud
 import nltk
@@ -13,6 +14,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import time
+
 
 # ----------------------------
 # NLTK Setup
@@ -72,11 +74,17 @@ def generate_wordcloud(text, stop_words=None, width=800, height=400):
 # ----------------------------
 # Google Search Web Scraping Function
 # ----------------------------
-def fetch_google_articles(query="Rent vs Buy", max_articles=5):
+@st.cache_data(show_spinner=True)
+def fetch_google_articles_safe(query="Rent vs Buy", max_articles=5, delay=1):
+    """
+    Safely fetch article paragraphs from Google search with caching and polite delay.
+    Returns combined text for WordCloud.
+    """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
     search_url = f"https://www.google.com/search?q={query.replace(' ','+')}&num={max_articles}"
+    all_text = ""
     try:
         response = requests.get(search_url, headers=headers, timeout=5)
         soup = BeautifulSoup(response.text, "html.parser")
@@ -89,20 +97,23 @@ def fetch_google_articles(query="Rent vs Buy", max_articles=5):
                     links.append(url)
         links = links[:max_articles]
 
-        all_text = ""
         for url in links:
             try:
                 resp = requests.get(url, headers=headers, timeout=5)
                 page_soup = BeautifulSoup(resp.text, "html.parser")
                 paragraphs = [p.get_text() for p in page_soup.find_all("p")]
                 all_text += " ".join(paragraphs)
-                time.sleep(0.5)  # polite delay
-            except:
-                continue
-        all_text = re.sub(r'\s+', ' ', all_text)
-        return all_text
-    except:
-        return ""
+                time.sleep(delay)  # polite delay between requests
+            except Exception as e:
+                print(f"Skipping URL {url} due to error: {e}")
+    except Exception as e:
+        print(f"Google search failed: {e}")
+
+    all_text = re.sub(r'\s+', ' ', all_text)
+    if not all_text.strip():
+        all_text = "No text could be fetched from the web. Try another source or check your internet connection."
+    return all_text
+
 
 # ----------------------------
 # PDF Export Function
