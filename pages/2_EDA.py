@@ -6,7 +6,6 @@ from wordcloud import WordCloud
 import requests
 from bs4 import BeautifulSoup
 from fpdf import FPDF
-import io
 
 # --------------------------
 # Streamlit Page Config
@@ -35,7 +34,7 @@ def fetch_blog_text(url):
 all_text = " ".join([fetch_blog_text(url) for url in blog_sources])
 
 # --------------------------
-# Generate WordCloud & Word Frequency
+# Generate WordCloud & Top Words
 # --------------------------
 @st.cache_data
 def generate_wordcloud(text):
@@ -52,7 +51,7 @@ else:
     wordcloud, wordcloud_img, word_freq = None, None, None
 
 # --------------------------
-# Financial Model Functions
+# Financial Model
 # --------------------------
 def simulate_wealth(purchase_price, down_payment, mortgage_rate, rent, investment_return, years=30):
     loan_amount = purchase_price - down_payment
@@ -66,14 +65,14 @@ def simulate_wealth(purchase_price, down_payment, mortgage_rate, rent, investmen
 
     for year in range(1, years + 1):
         # Buy: property grows at 3% annually
-        invest_value = (invest_value + 0) * (1 + investment_return)
+        invest_value = invest_value * (1 + investment_return)
         property_value = purchase_price * ((1 + 0.03) ** year)
-        equity = property_value - loan_amount * ((1 + monthly_rate) ** (year * 12) - (1 + monthly_rate) ** (year * 12 - 12)) / ((1 + monthly_rate) ** (year * 12) - 1)
+        equity = property_value * (year / years)  # simplified equity growth
         wealth_buy.append(equity + invest_value)
 
-        # Rent & invest: save difference between rent & mortgage
-        savings = (mortgage_payment - rent * 12) if mortgage_payment > rent * 12 else 0
-        rent_invest = (rent_invest + savings) * (1 + investment_return)
+        # Rent & invest: save difference between mortgage & rent
+        savings = (mortgage_payment - rent / 12) if mortgage_payment > rent / 12 else 0
+        rent_invest = (rent_invest + savings * 12) * (1 + investment_return)
         wealth_rent.append(rent_invest)
 
     return wealth_buy, wealth_rent
@@ -87,7 +86,7 @@ def plot_wealth(purchase_price, down_payment, mortgage_rate, rent, investment_re
     ax.set_ylabel("Wealth (RM)")
     ax.legend()
     ax.grid(True)
-    return fig
+    return fig, wealth_buy, wealth_rent
 
 def plot_sensitivity(purchase_price, down_payment, mortgage_rate, rent, investment_return, years=30):
     fig, ax = plt.subplots(figsize=(6,4))
@@ -113,15 +112,14 @@ investment_return = st.sidebar.slider("Investment Return (%)", 2.0, 12.0, 6.0) /
 years = st.sidebar.slider("Years", 10, 40, 30)
 
 # --------------------------
-# Combined Insights in Streamlit
+# Combined Insights Section
 # --------------------------
 st.header("📊 Combined Financial & Text Insights")
 
 col1, col2 = st.columns(2)
-
 with col1:
     st.subheader("Wealth Accumulation")
-    fig = plot_wealth(purchase_price, down_payment, mortgage_rate, rent, investment_return, years)
+    fig, wealth_buy, wealth_rent = plot_wealth(purchase_price, down_payment, mortgage_rate, rent, investment_return, years)
     st.pyplot(fig)
 
 with col2:
@@ -137,31 +135,35 @@ st.subheader("Top Words from Articles")
 if word_freq is not None:
     st.dataframe(word_freq.reset_index().rename(columns={"index": "Word", 0: "Frequency"}))
 
+# Dynamic recommendation
 st.markdown("### 💡 Recommendation")
-st.info("""
-- **Buy** if you prioritize long-term stability and property appreciation.  
-- **Rent** if flexibility and liquidity are more important.  
-- Blogs suggest: weigh your savings, career mobility, and family plans.
-""")
+if wealth_buy[-1] > wealth_rent[-1]:
+    st.success("Based on your assumptions, **Buying** leads to higher long-term wealth accumulation.")
+else:
+    st.warning("Based on your assumptions, **Renting & Investing** leads to higher long-term wealth accumulation.")
 
 # --------------------------
 # Export to PDF
 # --------------------------
-def export_pdf():
+def export_pdf(rec_text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     pdf.cell(200, 10, "Buy vs Rent Analysis Report", ln=True, align="C")
-
+    pdf.ln(10)
     pdf.multi_cell(0, 10, "This report combines financial modelling and Malaysian property blog insights.\n\n")
 
-    # Recommendation Box
-    pdf.set_fill_color(230, 230, 250)
-    pdf.multi_cell(0, 10, "Recommendation:\nBuy for stability & appreciation.\nRent for flexibility & liquidity.\n", fill=True)
+    pdf.set_fill_color(240, 248, 255)
+    pdf.multi_cell(0, 10, f"Recommendation:\n{rec_text}", fill=True)
 
     return pdf
 
 if st.button("📥 Download PDF Report"):
-    pdf_file = export_pdf()
+    if wealth_buy[-1] > wealth_rent[-1]:
+        rec_text = "Buying leads to higher long-term wealth accumulation."
+    else:
+        rec_text = "Renting & Investing leads to higher long-term wealth accumulation."
+
+    pdf_file = export_pdf(rec_text)
     pdf_bytes = pdf_file.output(dest="S").encode("latin-1")
     st.download_button("Download PDF", data=pdf_bytes, file_name="buy_vs_rent_report.pdf", mime="application/pdf")
